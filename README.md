@@ -8,7 +8,7 @@ Micro Chat is designed to enhance communication by offering real-time text impro
 
 This app targets international consumers, bilingual individuals, and anyone looking to improve their English communication. It addresses the common challenge of expressing oneself clearly in another language by using AI to polish text, translate messages, and boost user confidence in cross-language interactions.
 
-## Planned Features
+## Planned Features 
 
 ### MVP Features:
 
