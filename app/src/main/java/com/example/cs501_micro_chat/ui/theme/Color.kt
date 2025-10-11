@@ -2,10 +2,11 @@ package com.example.cs501_micro_chat.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-val Purple80 = Color(0xFFD0BCFF)
-val PurpleGrey80 = Color(0xFFCCC2DC)
-val Pink80 = Color(0xFFEFB8C8)
+// Brand blues
+val NavyBlue = Color(0xFF00296B)
+val DeepBlue = Color(0xFF003F88)
+val PrimaryBlue = Color(0xFF00509D)
 
-val Purple40 = Color(0xFF6650a4)
-val PurpleGrey40 = Color(0xFF625b71)
-val Pink40 = Color(0xFF7D5260)
+// Accent golds
+val WarmGold = Color(0xFFFDC500)
+val BrightGold = Color(0xFFFFD500)
