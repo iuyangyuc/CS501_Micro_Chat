@@ -1,4 +1,4 @@
-package com.example.cs501_micro_chat
+package com.example.cs501_micro_chat.ui.main
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
