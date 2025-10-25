@@ -1,3 +1,21 @@
 <resources>
     <string name="app_name">CS501_Micro_Chat</string>
+    <string name="signup_title">Create your account</string>
+    <string name="signup_subtitle">Connect with friends and AI assistance.</string>
+    <string name="signup_email_label">Email address</string>
+    <string name="signup_password_label">Password</string>
+    <string name="signup_confirm_password_label">Confirm password</string>
+    <string name="signup_password_supporting">Use at least 8 characters with a number or symbol.</string>
+    <string name="signup_terms">By continuing you agree to the Terms of Service and Privacy Policy.</string>
+    <string name="signup_primary_button">Create account</string>
+    <string name="signup_google_button">Sign up with Google</string>
+    <string name="signup_loading">Creating account…</string>
+    <string name="signup_switch_to_login">Already have an account? Sign in</string>
+    <string name="signup_google_icon_description">Google logo</string>
+    <string name="signup_show_password">Show password</string>
+    <string name="signup_hide_password">Hide password</string>
+    <string name="login_placeholder_title">Welcome back</string>
+    <string name="login_placeholder_message">Login screen placeholder. Tap below to return to sign up.</string>
+    <string name="login_back">Go back</string>
+    <string name="login_signup_prompt">Need an account? Sign up</string>
 </resources>

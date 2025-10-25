@@ -1,47 +1,39 @@
 package com.example.cs501_micro_chat.ui.main
 
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
+import com.example.cs501_micro_chat.ui.main.composables.MicroChatApp
 import com.example.cs501_micro_chat.ui.theme.CS501_Micro_ChatTheme
+import com.google.firebase.storage.FirebaseStorage
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+
+        uploadTestFile()
+
         setContent {
             CS501_Micro_ChatTheme {
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    Greeting(
-                        name = "Android",
-                        modifier = Modifier.padding(innerPadding)
-                    )
-                }
+                MicroChatApp()
             }
         }
     }
-}
 
-@Composable
-fun Greeting(name: String, modifier: Modifier = Modifier) {
-    Text(
-        text = "Hello $name!",
-        modifier = modifier
-    )
-}
+    private fun uploadTestFile() {
+        val storage = FirebaseStorage.getInstance()
+        val ref = storage.reference.child("test_files/hello.txt")
+        val data = "Hello Firebase Storage!".toByteArray()
 
-@Preview(showBackground = true)
-@Composable
-fun GreetingPreview() {
-    CS501_Micro_ChatTheme {
-        Greeting("Android")
+        ref.putBytes(data)
+            .addOnSuccessListener {
+                Log.d("StorageTest", "Upload success!")
+            }
+            .addOnFailureListener { error ->
+                Log.e("StorageTest", "Upload failed: ${error.message}")
+            }
     }
 }
