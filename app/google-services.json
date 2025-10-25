@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "728068207217",
+    "project_id": "microchat-29a9f",
+    "storage_bucket": "microchat-29a9f.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:728068207217:android:0115a194f7ab2ac0d161d0",
+        "android_client_info": {
+          "package_name": "com.example.cs501_micro_chat"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "728068207217-m55a8qdstk9riprhdvgui9ub0d682p4m.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBI1yvJ4nWal3VG78Hr7fu6uFN4ryyjUTw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "728068207217-m55a8qdstk9riprhdvgui9ub0d682p4m.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
