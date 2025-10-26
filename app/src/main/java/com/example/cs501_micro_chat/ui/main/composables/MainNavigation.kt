@@ -7,7 +7,7 @@ import androidx.compose.ui.Modifier
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import com.example.cs501_micro_chat.ui.auth.composables.LoginScreen
+import com.example.cs501_micro_chat.ui.login.LoginScreen
 import com.example.cs501_micro_chat.ui.signup.SignupRoute
 
 private object AuthDestinations {
