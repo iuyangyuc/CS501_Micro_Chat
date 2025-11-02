@@ -7,7 +7,7 @@ import androidx.compose.ui.Modifier
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import com.example.cs501_micro_chat.ui.login.LoginScreen
+import com.example.cs501_micro_chat.ui.login.LoginRoute
 import com.example.cs501_micro_chat.ui.signup.SignupRoute
 
 private object AuthDestinations {
@@ -22,12 +22,12 @@ fun MicroChatApp() {
     Surface(modifier = Modifier.fillMaxSize()) {
         NavHost(
             navController = navController,
-            startDestination = AuthDestinations.Signup
+            startDestination = AuthDestinations.Login
         ) {
             composable(route = AuthDestinations.Signup) {
                 SignupRoute(
                     onNavigateToLogin = {
-                        navController.navigate(AuthDestinations.Login)
+                        navController.popBackStack(AuthDestinations.Login, inclusive = false)
                     },
                     onSignupSuccess = {
                         navController.navigate(AuthDestinations.Login) {
@@ -39,14 +39,16 @@ fun MicroChatApp() {
                 )
             }
             composable(route = AuthDestinations.Login) {
-                LoginScreen(
-                    onNavigateBack = { navController.popBackStack() },
+                LoginRoute(
                     onNavigateToSignup = {
                         navController.navigate(AuthDestinations.Signup) {
                             popUpTo(AuthDestinations.Signup) {
                                 inclusive = true
                             }
                         }
+                    },
+                    onLoginSuccess = {
+                        // TODO: Navigate to conversations once implemented.
                     }
                 )
             }
