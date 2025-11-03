@@ -1,3 +1,18 @@
+/**
+ * LoginRoute.kt
+ *
+ * 登录路由文件 - 处理登录界面的导航和 Google 登录集成
+ * Login Route - Handles login navigation and Google Sign-In integration
+ *
+ * 主要功能 / Main Functions:
+ * - 配置 Google 登录客户端 / Configure Google Sign-In client
+ * - 处理 Google 登录结果回调 / Handle Google Sign-In result callbacks
+ * - 管理登录成功事件导航 / Manage login success navigation
+ * - 协调 ViewModel 和 UI Screen / Coordinate ViewModel and UI Screen
+ *
+ * @author CS501 Team
+ * @date 2025-11-02
+ */
 package com.example.cs501_micro_chat.ui.login
 
 import android.app.Activity

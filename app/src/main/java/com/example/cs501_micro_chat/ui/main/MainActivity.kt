@@ -8,7 +8,9 @@ import androidx.activity.enableEdgeToEdge
 import com.example.cs501_micro_chat.ui.main.composables.MicroChatApp
 import com.example.cs501_micro_chat.ui.theme.CS501_Micro_ChatTheme
 import com.google.firebase.storage.FirebaseStorage
+import dagger.hilt.android.AndroidEntryPoint
 
+@AndroidEntryPoint
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

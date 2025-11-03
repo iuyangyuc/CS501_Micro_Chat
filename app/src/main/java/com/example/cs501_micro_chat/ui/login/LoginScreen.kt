@@ -1,3 +1,26 @@
+/**
+ * LoginScreen.kt
+ *
+ * 登录界面 UI 组件 - 提供完整的登录视觉界面和交互
+ * Login Screen UI Component - Provides complete login visual interface and interactions
+ *
+ * 主要功能 / Main Functions:
+ * - 响应式动画登录卡片布局 / Responsive animated login card layout
+ * - 邮箱登录表单（邮箱+密码）/ Email login form (email + password)
+ * - Google 第三方登录界面 / Google third-party login interface
+ * - 语言切换功能（中文/英文）/ Language switching (Chinese/English)
+ * - 用户协议和隐私政策确认 / Terms and privacy policy confirmation
+ * - 动态背景和过渡动画 / Dynamic background and transition animations
+ * - 错误提示和加载状态显示 / Error messages and loading state display
+ *
+ * 架构设计 / Architecture:
+ * - 使用 Jetpack Compose 声明式 UI / Uses Jetpack Compose declarative UI
+ * - 响应式布局自适应不同屏幕尺寸 / Responsive layout adapts to different screen sizes
+ * - Material Design 3 设计规范 / Material Design 3 design guidelines
+ *
+ * @author CS501 Team
+ * @date 2025-11-02
+ */
 package com.example.cs501_micro_chat.ui.login
 
 import android.content.res.Configuration
@@ -132,18 +155,18 @@ fun LoginScreen(
     }
 
     BoxWithConstraints(modifier = modifier.fillMaxSize()) {
-        val width = maxWidth
-        val height = maxHeight
+        val width = this.maxWidth
+        val height = this.maxHeight
         val layoutDirection = LocalLayoutDirection.current
         val widthRatio = (width.value / 360f).coerceIn(1f, 3f)
         val heightRatio = (height.value / 720f).coerceIn(0.5f, 1.8f)
         val compactFactor = 1.1f - heightRatio
 
-        val collapsedCardFraction = (0.42f + compactFactor * 0.28f).coerceIn(0.35f, 0.68f)
-        val googleCardFraction = (collapsedCardFraction + 0.18f + compactFactor * 0.12f - (widthRatio - 1f) * 0.04f)
-            .coerceIn(0.5f, 0.9f)
-        val emailCardFraction = (collapsedCardFraction + 0.24f).coerceIn(0.56f, 0.94f)
-        val focusCardFraction = (emailCardFraction + 0.08f - compactFactor * 0.05f).coerceIn(0.66f, 0.95f)
+        val collapsedCardFraction = (0.45f + compactFactor * 0.20f).coerceIn(0.45f, 0.65f)
+        val googleCardFraction = (collapsedCardFraction + 0.25f + compactFactor * 0.12f - (widthRatio - 1f) * 0.04f)
+            .coerceIn(0.70f, 0.90f)
+        val emailCardFraction = (collapsedCardFraction + 0.30f).coerceIn(0.75f, 0.95f)
+        val focusCardFraction = (emailCardFraction + 0.08f - compactFactor * 0.05f).coerceIn(0.83f, 1.0f)
 
         val targetCardFraction = when {
             state.activeProvider == null -> collapsedCardFraction
@@ -157,9 +180,9 @@ fun LoginScreen(
             label = "cardFraction"
         )
 
-        val headerOverlap = (0.15f + (widthRatio - 1f) * 0.05f).coerceIn(0.1f, 0.24f)
-        val minHeaderFraction = (0.42f - (heightRatio - 1f) * 0.08f).coerceIn(0.34f, 0.52f)
-        val maxHeaderFraction = (0.78f + (widthRatio - 1f) * 0.04f).coerceIn(0.6f, 0.85f)
+        val headerOverlap = (0.12f + (widthRatio - 1f) * 0.04f).coerceIn(0.08f, 0.20f)
+        val minHeaderFraction = (0.30f - (heightRatio - 1f) * 0.06f).coerceIn(0.20f, 0.40f)
+        val maxHeaderFraction = (0.60f + (widthRatio - 1f) * 0.04f).coerceIn(0.45f, 0.70f)
         val backgroundFraction = (1f - cardFraction + headerOverlap).coerceIn(minHeaderFraction, maxHeaderFraction)
 
         val overlayAlphaTarget = when {
@@ -183,17 +206,12 @@ fun LoginScreen(
             label = "cardElevation"
         )
 
-        val cardCornerRadius = (36f + (widthRatio - 1f) * 10f).coerceIn(36f, 56f).dp
-        val cardShape = RoundedCornerShape(topStart = cardCornerRadius, topEnd = cardCornerRadius)
+        val cardCornerRadius = (28f + (widthRatio - 1f) * 8f).coerceIn(28f, 42f).dp
+        val cardShape = RoundedCornerShape(topStart = cardCornerRadius, topEnd = cardCornerRadius, bottomStart = 0.dp, bottomEnd = 0.dp)
 
-        val cardWidthFraction = (1.05f / widthRatio).coerceIn(0.55f, 1f)
-        val maxCardWidth = (width * 0.85f).coerceAtMost(640.dp)
-        val cardWidthModifier = Modifier
-            .fillMaxWidth(cardWidthFraction)
-            .widthIn(max = maxCardWidth)
+        val cardWidthModifier = Modifier.fillMaxWidth()
 
-        val cardHeightFraction = cardFraction.coerceIn(0.38f, 0.97f)
-
+        val cardHeightFraction = cardFraction.coerceIn(0.45f, 1.0f)
         val baseHorizontalPadding = (24f + (widthRatio - 1f) * 12f).coerceIn(20f, 44f).dp
         val baseVerticalPadding = (24f + (1f - heightRatio) * 12f).coerceIn(18f, 34f).dp
         val resolvedHorizontal = maxOf(
@@ -680,16 +698,39 @@ private fun GoogleLoginSection(
     horizontalPadding: Dp,
     titleOffset: Dp
 ) {
-    Box(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = horizontalPadding, vertical = 12.dp)
-            .heightIn(min = minHeight)
+            .heightIn(min = minHeight),
+        verticalArrangement = Arrangement.spacedBy(20.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
+        // Title section at the top
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .align(Alignment.BottomCenter),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text(
+                text = strings.googleLoginTitle,
+                style = MaterialTheme.typography.headlineSmall,
+                color = MaterialTheme.colorScheme.onBackground,
+                fontWeight = FontWeight.SemiBold
+            )
+            Text(
+                text = strings.googleLoginSubtitle,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+
+        Spacer(modifier = Modifier.weight(1f))
+
+        // Bottom section with agreement and button
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(18.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             AgreementRow(
@@ -700,8 +741,6 @@ private fun GoogleLoginSection(
                 onViewPrivacy = onViewPrivacy,
                 modifier = Modifier.fillMaxWidth()
             )
-
-            Spacer(modifier = Modifier.height(18.dp))
 
             OutlinedButton(
                 onClick = onGoogleLoginClick,
@@ -731,35 +770,12 @@ private fun GoogleLoginSection(
                 }
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
-
             Text(
                 text = strings.registerHint,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.clickable(onClick = onNavigateToSignup),
                 textDecoration = TextDecoration.Underline
-            )
-        }
-
-        Column(
-            verticalArrangement = Arrangement.spacedBy(6.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier
-                .fillMaxWidth()
-                .align(Alignment.Center)
-                .offset(y = titleOffset)
-        ) {
-            Text(
-                text = strings.googleLoginTitle,
-                style = MaterialTheme.typography.headlineSmall,
-                color = MaterialTheme.colorScheme.onBackground,
-                fontWeight = FontWeight.SemiBold
-            )
-            Text(
-                text = strings.googleLoginSubtitle,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
     }

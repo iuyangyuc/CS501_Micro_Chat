@@ -1,3 +1,32 @@
+/**
+ * LoginViewModel.kt
+ *
+ * 登录视图模型 - 处理登录业务逻辑和状态管理
+ * Login ViewModel - Handles login business logic and state management
+ *
+ * 主要功能 / Main Functions:
+ * - 管理登录界面状态 (StateFlow) / Manage login screen state (StateFlow)
+ * - 处理邮箱登录逻辑 / Handle email login logic
+ * - 处理 Google 登录流程 / Handle Google Sign-In flow
+ * - 表单输入验证 / Form input validation
+ * - 错误处理和用户友好的错误消息 / Error handling and user-friendly error messages
+ * - 多语言错误提示支持 / Multi-language error message support
+ * - 登录事件通知 (Channel) / Login event notification (Channel)
+ *
+ * 架构设计 / Architecture:
+ * - MVVM 模式 / MVVM pattern
+ * - 使用 Kotlin Coroutines 处理异步操作 / Uses Kotlin Coroutines for async operations
+ * - Repository 模式访问数据层 / Repository pattern for data access
+ * - StateFlow 用于状态管理 / StateFlow for state management
+ * - Channel 用于一次性事件 / Channel for one-time events
+ *
+ * 依赖 / Dependencies:
+ * - AuthRepository: 认证数据仓库接口 / Authentication repository interface
+ * - Firebase Authentication: 后端认证服务 / Backend authentication service
+ *
+ * @author CS501 Team
+ * @date 2025-11-02
+ */
 package com.example.cs501_micro_chat.ui.login
 
 import android.util.Log
