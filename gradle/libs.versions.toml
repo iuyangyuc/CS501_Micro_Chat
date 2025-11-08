@@ -20,6 +20,7 @@ playServicesAuth = "21.2.0"
 coroutinesPlayServices = "1.8.1"
 coroutinesTest = "1.8.1"
 lottie = "6.5.0"
+coil = "2.5.0"
 hilt = "2.51.1"
 hiltNavigationCompose = "1.2.0"
 
@@ -54,6 +55,7 @@ google-play-services-auth = { group = "com.google.android.gms", name = "play-ser
 kotlinx-coroutines-play-services = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-play-services", version.ref = "coroutinesPlayServices" }
 kotlinx-coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test", version.ref = "coroutinesTest" }
 lottie-compose = { group = "com.airbnb.android", name = "lottie-compose", version.ref = "lottie" }
+coil-compose = { group = "io.coil-kt", name = "coil-compose", version.ref = "coil" }
 hilt-android = { group = "com.google.dagger", name = "hilt-android", version.ref = "hilt" }
 hilt-compiler = { group = "com.google.dagger", name = "hilt-android-compiler", version.ref = "hilt" }
 hilt-navigation-compose = { group = "androidx.hilt", name = "hilt-navigation-compose", version.ref = "hiltNavigationCompose" }

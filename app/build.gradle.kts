@@ -68,6 +68,7 @@ dependencies {
     implementation(libs.firebase.firestore)
     implementation(libs.kotlinx.coroutines.play.services)
     implementation(libs.lottie.compose)
+    implementation(libs.coil.compose)
 
     // Hilt
     implementation(libs.hilt.android)

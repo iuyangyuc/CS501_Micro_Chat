@@ -21,10 +21,10 @@
  */
 package com.example.cs501_micro_chat.data.remote
 
+import android.util.Log
 import com.example.cs501_micro_chat.data.model.*
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
-import com.google.firebase.firestore.ListenerRegistration
 import com.google.firebase.firestore.Query
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
@@ -41,6 +41,10 @@ class FirebaseDataSource @Inject constructor(
     private val usersCollection = firestore.collection("users")
     private val conversationsCollection = firestore.collection("conversations")
     private val groupsCollection = firestore.collection("groups")
+
+    companion object {
+        private const val TAG = "FirebaseDataSource"
+    }
 
     // ==================== 用户相关 User Operations ====================
     
@@ -250,19 +254,27 @@ class FirebaseDataSource @Inject constructor(
 
     /**
      * 监听用户的会话列表
+     *
+     * 注意：移除了 orderBy 以避免需要复合索引
+     * 排序改为在客户端（ViewModel）进行
      */
     fun observeUserConversations(userId: String): Flow<List<Conversation>> = callbackFlow {
         val listener = conversationsCollection
             .whereArrayContains("participants", userId)
             .whereEqualTo("isActive", true)
-            .orderBy("lastMessageTime", Query.Direction.DESCENDING)
+            // 移除 .orderBy() 以避免需要复合索引
+            // 排序将在 HomeViewModel 中进行
             .addSnapshotListener { snapshot, error ->
                 if (error != null) {
+                    Log.e(TAG, "Error observing conversations", error)
                     close(error)
                     return@addSnapshotListener
                 }
                 val conversations = snapshot?.toObjects(Conversation::class.java) ?: emptyList()
-                trySend(conversations)
+                Log.d(TAG, "Received ${conversations.size} conversations from Firestore")
+                // 在客户端按时间排序
+                val sortedConversations = conversations.sortedByDescending { it.lastMessageTime }
+                trySend(sortedConversations)
             }
         awaitClose { listener.remove() }
     }

@@ -66,7 +66,7 @@ class FirebaseInitializer @Inject constructor(
                 id = userId,
                 username = "TestUser$i",
                 email = "testuser$i@example.com",
-                avatarUrl = "https://api.dicebear.com/7.x/avataaars/svg?seed=TestUser$i",
+                avatarUrl = "https://api.dicebear.com/7.x/avataaars/png?seed=TestUser$i",
                 status = if (i % 2 == 0) UserStatus.ONLINE else UserStatus.OFFLINE,
                 statusMessage = "This is test user $i",
                 createdAt = System.currentTimeMillis() - (i * 86400000L), // 每个用户早一天创建
@@ -246,7 +246,7 @@ class FirebaseInitializer @Inject constructor(
             id = groupId,
             name = "测试群组 🎉",
             description = "这是一个测试群组，用于演示群聊功能",
-            avatarUrl = "https://api.dicebear.com/7.x/identicon/svg?seed=TestGroup",
+            avatarUrl = "https://api.dicebear.com/7.x/identicon/png?seed=TestGroup",
             ownerId = currentUserId,
             adminIds = listOf(currentUserId),
             memberIds = listOf(currentUserId) + testUsers,
@@ -373,8 +373,429 @@ class FirebaseInitializer @Inject constructor(
             Log.d(TAG, "Deleted test user: ${doc.id}")
         }
 
+        // 删除好友测试数据
+        val friends = firestore.collection("users")
+            .whereGreaterThanOrEqualTo("id", "friend_")
+            .get()
+            .await()
+
+        friends.documents.forEach { doc ->
+            doc.reference.delete().await()
+            Log.d(TAG, "Deleted friend: ${doc.id}")
+        }
+
         Log.d(TAG, "Test data cleared")
         "测试数据已清除"
     }
+
+    /**
+     * 为特定用户创建完整的测试数据（好友 + 对话历史）
+     * 专门为 lf1991@bu.edu (ID: oQxEirc9JbOmHOTUjsm9q4mFpln2) 设计
+     */
+    suspend fun createCompleteTestDataForUser(userId: String): Result<String> = runCatching {
+        Log.d(TAG, "开始为用户 $userId 创建完整测试数据")
+
+        // 0. 首先更新当前用户的完整信息
+        updateCurrentUserInfo(userId)
+        Log.d(TAG, "当前用户信息已更新")
+
+        // 1. 创建测试好友（虚拟用户）
+        val friends = createTestFriends(userId)
+        Log.d(TAG, "创建了 ${friends.size} 个测试好友")
+
+        // 2. 为每个好友创建对话历史
+        var totalMessages = 0
+        for (friend in friends) {
+            val messageCount = createConversationWithFriend(userId, friend)
+            totalMessages += messageCount
+            Log.d(TAG, "与 ${friend.username} 创建了 $messageCount 条消息")
+        }
+
+        // 3. 创建一个测试群组
+        val groupResult = createTestGroupForUser(userId, friends.take(3))
+
+        val groupName = groupResult.getOrNull()?.name ?: ""
+
+        "成功创建：\n" +
+                "✅ 用户信息已更新\n" +
+                "✅ ${friends.size} 个好友\n" +
+                "✅ ${friends.size} 个私聊会话\n" +
+                "✅ $totalMessages 条聊天消息\n" +
+                "✅ 1 个群组\n" +
+                if (groupName.isNotEmpty()) "✅ 群组名称：$groupName" else ""
+    }
+
+    /**
+     * 更新当前用户的完整信息
+     */
+    private suspend fun updateCurrentUserInfo(userId: String) {
+        val currentFirebaseUser = auth.currentUser
+        val email = currentFirebaseUser?.email ?: "lf1991@bu.edu"
+
+        val user = User(
+            id = userId,
+            username = "Leo Fang", // 为测试账号设置一个用户名
+            email = email,
+            avatarUrl = "https://api.dicebear.com/7.x/avataaars/png?seed=LeoFang",
+            status = UserStatus.ONLINE,
+            statusMessage = "使用 Micro Chat 聊天中 💬",
+            createdAt = System.currentTimeMillis() - 90 * 86400000L, // 90天前注册
+            lastSeenAt = System.currentTimeMillis()
+        )
+
+        firestore.collection("users")
+            .document(userId)
+            .set(user.toMap())
+            .await()
+
+        Log.d(TAG, "用户信息已更新: ${user.username} (${user.email})")
+    }
+
+    /**
+     * 创建测试好友（虚拟用户）
+     */
+    private suspend fun createTestFriends(currentUserId: String): List<User> {
+        val friends = listOf(
+            User(
+                id = "friend_001",
+                username = "王经理",
+                email = "wang.manager@company.com",
+                avatarUrl = "https://api.dicebear.com/7.x/avataaars/png?seed=WangManager",
+                status = UserStatus.ONLINE,
+                statusMessage = "忙碌中...",
+                createdAt = System.currentTimeMillis() - 30 * 86400000L,
+                lastSeenAt = System.currentTimeMillis()
+            ),
+            User(
+                id = "friend_002",
+                username = "Sarah Liu",
+                email = "sarah.liu@design.com",
+                avatarUrl = "https://api.dicebear.com/7.x/avataaars/png?seed=SarahLiu",
+                status = UserStatus.ONLINE,
+                statusMessage = "设计中🎨",
+                createdAt = System.currentTimeMillis() - 45 * 86400000L,
+                lastSeenAt = System.currentTimeMillis() - 3600000L
+            ),
+            User(
+                id = "friend_003",
+                username = "张工程师",
+                email = "zhang.engineer@tech.com",
+                avatarUrl = "https://api.dicebear.com/7.x/avataaars/png?seed=ZhangEngineer",
+                status = UserStatus.AWAY,
+                statusMessage = "Code never lies 💻",
+                createdAt = System.currentTimeMillis() - 60 * 86400000L,
+                lastSeenAt = System.currentTimeMillis() - 7200000L
+            ),
+            User(
+                id = "friend_004",
+                username = "Lisa Chen",
+                email = "lisa.chen@pm.com",
+                avatarUrl = "https://api.dicebear.com/7.x/avataaars/png?seed=LisaChen",
+                status = UserStatus.AWAY,
+                statusMessage = "Meeting all day 📅",
+                createdAt = System.currentTimeMillis() - 20 * 86400000L,
+                lastSeenAt = System.currentTimeMillis() - 14400000L
+            ),
+            User(
+                id = "friend_005",
+                username = "Mike Developer",
+                email = "mike.dev@startup.io",
+                avatarUrl = "https://api.dicebear.com/7.x/avataaars/png?seed=MikeDev",
+                status = UserStatus.OFFLINE,
+                statusMessage = "Building the future 🚀",
+                createdAt = System.currentTimeMillis() - 90 * 86400000L,
+                lastSeenAt = System.currentTimeMillis() - 86400000L
+            )
+        )
+
+        // 写入 Firebase
+        for (friend in friends) {
+            firestore.collection("users")
+                .document(friend.id)
+                .set(friend.toMap())
+                .await()
+
+            // 同时为当前用户添加联系人
+            val contact = Contact(
+                userId = currentUserId,
+                contactId = friend.id,
+                contactName = friend.username,
+                contactAvatarUrl = friend.avatarUrl,
+                alias = "", // 不设置备注
+                tags = emptyList(),
+                isFavorite = friend.id == "friend_001", // 第一个设为特别关注
+                isBlocked = false,
+                addedAt = friend.createdAt,
+                conversationId = "" // 稍后创建会话时更新
+            )
+
+            firestore.collection("users")
+                .document(currentUserId)
+                .collection("contacts")
+                .document(friend.id)
+                .set(contact.toMap())
+                .await()
+        }
+
+        return friends
+    }
+
+    /**
+     * 为特定好友创建对话历史
+     */
+    private suspend fun createConversationWithFriend(currentUserId: String, friend: User): Int {
+        // 创建会话
+        val conversationId = firestore.collection("conversations").document().id
+
+        val conversation = Conversation(
+            id = conversationId,
+            type = ConversationType.PRIVATE,
+            name = friend.username,
+            avatarUrl = friend.avatarUrl,
+            participants = listOf(currentUserId, friend.id),
+            lastMessage = getLastMessageForFriend(friend.id),
+            lastMessageTime = getLastMessageTimeForFriend(friend.id),
+            unreadCounts = mapOf(
+                currentUserId to getUnreadCountForFriend(friend.id),
+                friend.id to 0
+            ),
+            createdAt = friend.createdAt,
+            createdBy = currentUserId,
+            isActive = true
+        )
+
+        firestore.collection("conversations")
+            .document(conversationId)
+            .set(conversation.toMap())
+            .await()
+
+        // 创建消息历史
+        val messages = getMessagesForFriend(friend.id, currentUserId, friend)
+        for ((index, messageData) in messages.withIndex()) {
+            val message = Message(
+                id = "",
+                conversationId = conversationId,
+                senderId = messageData.senderId,
+                senderName = messageData.senderName,
+                senderAvatarUrl = messageData.avatarUrl,
+                content = messageData.content,
+                type = MessageType.TEXT,
+                mediaUrl = "",
+                timestamp = System.currentTimeMillis() - ((messages.size - index) * 3600000L),
+                readBy = if (messageData.senderId == currentUserId)
+                    listOf(currentUserId, friend.id)
+                else
+                    if (index < messages.size - getUnreadCountForFriend(friend.id))
+                        listOf(currentUserId, friend.id)
+                    else
+                        listOf(friend.id),
+                isDeleted = false
+            )
+
+            firestore.collection("conversations")
+                .document(conversationId)
+                .collection("messages")
+                .add(message.toMap())
+                .await()
+        }
+
+        return messages.size
+    }
+
+    /**
+     * 获取好友的对话内容
+     */
+    private fun getMessagesForFriend(
+        friendId: String,
+        currentUserId: String,
+        friend: User
+    ): List<MessageData> {
+        return when (friendId) {
+            "friend_001" -> listOf( // 王经理
+                MessageData(friend.id, friend.username, friend.avatarUrl, "明天的会议准备好了吗？"),
+                MessageData(currentUserId, "我", "", "是的，PPT已经做好了"),
+                MessageData(friend.id, friend.username, friend.avatarUrl, "很好，记得提前10分钟到"),
+                MessageData(currentUserId, "我", "", "收到！"),
+                MessageData(friend.id, friend.username, friend.avatarUrl, "对了，把最新的数据也带上"),
+                MessageData(currentUserId, "我", "", "好的，没问题")
+            )
+            "friend_002" -> listOf( // Sarah Liu
+                MessageData(friend.id, friend.username, friend.avatarUrl, "Hey! 看到你的设计稿了，很棒！ 🎨"),
+                MessageData(currentUserId, "我", "", "谢谢！有什么建议吗？"),
+                MessageData(friend.id, friend.username, friend.avatarUrl, "配色方案可以再大胆一些"),
+                MessageData(currentUserId, "我", "", "好的，我试试看"),
+                MessageData(friend.id, friend.username, friend.avatarUrl, "期待你的新版本！"),
+                MessageData(currentUserId, "我", "", "周五之前给你 ✨")
+            )
+            "friend_003" -> listOf( // 张工程师
+                MessageData(currentUserId, "我", "", "那个 bug 修好了吗？"),
+                MessageData(friend.id, friend.username, friend.avatarUrl, "正在处理，有点复杂"),
+                MessageData(currentUserId, "我", "", "需要帮忙吗？"),
+                MessageData(friend.id, friend.username, friend.avatarUrl, "暂时不用，我再研究研究"),
+                MessageData(currentUserId, "我", "", "好的，有需要随时说"),
+                MessageData(friend.id, friend.username, friend.avatarUrl, "👍")
+            )
+            "friend_004" -> listOf( // Lisa Chen
+                MessageData(friend.id, friend.username, friend.avatarUrl, "项目进度更新了"),
+                MessageData(friend.id, friend.username, friend.avatarUrl, "请查看邮件里的详细报告"),
+                MessageData(currentUserId, "我", "", "收到，我看看"),
+                MessageData(currentUserId, "我", "", "整体进度不错啊"),
+                MessageData(friend.id, friend.username, friend.avatarUrl, "是的，基本符合预期 📊")
+            )
+            "friend_005" -> listOf( // Mike Developer
+                MessageData(friend.id, friend.username, friend.avatarUrl, "用过这个框架吗？"),
+                MessageData(friend.id, friend.username, friend.avatarUrl, "[分享链接]"),
+                MessageData(currentUserId, "我", "", "看着不错，准备在新项目中试试"),
+                MessageData(friend.id, friend.username, friend.avatarUrl, "性能很好，推荐 🚀"),
+                MessageData(currentUserId, "我", "", "谢谢推荐！")
+            )
+            else -> listOf(
+                MessageData(friend.id, friend.username, friend.avatarUrl, "Hello!"),
+                MessageData(currentUserId, "我", "", "Hi there!")
+            )
+        }
+    }
+
+    /**
+     * 获取每个好友的最后一条消息
+     */
+    private fun getLastMessageForFriend(friendId: String): String {
+        return when (friendId) {
+            "friend_001" -> "好的，没问题"
+            "friend_002" -> "周五之前给你 ✨"
+            "friend_003" -> "👍"
+            "friend_004" -> "是的，基本符合预期 📊"
+            "friend_005" -> "谢谢推荐！"
+            else -> "Hi there!"
+        }
+    }
+
+    /**
+     * 获取每个好友的最后消息时间（匹配截图中的时间）
+     */
+    private fun getLastMessageTimeForFriend(friendId: String): Long {
+        return when (friendId) {
+            "friend_001" -> System.currentTimeMillis() - 7200000L  // 2:32 PM (2小时前)
+            "friend_002" -> System.currentTimeMillis() - 14400000L // 1:15 PM (4小时前)
+            "friend_003" -> System.currentTimeMillis() - 28800000L // 11:20 AM (8小时前)
+            "friend_004" -> System.currentTimeMillis() - 86400000L // Yesterday
+            "friend_005" -> System.currentTimeMillis() - 86400000L // Yesterday
+            else -> System.currentTimeMillis()
+        }
+    }
+
+    /**
+     * 获取每个好友的未读消息数（匹配截图）
+     */
+    private fun getUnreadCountForFriend(friendId: String): Int {
+        return when (friendId) {
+            "friend_001" -> 3 // Product Design Team - 3条未读
+            "friend_002" -> 1 // Manager Wang - 1条未读
+            "friend_003" -> 0 // Dev Team Weekly - 已读
+            "friend_004" -> 0 // Sarah Liu - 已读
+            "friend_005" -> 5 // Tech Discussion - 5条未读
+            else -> 0
+        }
+    }
+
+    /**
+     * 为用户创建测试群组
+     */
+    private suspend fun createTestGroupForUser(
+        currentUserId: String,
+        members: List<User>
+    ): Result<Group> = runCatching {
+        val groupId = firestore.collection("groups").document().id
+
+        val group = Group(
+            id = groupId,
+            name = "Product Design Team",
+            description = "产品设计团队内部讨论组",
+            avatarUrl = "https://api.dicebear.com/7.x/identicon/png?seed=ProductDesignTeam",
+            ownerId = currentUserId,
+            adminIds = listOf(currentUserId),
+            memberIds = listOf(currentUserId) + members.map { it.id },
+            maxMembers = 500,
+            createdAt = System.currentTimeMillis() - 15 * 86400000L,
+            settings = GroupSettings(
+                allowMemberInvite = true,
+                requireAdminApproval = false,
+                muteAll = false,
+                showMemberList = true,
+                allowMemberNickname = true
+            )
+        )
+
+        // 创建群组
+        firestore.collection("groups")
+            .document(groupId)
+            .set(group.toMap())
+            .await()
+
+        // 创建对应的群聊会话
+        val conversation = Conversation(
+            id = groupId,
+            type = ConversationType.GROUP,
+            name = group.name,
+            avatarUrl = group.avatarUrl,
+            participants = group.memberIds,
+            lastMessage = "John: Updated the design files",
+            lastMessageTime = System.currentTimeMillis() - 3600000L, // 1小时前
+            unreadCounts = mapOf(currentUserId to 3) + members.associate { it.id to 0 },
+            createdAt = group.createdAt,
+            createdBy = currentUserId,
+            isActive = true
+        )
+
+        firestore.collection("conversations")
+            .document(groupId)
+            .set(conversation.toMap())
+            .await()
+
+        // 创建一些群消息
+        val groupMessages = listOf(
+            MessageData("system", "系统", "", "欢迎加入 Product Design Team！"),
+            MessageData(members[0].id, members[0].username, members[0].avatarUrl, "大家好！"),
+            MessageData(currentUserId, "我", "", "欢迎欢迎！"),
+            MessageData(members[1].id, members[1].username, members[1].avatarUrl, "新设计稿已经上传到云盘了"),
+            MessageData(members[2].id, members[2].username, members[2].avatarUrl, "收到，我看看"),
+            MessageData(members[0].id, "John", members[0].avatarUrl, "Updated the design files")
+        )
+
+        for ((index, messageData) in groupMessages.withIndex()) {
+            val message = Message(
+                id = "",
+                conversationId = groupId,
+                senderId = messageData.senderId,
+                senderName = messageData.senderName,
+                senderAvatarUrl = messageData.avatarUrl,
+                content = messageData.content,
+                type = if (messageData.senderId == "system") MessageType.SYSTEM else MessageType.TEXT,
+                mediaUrl = "",
+                timestamp = System.currentTimeMillis() - ((groupMessages.size - index) * 1800000L), // 每条消息间隔30分钟
+                readBy = if (index < groupMessages.size - 3) group.memberIds else listOf(messageData.senderId),
+                isDeleted = false
+            )
+
+            firestore.collection("conversations")
+                .document(groupId)
+                .collection("messages")
+                .add(message.toMap())
+                .await()
+        }
+
+        Log.d(TAG, "Group created: ${group.name}")
+        group
+    }
 }
+
+/**
+ * 消息数据辅助类
+ */
+private data class MessageData(
+    val senderId: String,
+    val senderName: String,
+    val avatarUrl: String,
+    val content: String
+)
 

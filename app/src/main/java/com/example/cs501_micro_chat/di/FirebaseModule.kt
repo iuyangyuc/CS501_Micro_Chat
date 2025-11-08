@@ -9,7 +9,9 @@
 package com.example.cs501_micro_chat.di
 
 import com.example.cs501_micro_chat.data.remote.FirebaseDataSource
+import com.example.cs501_micro_chat.data.repository.AuthRepository
 import com.example.cs501_micro_chat.data.repository.ChatRepository
+import com.example.cs501_micro_chat.data.repository.FirebaseAuthRepository
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreSettings
@@ -54,6 +56,18 @@ object FirebaseModule {
     @Singleton
     fun provideFirebaseStorage(): FirebaseStorage {
         return FirebaseStorage.getInstance()
+    }
+
+    /**
+     * 提供 AuthRepository 实例
+     */
+    @Provides
+    @Singleton
+    fun provideAuthRepository(
+        auth: FirebaseAuth,
+        firestore: FirebaseFirestore
+    ): AuthRepository {
+        return FirebaseAuthRepository(auth, firestore)
     }
 
     /**

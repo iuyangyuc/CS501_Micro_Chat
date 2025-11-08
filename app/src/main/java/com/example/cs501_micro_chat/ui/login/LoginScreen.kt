@@ -65,6 +65,7 @@ import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material.icons.outlined.VisibilityOff
 import androidx.compose.material.icons.outlined.RadioButtonUnchecked
 import androidx.compose.material.icons.filled.RadioButtonChecked
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
@@ -233,7 +234,10 @@ fun LoginScreen(
         val googleHorizontalPadding = (16f + (widthRatio - 1f) * 6f).coerceIn(16f, 28f).dp
         val googleTitleOffset = (12f + (heightRatio - 1f) * 24f).coerceIn(-8f, 28f).dp
 
+        // 语言切换按钮的位置 - 根据屏幕尺寸自适应
+        // Language switcher position - adaptive to screen size
         val languageOffsetEnd = ((width - 360.dp).coerceAtLeast(0.dp) * 0.2f).coerceAtMost(160.dp)
+        val languageOffsetTop = (height * 0.08f).coerceIn(48.dp, 120.dp)
 
         HeaderBackground(
             modifier = Modifier
@@ -283,13 +287,23 @@ fun LoginScreen(
             }
         }
 
-        LanguageSwitcher(
-            selectedLanguage = state.selectedLanguage,
-            onLanguageSelected = onLanguageSelected,
+        // 语言切换器 - 确保在最上层并可点击，自适应屏幕位置
+        // Language switcher - ensure it's on top layer and clickable, adaptive position
+        Surface(
             modifier = Modifier
                 .align(Alignment.TopEnd)
-                .padding(top = 16.dp, end = 20.dp + languageOffsetEnd)
-        )
+                .padding(top = languageOffsetTop, end = 16.dp + languageOffsetEnd),
+            color = Color.White.copy(alpha = 0.85f),
+            shape = RoundedCornerShape(12.dp),
+            shadowElevation = 4.dp,
+            tonalElevation = 4.dp
+        ) {
+            LanguageSwitcher(
+                selectedLanguage = state.selectedLanguage,
+                onLanguageSelected = onLanguageSelected,
+                modifier = Modifier
+            )
+        }
 
     }
 }
@@ -438,7 +452,7 @@ private fun LoginCardContent(
         }
 
         when (state.activeProvider) {
-            null -> ProviderSelection(strings, onProviderSelected)
+            null -> ProviderSelection(strings, onProviderSelected, onNavigateToSignup)
             AuthProvider.Email, AuthProvider.Google -> {
                 MethodSwitchRow(
                     strings = strings,
@@ -485,7 +499,8 @@ private fun LoginCardContent(
 @Composable
 private fun ProviderSelection(
     strings: LoginStrings,
-    onProviderSelected: (AuthProvider) -> Unit
+    onProviderSelected: (AuthProvider) -> Unit,
+    onNavigateToSignup: () -> Unit
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -517,6 +532,18 @@ private fun ProviderSelection(
         ) {
             Text(text = strings.chooseGoogle)
         }
+
+        // 注册按钮 - 让用户可以直接跳转到注册页面
+        // Register button - allows user to navigate to signup page
+        Text(
+            text = strings.registerHint,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier
+                .align(Alignment.CenterHorizontally)
+                .clickable(onClick = onNavigateToSignup),
+            textDecoration = TextDecoration.Underline
+        )
     }
 }
 
@@ -894,7 +921,7 @@ private fun LanguageSwitcher(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier
                 .clickable { expanded = true }
-                .padding(horizontal = 12.dp, vertical = 8.dp)
+                .padding(horizontal = 10.dp, vertical = 6.dp)
         )
 
         DropdownMenu(

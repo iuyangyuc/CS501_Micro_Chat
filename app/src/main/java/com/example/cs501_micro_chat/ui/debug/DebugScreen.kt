@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -58,88 +59,30 @@ class DebugViewModel(
     val currentUserEmail: String?
         get() = auth.currentUser?.email
 
+    val currentUserId: String?
+        get() = auth.currentUser?.uid
+
     /**
-     * 初始化所有测试数据
+     * 为当前测试账号创建完整的测试数据
+     * 适用于 lf1991@bu.edu (ID: oQxEirc9JbOmHOTUjsm9q4mFpln2)
      */
-    fun initializeAllTestData() {
+    fun createTestDataForCurrentUser() {
         viewModelScope.launch {
+            val userId = auth.currentUser?.uid
+            if (userId == null) {
+                isError = true
+                message = "请先登录！"
+                return@launch
+            }
+
             isLoading = true
             isError = false
-            message = "正在初始化数据库..."
+            message = "正在创建测试数据...\n为用户: ${auth.currentUser?.email}"
 
-            firebaseInitializer.initializeAllTestData()
+            firebaseInitializer.createCompleteTestDataForUser(userId)
                 .onSuccess { result ->
                     isError = false
                     message = result
-                }
-                .onFailure { error ->
-                    isError = true
-                    message = "初始化失败: ${error.message}"
-                }
-
-            isLoading = false
-        }
-    }
-
-    /**
-     * 只初始化当前用户
-     */
-    fun initializeCurrentUser() {
-        viewModelScope.launch {
-            isLoading = true
-            isError = false
-            message = "正在创建用户..."
-
-            firebaseInitializer.initializeCurrentUser()
-                .onSuccess { user ->
-                    isError = false
-                    message = "用户创建成功: ${user.username}"
-                }
-                .onFailure { error ->
-                    isError = true
-                    message = "创建失败: ${error.message}"
-                }
-
-            isLoading = false
-        }
-    }
-
-    /**
-     * 创建测试用户
-     */
-    fun createTestUsers(count: Int = 5) {
-        viewModelScope.launch {
-            isLoading = true
-            isError = false
-            message = "正在创建 $count 个测试用户..."
-
-            firebaseInitializer.createTestUsers(count)
-                .onSuccess { users ->
-                    isError = false
-                    message = "成功创建 ${users.size} 个测试用户"
-                }
-                .onFailure { error ->
-                    isError = true
-                    message = "创建失败: ${error.message}"
-                }
-
-            isLoading = false
-        }
-    }
-
-    /**
-     * 创建测试群组
-     */
-    fun createTestGroup() {
-        viewModelScope.launch {
-            isLoading = true
-            isError = false
-            message = "正在创建测试群组..."
-
-            firebaseInitializer.createTestGroup()
-                .onSuccess { group ->
-                    isError = false
-                    message = "群组创建成功: ${group.name}"
                 }
                 .onFailure { error ->
                     isError = true
@@ -207,7 +150,7 @@ fun DebugScreen(
                 title = { Text("数据库调试工具") },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "返回")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
                     }
                 }
             )
@@ -246,12 +189,7 @@ fun DebugScreen(
             // 快速操作区域
             QuickActionsSection(viewModel)
 
-            Divider()
-
-            // 高级操作区域
-            AdvancedActionsSection(viewModel)
-
-            Divider()
+            HorizontalDivider()
 
             // 危险操作区域
             DangerZoneSection(viewModel)
@@ -267,6 +205,9 @@ private fun UserStatusCard(
     isLoggedIn: Boolean,
     userEmail: String?
 ) {
+    val auth = FirebaseAuth.getInstance()
+    val userId = auth.currentUser?.uid
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
@@ -301,6 +242,13 @@ private fun UserStatusCard(
                         text = userEmail,
                         style = MaterialTheme.typography.bodySmall
                     )
+                    if (userId != null) {
+                        Text(
+                            text = "ID: $userId",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
             }
         }
@@ -356,56 +304,16 @@ private fun QuickActionsSection(viewModel: DebugViewModel) {
         modifier = Modifier.padding(vertical = 8.dp)
     )
 
-    // 一键初始化
+    // 一键初始化当前用户的测试数据
     DebugButton(
-        text = "🚀 一键初始化所有测试数据",
-        description = "创建用户、联系人、会话、消息和群组",
+        text = "🚀 创建聊天测试数据",
+        description = "为当前用户创建5个好友、对话历史和1个群组",
         icon = Icons.Default.Star,
         enabled = viewModel.isLoggedIn && !viewModel.isLoading,
         colors = ButtonDefaults.buttonColors(
             containerColor = MaterialTheme.colorScheme.primary
         ),
-        onClick = { viewModel.initializeAllTestData() }
-    )
-
-    Spacer(modifier = Modifier.height(8.dp))
-
-    // 初始化当前用户
-    DebugButton(
-        text = "👤 初始化当前用户",
-        description = "在 Firebase 中创建当前登录用户的数据",
-        icon = Icons.Default.Person,
-        enabled = viewModel.isLoggedIn && !viewModel.isLoading,
-        onClick = { viewModel.initializeCurrentUser() }
-    )
-}
-
-@Composable
-private fun AdvancedActionsSection(viewModel: DebugViewModel) {
-    Text(
-        text = "高级操作",
-        style = MaterialTheme.typography.titleLarge,
-        modifier = Modifier.padding(vertical = 8.dp)
-    )
-
-    // 创建测试用户
-    DebugButton(
-        text = "👥 创建测试用户",
-        description = "创建 5 个测试用户账号",
-        icon = Icons.Default.Group,
-        enabled = viewModel.isLoggedIn && !viewModel.isLoading,
-        onClick = { viewModel.createTestUsers(5) }
-    )
-
-    Spacer(modifier = Modifier.height(8.dp))
-
-    // 创建测试群组
-    DebugButton(
-        text = "💬 创建测试群组",
-        description = "创建一个包含测试用户的群组",
-        icon = Icons.Default.GroupAdd,
-        enabled = viewModel.isLoggedIn && !viewModel.isLoading,
-        onClick = { viewModel.createTestGroup() }
+        onClick = { viewModel.createTestDataForCurrentUser() }
     )
 }
 
@@ -520,14 +428,28 @@ private fun InstructionsCard() {
             )
             Text(
                 text = """
-                    1. 确保已登录 Firebase Authentication
-                    2. 点击"一键初始化所有测试数据"创建完整的测试数据
-                    3. 前往 Firebase Console 查看创建的数据：
-                       - users: 用户集合
-                       - conversations: 会话集合
-                       - groups: 群组集合
-                    4. 在应用中测试聊天功能
-                    5. 测试完成后可以清除测试数据
+                    🎯 测试账号：lf1991@bu.edu
+                    🆔 用户ID：oQxEirc9JbOmHOTUjsm9q4mFpln2
+                    
+                    📝 操作步骤：
+                    1. 确保已使用测试账号登录
+                    2. 点击"创建聊天测试数据"按钮
+                    3. 等待数据创建完成（约10-15秒）
+                    4. 返回主界面查看聊天列表
+                    
+                    ✨ 将创建的内容：
+                    • 5个测试好友（王经理、Sarah Liu等）
+                    • 5个私聊会话（含历史消息）
+                    • 1个群组（Product Design Team）
+                    • 匹配截图的未读消息数和时间
+                    
+                    🔍 在 Firebase Console 查看：
+                    • users: 用户集合（包含好友信息）
+                    • conversations: 会话集合
+                    • groups: 群组集合
+                    • conversations/{id}/messages: 消息子集合
+                    
+                    ⚠️ 注意：测试完成后请清除测试数据
                 """.trimIndent(),
                 style = MaterialTheme.typography.bodySmall
             )

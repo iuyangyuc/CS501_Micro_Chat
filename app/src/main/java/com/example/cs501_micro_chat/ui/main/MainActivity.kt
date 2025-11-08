@@ -14,14 +14,29 @@ import dagger.hilt.android.AndroidEntryPoint
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // 设置全局异常处理器以捕获崩溃
+        Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
+            Log.e("MainActivity", "Uncaught exception in thread ${thread.name}", throwable)
+            // 打印详细的堆栈跟踪
+            throwable.printStackTrace()
+            // 重新抛出异常以显示默认的崩溃对话框
+            Thread.getDefaultUncaughtExceptionHandler()?.uncaughtException(thread, throwable)
+        }
+
         enableEdgeToEdge()
 
         uploadTestFile()
 
-        setContent {
-            CS501_Micro_ChatTheme {
-                MicroChatApp()
+        try {
+            setContent {
+                CS501_Micro_ChatTheme {
+                    MicroChatApp()
+                }
             }
+        } catch (e: Exception) {
+            Log.e("MainActivity", "Error in setContent", e)
+            throw e
         }
     }
 

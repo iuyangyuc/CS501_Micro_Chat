@@ -25,8 +25,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.cs501_micro_chat.R
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInClient
@@ -40,7 +40,7 @@ fun LoginRoute(
     onLoginSuccess: () -> Unit,
     onViewTerms: () -> Unit = {},
     onViewPrivacy: () -> Unit = {},
-    viewModel: LoginViewModel = viewModel()
+    viewModel: LoginViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
@@ -87,8 +87,15 @@ fun LoginRoute(
 
     LaunchedEffect(Unit) {
         viewModel.events.collect { event ->
+            Log.d(LOGIN_ROUTE_TAG, "Received event: $event")
             if (event is LoginEvent.LoginSuccess) {
-                onLoginSuccess()
+                try {
+                    Log.d(LOGIN_ROUTE_TAG, "Calling onLoginSuccess callback")
+                    onLoginSuccess()
+                    Log.d(LOGIN_ROUTE_TAG, "onLoginSuccess callback completed")
+                } catch (e: Exception) {
+                    Log.e(LOGIN_ROUTE_TAG, "Error in onLoginSuccess callback", e)
+                }
             }
         }
     }
