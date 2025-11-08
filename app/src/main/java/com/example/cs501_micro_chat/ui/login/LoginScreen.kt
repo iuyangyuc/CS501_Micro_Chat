@@ -23,9 +23,8 @@
  */
 package com.example.cs501_micro_chat.ui.login
 
-import android.content.res.Configuration
-import android.util.Log
 import android.graphics.BitmapFactory
+import android.util.Log
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -68,8 +67,6 @@ import androidx.compose.material.icons.filled.RadioButtonChecked
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -117,9 +114,11 @@ import com.airbnb.lottie.compose.LottieCompositionSpec
 import com.airbnb.lottie.compose.LottieConstants
 import com.airbnb.lottie.compose.animateLottieCompositionAsState
 import com.airbnb.lottie.compose.rememberLottieComposition
-import java.util.Locale
 import com.example.cs501_micro_chat.R
 import com.example.cs501_micro_chat.ui.auth.AuthProvider
+import com.example.cs501_micro_chat.ui.auth.LanguageOption
+import com.example.cs501_micro_chat.ui.auth.LanguageSwitcher
+import com.example.cs501_micro_chat.ui.auth.localized
 import com.example.cs501_micro_chat.ui.theme.CS501_Micro_ChatTheme
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -134,7 +133,7 @@ fun LoginScreen(
     onLanguageSelected: (LanguageOption) -> Unit,
     onLoginClick: () -> Unit,
     onGoogleLoginClick: () -> Unit,
-    onNavigateToSignup: () -> Unit,
+    onNavigateToSignup: (LanguageOption) -> Unit,
     onDismissError: () -> Unit,
     onViewTerms: () -> Unit,
     onViewPrivacy: () -> Unit,
@@ -273,7 +272,7 @@ fun LoginScreen(
                     onResetProviderSelection = onResetProviderSelection,
                     onLoginClick = onLoginClick,
                     onGoogleLoginClick = onGoogleLoginClick,
-                    onNavigateToSignup = onNavigateToSignup,
+                    onNavigateToSignup = { onNavigateToSignup(state.selectedLanguage) },
                     onDismissError = onDismissError,
                     onViewTerms = onViewTerms,
                     onViewPrivacy = onViewPrivacy,
@@ -299,6 +298,7 @@ fun LoginScreen(
             tonalElevation = 4.dp
         ) {
             LanguageSwitcher(
+                label = strings.languageSwitchLabel,
                 selectedLanguage = state.selectedLanguage,
                 onLanguageSelected = onLanguageSelected,
                 modifier = Modifier
@@ -902,54 +902,8 @@ private fun AgreementToggle(
     }
 }
 
-@Composable
-private fun LanguageSwitcher(
-    selectedLanguage: LanguageOption,
-    onLanguageSelected: (LanguageOption) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    var expanded by remember { mutableStateOf(false) }
-    val context = LocalContext.current
-    val labelContext = remember(selectedLanguage, context) { context.localized(selectedLanguage) }
-    val label = labelContext.getString(R.string.login_language_switch)
-    val selectedLabel = labelContext.getString(selectedLanguage.labelRes)
-
-    Box(modifier = modifier) {
-        Text(
-            text = "$label · $selectedLabel",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier
-                .clickable { expanded = true }
-                .padding(horizontal = 10.dp, vertical = 6.dp)
-        )
-
-        DropdownMenu(
-            expanded = expanded,
-            onDismissRequest = { expanded = false }
-        ) {
-            LanguageOption.values().forEach { option ->
-                val optionLabel = context.localized(option).getString(option.labelRes)
-                DropdownMenuItem(
-                    text = {
-                        Text(
-                            text = optionLabel,
-                            style = MaterialTheme.typography.bodyMedium
-                        )
-                    },
-                    onClick = {
-                        expanded = false
-                        if (option != selectedLanguage) {
-                            onLanguageSelected(option)
-                        }
-                    }
-                )
-            }
-        }
-    }
-}
-
 private data class LoginStrings(
+    val languageSwitchLabel: String,
     val chooseMethodTitle: String,
     val chooseMethodSubtitle: String,
     val chooseEmail: String,
@@ -986,6 +940,7 @@ private fun rememberLoginStrings(language: LanguageOption): LoginStrings {
     return remember(language, context) {
         val localizedContext = context.localized(language)
         LoginStrings(
+            languageSwitchLabel = localizedContext.getString(R.string.login_language_switch),
             chooseMethodTitle = localizedContext.getString(R.string.login_choose_method_title),
             chooseMethodSubtitle = localizedContext.getString(R.string.login_choose_method_subtitle),
             chooseEmail = localizedContext.getString(R.string.login_choose_email),
@@ -1016,14 +971,6 @@ private fun rememberLoginStrings(language: LanguageOption): LoginStrings {
             agreementSuffix = localizedContext.getString(R.string.login_agreement_suffix)
         )
     }
-}
-
-@Suppress("DEPRECATION")
-private fun android.content.Context.localized(language: LanguageOption): android.content.Context {
-    val locale = java.util.Locale.forLanguageTag(language.languageTag)
-    val configuration = Configuration(resources.configuration)
-    configuration.setLocale(locale)
-    return createConfigurationContext(configuration)
 }
 
 @Composable
@@ -1099,7 +1046,7 @@ private fun LoginScreenPreview() {
             onLanguageSelected = {},
             onLoginClick = {},
             onGoogleLoginClick = {},
-            onNavigateToSignup = {},
+            onNavigateToSignup = { _ -> },
             onDismissError = {},
             onViewTerms = {},
             onViewPrivacy = {}
@@ -1128,7 +1075,7 @@ private fun LoginScreenErrorPreview() {
             onLanguageSelected = {},
             onLoginClick = {},
             onGoogleLoginClick = {},
-            onNavigateToSignup = {},
+            onNavigateToSignup = { _ -> },
             onDismissError = {},
             onViewTerms = {},
             onViewPrivacy = {}

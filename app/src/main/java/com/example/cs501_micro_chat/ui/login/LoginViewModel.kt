@@ -34,6 +34,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.cs501_micro_chat.data.repository.AuthRepository
 import com.example.cs501_micro_chat.ui.auth.AuthProvider
+import com.example.cs501_micro_chat.ui.auth.LanguageOption
 import com.google.android.gms.auth.api.signin.GoogleSignInStatusCodes
 import com.google.android.gms.common.api.ApiException
 import com.google.android.gms.common.api.CommonStatusCodes

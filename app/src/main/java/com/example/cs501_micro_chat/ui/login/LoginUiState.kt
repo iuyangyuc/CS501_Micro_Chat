@@ -25,9 +25,8 @@
  */
 package com.example.cs501_micro_chat.ui.login
 
-import androidx.annotation.StringRes
-import com.example.cs501_micro_chat.R
 import com.example.cs501_micro_chat.ui.auth.AuthProvider
+import com.example.cs501_micro_chat.ui.auth.LanguageOption
 
 data class LoginUiState(
     val email: String = "",
@@ -50,12 +49,4 @@ data class LoginUiState(
     val isEmailFormReady: Boolean
         get() = activeProvider == AuthProvider.Email &&
             agreementChecked && isEmailValid && isPasswordValid && !isLoading
-}
-
-enum class LanguageOption(
-    @StringRes val labelRes: Int,
-    val languageTag: String
-) {
-    Chinese(R.string.login_language_chinese, "zh"),
-    English(R.string.login_language_english, "en")
 }

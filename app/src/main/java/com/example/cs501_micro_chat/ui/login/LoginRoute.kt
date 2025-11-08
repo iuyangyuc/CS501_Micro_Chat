@@ -28,6 +28,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.cs501_micro_chat.R
+import com.example.cs501_micro_chat.ui.auth.LanguageOption
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInClient
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
@@ -36,7 +37,7 @@ import com.google.android.gms.auth.api.signin.GoogleSignInStatusCodes
 
 @Composable
 fun LoginRoute(
-    onNavigateToSignup: () -> Unit,
+    onNavigateToSignup: (LanguageOption) -> Unit,
     onLoginSuccess: () -> Unit,
     onViewTerms: () -> Unit = {},
     onViewPrivacy: () -> Unit = {},

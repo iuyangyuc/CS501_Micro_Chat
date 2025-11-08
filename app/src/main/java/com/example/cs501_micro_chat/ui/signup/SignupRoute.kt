@@ -13,6 +13,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.cs501_micro_chat.R
+import com.example.cs501_micro_chat.ui.auth.LanguageOption
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInClient
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
@@ -20,6 +21,7 @@ import com.google.android.gms.common.api.ApiException
 
 @Composable
 fun SignupRoute(
+    initialLanguage: LanguageOption,
     onNavigateToLogin: () -> Unit,
     onSignupSuccess: () -> Unit,
     viewModel: SignupViewModel = viewModel()
@@ -64,6 +66,10 @@ fun SignupRoute(
         }
     }
 
+    LaunchedEffect(initialLanguage) {
+        viewModel.initializeLanguage(initialLanguage)
+    }
+
     LaunchedEffect(Unit) {
         viewModel.events.collect { event ->
             if (event is SignupEvent.SignupSuccess) {
@@ -94,7 +100,8 @@ fun SignupRoute(
             }
         },
         onNavigateToLogin = onNavigateToLogin,
-        onDismissError = viewModel::dismissError
+        onDismissError = viewModel::dismissError,
+        onLanguageSelected = viewModel::onLanguageSelected
     )
 }
 
