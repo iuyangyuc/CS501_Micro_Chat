@@ -360,15 +360,18 @@ class FirebaseDataSource @Inject constructor(
      * 获取会话的消息列表
      */
     suspend fun getMessages(conversationId: String, limit: Int = 50): Result<List<Message>> = runCatching {
-        conversationsCollection
+        val snapshot = conversationsCollection
             .document(conversationId)
             .collection("messages")
             .orderBy("timestamp", Query.Direction.DESCENDING)
             .limit(limit.toLong())
             .get()
             .await()
-            .toObjects(Message::class.java)
-            .reversed()
+
+        // 手动映射，确保 id 字段被正确设置为文档 ID
+        snapshot.documents.mapNotNull { doc ->
+            doc.toObject(Message::class.java)?.copy(id = doc.id)
+        }.reversed()
     }
 
     /**
@@ -384,7 +387,10 @@ class FirebaseDataSource @Inject constructor(
                     close(error)
                     return@addSnapshotListener
                 }
-                val messages = snapshot?.toObjects(Message::class.java) ?: emptyList()
+                // 手动映射，确保 id 字段被正确设置为文档 ID
+                val messages = snapshot?.documents?.mapNotNull { doc ->
+                    doc.toObject(Message::class.java)?.copy(id = doc.id)
+                } ?: emptyList()
                 trySend(messages)
             }
         awaitClose { listener.remove() }

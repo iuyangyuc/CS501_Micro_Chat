@@ -50,13 +50,19 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavGraph.Companion.findStartDestination
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
+import java.net.URLEncoder
+import java.net.URLDecoder
+import java.nio.charset.StandardCharsets
 import coil.compose.AsyncImage
 import com.example.cs501_micro_chat.R
 import com.example.cs501_micro_chat.data.model.Conversation
+import com.example.cs501_micro_chat.ui.chat.ChatDetailScreen
 
 // Figma Design Colors
 private val PrimaryBlue = Color(0xFF3296FA)
@@ -131,14 +137,19 @@ fun HomeScreen(
 
     Log.d("HomeScreen", "Current route: $currentRoute")
 
+    // 判断是否在对话详情页面
+    val isInChatDetail = currentRoute?.startsWith("chat_detail") == true
+
     Scaffold(
         modifier = modifier.fillMaxSize(),
         topBar = {
-            // Figma 设计的渐变蓝色顶部栏 - 适配系统状态栏
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                color = Color.Transparent
-            ) {
+            // 在对话详情页面时不显示顶栏
+            if (!isInChatDetail) {
+                // Figma 设计的渐变蓝色顶部栏 - 适配系统状态栏
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    color = Color.Transparent
+                ) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -186,13 +197,16 @@ fun HomeScreen(
                     }
                 }
             }
+            } // 结束 if (!isInChatDetail)
         },
         bottomBar = {
-            // Figma 设计的底部导航栏
-            Surface(
-                color = Color.White,
-                shadowElevation = 8.dp
-            ) {
+            // 在对话详情页面时不显示底栏
+            if (!isInChatDetail) {
+                // Figma 设计的底部导航栏
+                Surface(
+                    color = Color.White,
+                    shadowElevation = 8.dp
+                ) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -240,12 +254,20 @@ fun HomeScreen(
                     }
                 }
             }
+            } // 结束 if (!isInChatDetail) for bottomBar
         }
     ) { innerPadding ->
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(innerPadding)
+                // 只有在非对话详情页面时才应用padding
+                .then(
+                    if (!isInChatDetail) {
+                        Modifier.padding(innerPadding)
+                    } else {
+                        Modifier
+                    }
+                )
                 .background(BackgroundGray)
         ) {
             NavHost(
@@ -253,7 +275,16 @@ fun HomeScreen(
                 startDestination = HomeDestination.Chats.route
             ) {
                 composable(HomeDestination.Chats.route) {
-                    ChatListScreen()
+                    ChatListScreen(
+                        onChatClick = { conversation ->
+                            // 导航到对话详情页面，URL编码避免特殊字符问题
+                            val encodedName = URLEncoder.encode(conversation.name, StandardCharsets.UTF_8.toString())
+                            val encodedAvatar = URLEncoder.encode(conversation.avatarUrl, StandardCharsets.UTF_8.toString())
+                            navController.navigate(
+                                "chat_detail/${conversation.id}/$encodedName/$encodedAvatar"
+                            )
+                        }
+                    )
                 }
 
                 composable(HomeDestination.Contacts.route) {
@@ -262,6 +293,31 @@ fun HomeScreen(
 
                 composable(HomeDestination.Me.route) {
                     ProfileScreen(onLogout = onLogout)
+                }
+
+                // 对话详情页面
+                composable(
+                    route = "chat_detail/{conversationId}/{conversationName}/{conversationAvatar}",
+                    arguments = listOf(
+                        navArgument("conversationId") { type = NavType.StringType },
+                        navArgument("conversationName") { type = NavType.StringType },
+                        navArgument("conversationAvatar") { type = NavType.StringType }
+                    )
+                ) { backStackEntry ->
+                    val conversationId = backStackEntry.arguments?.getString("conversationId") ?: ""
+                    val encodedName = backStackEntry.arguments?.getString("conversationName") ?: ""
+                    val encodedAvatar = backStackEntry.arguments?.getString("conversationAvatar") ?: ""
+
+                    // URL解码
+                    val conversationName = URLDecoder.decode(encodedName, StandardCharsets.UTF_8.toString())
+                    val conversationAvatar = URLDecoder.decode(encodedAvatar, StandardCharsets.UTF_8.toString())
+
+                    ChatDetailScreen(
+                        conversationId = conversationId,
+                        conversationName = conversationName,
+                        conversationAvatar = conversationAvatar,
+                        onBack = { navController.popBackStack() }
+                    )
                 }
             }
         }
@@ -274,7 +330,8 @@ fun HomeScreen(
  */
 @Composable
 private fun ChatListScreen(
-    viewModel: HomeViewModel = hiltViewModel()
+    viewModel: HomeViewModel = hiltViewModel(),
+    onChatClick: (Conversation) -> Unit = {}
 ) {
     val conversations by viewModel.conversations.collectAsStateWithLifecycle()
     val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
@@ -391,7 +448,8 @@ private fun ChatListScreen(
                 ) { conversation ->
                     ConversationListItem(
                         conversation = conversation,
-                        viewModel = viewModel
+                        viewModel = viewModel,
+                        onClick = { onChatClick(conversation) }
                     )
                     HorizontalDivider(
                         modifier = Modifier.padding(start = 72.dp),
@@ -411,7 +469,8 @@ private fun ChatListScreen(
 @Composable
 private fun ConversationListItem(
     conversation: Conversation,
-    viewModel: HomeViewModel
+    viewModel: HomeViewModel,
+    onClick: () -> Unit = {}
 ) {
     val unreadCount = viewModel.getUnreadCount(conversation)
     val formattedTime = viewModel.formatTime(conversation.lastMessageTime)
@@ -422,7 +481,7 @@ private fun ConversationListItem(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { /* TODO: Navigate to chat detail */ }
+            .clickable(onClick = onClick)
             .background(Color.White)
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
