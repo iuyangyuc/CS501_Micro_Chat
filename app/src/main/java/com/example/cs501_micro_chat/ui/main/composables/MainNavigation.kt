@@ -8,6 +8,7 @@ import androidx.compose.ui.Modifier
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.example.cs501_micro_chat.ui.auth.LanguageOption
 import com.example.cs501_micro_chat.ui.debug.DebugScreen
 import com.example.cs501_micro_chat.ui.login.LoginRoute
 import com.example.cs501_micro_chat.ui.main.HomeScreen
@@ -20,6 +21,8 @@ private object AuthDestinations {
     const val fireConnDebug = "fDebug"
 }
 
+private const val SIGNUP_LANGUAGE_KEY = "signup_language"
+
 @Composable
 fun MicroChatApp() {
     val navController = rememberNavController()
@@ -31,7 +34,17 @@ fun MicroChatApp() {
 //            startDestination = AuthDestinations.fireConnDebug  // 临时：重新创建测试数据
         ) {
             composable(route = AuthDestinations.Signup) {
+                val languageName = navController.previousBackStackEntry
+                    ?.savedStateHandle
+                    ?.get<String>(SIGNUP_LANGUAGE_KEY)
+                val initialLanguage = languageName
+                    ?.let { runCatching { LanguageOption.valueOf(it) }.getOrNull() }
+                    ?: LanguageOption.Chinese
+                navController.previousBackStackEntry
+                    ?.savedStateHandle
+                    ?.remove<String>(SIGNUP_LANGUAGE_KEY)
                 SignupRoute(
+                    initialLanguage = initialLanguage,
                     onNavigateToLogin = {
                         navController.popBackStack(AuthDestinations.Login, inclusive = false)
                     },
@@ -44,9 +57,10 @@ fun MicroChatApp() {
                     }
                 )
             }
-            composable(route = AuthDestinations.Login) {
+            composable(route = AuthDestinations.Login) { backStackEntry ->
                 LoginRoute(
-                    onNavigateToSignup = {
+                    onNavigateToSignup = { language ->
+                        backStackEntry.savedStateHandle[SIGNUP_LANGUAGE_KEY] = language.name
                         navController.navigate(AuthDestinations.Signup) {
                             popUpTo(AuthDestinations.Signup) {
                                 inclusive = true

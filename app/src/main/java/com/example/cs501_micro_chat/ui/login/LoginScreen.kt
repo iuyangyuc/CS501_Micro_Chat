@@ -23,9 +23,8 @@
  */
 package com.example.cs501_micro_chat.ui.login
 
-import android.content.res.Configuration
-import android.util.Log
 import android.graphics.BitmapFactory
+import android.util.Log
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -68,8 +67,6 @@ import androidx.compose.material.icons.filled.RadioButtonChecked
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -117,9 +114,11 @@ import com.airbnb.lottie.compose.LottieCompositionSpec
 import com.airbnb.lottie.compose.LottieConstants
 import com.airbnb.lottie.compose.animateLottieCompositionAsState
 import com.airbnb.lottie.compose.rememberLottieComposition
-import java.util.Locale
 import com.example.cs501_micro_chat.R
 import com.example.cs501_micro_chat.ui.auth.AuthProvider
+import com.example.cs501_micro_chat.ui.auth.LanguageOption
+import com.example.cs501_micro_chat.ui.auth.LanguageSwitcher
+import com.example.cs501_micro_chat.ui.auth.localized
 import com.example.cs501_micro_chat.ui.theme.CS501_Micro_ChatTheme
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -134,7 +133,7 @@ fun LoginScreen(
     onLanguageSelected: (LanguageOption) -> Unit,
     onLoginClick: () -> Unit,
     onGoogleLoginClick: () -> Unit,
-    onNavigateToSignup: () -> Unit,
+    onNavigateToSignup: (LanguageOption) -> Unit,
     onDismissError: () -> Unit,
     onViewTerms: () -> Unit,
     onViewPrivacy: () -> Unit,
@@ -163,10 +162,10 @@ fun LoginScreen(
         val heightRatio = (height.value / 720f).coerceIn(0.5f, 1.8f)
         val compactFactor = 1.1f - heightRatio
 
-        val collapsedCardFraction = (0.45f + compactFactor * 0.20f).coerceIn(0.45f, 0.65f)
+        val collapsedCardFraction = (0.45f + compactFactor * 0.20f).coerceIn(0.35f, 0.65f)
         val googleCardFraction = (collapsedCardFraction + 0.25f + compactFactor * 0.12f - (widthRatio - 1f) * 0.04f)
-            .coerceIn(0.70f, 0.90f)
-        val emailCardFraction = (collapsedCardFraction + 0.30f).coerceIn(0.75f, 0.95f)
+            .coerceIn(0.40f, 0.90f)
+        val emailCardFraction = (collapsedCardFraction + 0.30f).coerceIn(0.70f, 0.95f)
         val focusCardFraction = (emailCardFraction + 0.08f - compactFactor * 0.05f).coerceIn(0.83f, 1.0f)
 
         val targetCardFraction = when {
@@ -183,8 +182,8 @@ fun LoginScreen(
 
         val headerOverlap = (0.12f + (widthRatio - 1f) * 0.04f).coerceIn(0.08f, 0.20f)
         val minHeaderFraction = (0.30f - (heightRatio - 1f) * 0.06f).coerceIn(0.20f, 0.40f)
-        val maxHeaderFraction = (0.60f + (widthRatio - 1f) * 0.04f).coerceIn(0.45f, 0.70f)
-        val backgroundFraction = (1f - cardFraction + headerOverlap).coerceIn(minHeaderFraction, maxHeaderFraction)
+        val maxHeaderFraction = (0.90f + (widthRatio - 1f) * 0.04f).coerceIn(0.45f, 0.90f)
+        val backgroundFraction = (1f - cardFraction + headerOverlap + 0.1f).coerceIn(minHeaderFraction, maxHeaderFraction)
 
         val overlayAlphaTarget = when {
             state.activeProvider == null -> 0f
@@ -212,7 +211,7 @@ fun LoginScreen(
 
         val cardWidthModifier = Modifier.fillMaxWidth()
 
-        val cardHeightFraction = cardFraction.coerceIn(0.45f, 1.0f)
+        val cardHeightFraction = cardFraction.coerceIn(0.35f, 1.0f)
         val baseHorizontalPadding = (24f + (widthRatio - 1f) * 12f).coerceIn(20f, 44f).dp
         val baseVerticalPadding = (24f + (1f - heightRatio) * 12f).coerceIn(18f, 34f).dp
         val resolvedHorizontal = maxOf(
@@ -273,7 +272,7 @@ fun LoginScreen(
                     onResetProviderSelection = onResetProviderSelection,
                     onLoginClick = onLoginClick,
                     onGoogleLoginClick = onGoogleLoginClick,
-                    onNavigateToSignup = onNavigateToSignup,
+                    onNavigateToSignup = { onNavigateToSignup(state.selectedLanguage) },
                     onDismissError = onDismissError,
                     onViewTerms = onViewTerms,
                     onViewPrivacy = onViewPrivacy,
@@ -299,6 +298,7 @@ fun LoginScreen(
             tonalElevation = 4.dp
         ) {
             LanguageSwitcher(
+                label = strings.languageSwitchLabel,
                 selectedLanguage = state.selectedLanguage,
                 onLanguageSelected = onLanguageSelected,
                 modifier = Modifier
@@ -533,8 +533,8 @@ private fun ProviderSelection(
             Text(text = strings.chooseGoogle)
         }
 
-        // 注册按钮 - 让用户可以直接跳转到注册页面
         // Register button - allows user to navigate to signup page
+        Spacer(modifier = Modifier.weight(1f))
         Text(
             text = strings.registerHint,
             style = MaterialTheme.typography.bodySmall,
@@ -728,16 +728,21 @@ private fun GoogleLoginSection(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = horizontalPadding, vertical = 12.dp)
+            .padding(horizontal = horizontalPadding, vertical = 10.dp)
             .heightIn(min = minHeight),
-        verticalArrangement = Arrangement.spacedBy(20.dp),
+//        verticalArrangement = Arrangement.spacedBy(20.dp),
+//        horizontalAlignment = Alignment.CenterHorizontally
+        verticalArrangement = Arrangement.SpaceBetween,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         // Title section at the top
         Column(
             verticalArrangement = Arrangement.spacedBy(6.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(0.5f)
+            //modifier = Modifier.fillMaxWidth()
         ) {
             Text(
                 text = strings.googleLoginTitle,
@@ -752,11 +757,14 @@ private fun GoogleLoginSection(
             )
         }
 
-        Spacer(modifier = Modifier.weight(1f))
+        //Spacer(modifier = Modifier.weight(1f))
 
         // Bottom section with agreement and button
         Column(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(0.5f),
+            //modifier = Modifier.fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(18.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
@@ -902,54 +910,8 @@ private fun AgreementToggle(
     }
 }
 
-@Composable
-private fun LanguageSwitcher(
-    selectedLanguage: LanguageOption,
-    onLanguageSelected: (LanguageOption) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    var expanded by remember { mutableStateOf(false) }
-    val context = LocalContext.current
-    val labelContext = remember(selectedLanguage, context) { context.localized(selectedLanguage) }
-    val label = labelContext.getString(R.string.login_language_switch)
-    val selectedLabel = labelContext.getString(selectedLanguage.labelRes)
-
-    Box(modifier = modifier) {
-        Text(
-            text = "$label · $selectedLabel",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier
-                .clickable { expanded = true }
-                .padding(horizontal = 10.dp, vertical = 6.dp)
-        )
-
-        DropdownMenu(
-            expanded = expanded,
-            onDismissRequest = { expanded = false }
-        ) {
-            LanguageOption.values().forEach { option ->
-                val optionLabel = context.localized(option).getString(option.labelRes)
-                DropdownMenuItem(
-                    text = {
-                        Text(
-                            text = optionLabel,
-                            style = MaterialTheme.typography.bodyMedium
-                        )
-                    },
-                    onClick = {
-                        expanded = false
-                        if (option != selectedLanguage) {
-                            onLanguageSelected(option)
-                        }
-                    }
-                )
-            }
-        }
-    }
-}
-
 private data class LoginStrings(
+    val languageSwitchLabel: String,
     val chooseMethodTitle: String,
     val chooseMethodSubtitle: String,
     val chooseEmail: String,
@@ -986,6 +948,7 @@ private fun rememberLoginStrings(language: LanguageOption): LoginStrings {
     return remember(language, context) {
         val localizedContext = context.localized(language)
         LoginStrings(
+            languageSwitchLabel = localizedContext.getString(R.string.login_language_switch),
             chooseMethodTitle = localizedContext.getString(R.string.login_choose_method_title),
             chooseMethodSubtitle = localizedContext.getString(R.string.login_choose_method_subtitle),
             chooseEmail = localizedContext.getString(R.string.login_choose_email),
@@ -1016,14 +979,6 @@ private fun rememberLoginStrings(language: LanguageOption): LoginStrings {
             agreementSuffix = localizedContext.getString(R.string.login_agreement_suffix)
         )
     }
-}
-
-@Suppress("DEPRECATION")
-private fun android.content.Context.localized(language: LanguageOption): android.content.Context {
-    val locale = java.util.Locale.forLanguageTag(language.languageTag)
-    val configuration = Configuration(resources.configuration)
-    configuration.setLocale(locale)
-    return createConfigurationContext(configuration)
 }
 
 @Composable
@@ -1099,7 +1054,7 @@ private fun LoginScreenPreview() {
             onLanguageSelected = {},
             onLoginClick = {},
             onGoogleLoginClick = {},
-            onNavigateToSignup = {},
+            onNavigateToSignup = { _ -> },
             onDismissError = {},
             onViewTerms = {},
             onViewPrivacy = {}
@@ -1128,7 +1083,7 @@ private fun LoginScreenErrorPreview() {
             onLanguageSelected = {},
             onLoginClick = {},
             onGoogleLoginClick = {},
-            onNavigateToSignup = {},
+            onNavigateToSignup = { _ -> },
             onDismissError = {},
             onViewTerms = {},
             onViewPrivacy = {}

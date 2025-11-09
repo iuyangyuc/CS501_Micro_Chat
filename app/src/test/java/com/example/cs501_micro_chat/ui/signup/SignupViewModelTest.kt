@@ -2,6 +2,7 @@ package com.example.cs501_micro_chat.ui.signup
 
 import com.example.cs501_micro_chat.MainDispatcherRule
 import com.example.cs501_micro_chat.data.repository.AuthRepository
+import com.example.cs501_micro_chat.ui.auth.LanguageOption
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.first
@@ -23,6 +24,7 @@ class SignupViewModelTest {
         val repository = FakeSignupRepository()
         val viewModel = SignupViewModel(repository)
 
+        viewModel.onLanguageSelected(LanguageOption.English)
         viewModel.onEmailChange("user@example.com")
         viewModel.onPasswordChange("Password1!")
         viewModel.onConfirmPasswordChange("Password2!")

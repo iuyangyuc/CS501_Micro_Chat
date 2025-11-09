@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -42,14 +43,15 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -60,8 +62,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.Dp
 import androidx.compose.foundation.layout.statusBarsPadding
 import com.example.cs501_micro_chat.R
-import com.example.cs501_micro_chat.ui.theme.CS501_Micro_ChatTheme
 import com.example.cs501_micro_chat.ui.auth.AuthProvider
+import com.example.cs501_micro_chat.ui.auth.LanguageOption
+import com.example.cs501_micro_chat.ui.auth.LanguageSwitcher
+import com.example.cs501_micro_chat.ui.auth.localized
+import com.example.cs501_micro_chat.ui.theme.CS501_Micro_ChatTheme
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -73,15 +78,23 @@ fun SignupScreen(
     onSignUpClick: () -> Unit,
     onGoogleSignUpClick: () -> Unit,
     onNavigateToLogin: () -> Unit,
+    onLanguageSelected: (LanguageOption) -> Unit,
     onDismissError: () -> Unit = {},
     modifier: Modifier = Modifier,
     contentPadding: PaddingValues = PaddingValues(horizontal = 24.dp, vertical = 32.dp)
 ) {
     val scrollState = rememberScrollState()
+    val strings = rememberSignupStrings(state.selectedLanguage)
     Scaffold(
         modifier = modifier.fillMaxSize(),
         topBar = {
-            SignupTopBar(onNavigateToLogin = onNavigateToLogin)
+            SignupTopBar(
+                backLabel = strings.backToLogin,
+                languageLabel = strings.languageSwitchLabel,
+                selectedLanguage = state.selectedLanguage,
+                onNavigateToLogin = onNavigateToLogin,
+                onLanguageSelected = onLanguageSelected
+            )
         }
     ) { paddingValues ->
         BoxWithConstraints(
@@ -139,8 +152,12 @@ fun SignupScreen(
                     .verticalScroll(scrollState),
                 verticalArrangement = Arrangement.spacedBy(sectionSpacing)
             ) {
-                HeaderSection(centered = headerCentered)
+                HeaderSection(
+                    strings = strings,
+                    centered = headerCentered
+                )
                 FormSection(
+                    strings = strings,
                     state = state,
                     onEmailChange = onEmailChange,
                     onPasswordChange = onPasswordChange,
@@ -151,6 +168,7 @@ fun SignupScreen(
                     fieldSpacing = fieldSpacing
                 )
                 FooterSection(
+                    switchLabel = strings.switchToLogin,
                     onNavigateToLogin = onNavigateToLogin,
                     centered = footerCentered
                 )
@@ -160,33 +178,46 @@ fun SignupScreen(
 }
 
 @Composable
-private fun SignupTopBar(onNavigateToLogin: () -> Unit) {
+private fun SignupTopBar(
+    backLabel: String,
+    languageLabel: String,
+    selectedLanguage: LanguageOption,
+    onNavigateToLogin: () -> Unit,
+    onLanguageSelected: (LanguageOption) -> Unit
+) {
     Surface(
         tonalElevation = 0.dp,
         color = MaterialTheme.colorScheme.background
     ) {
-        Box(
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .statusBarsPadding()
-                .padding(horizontal = 4.dp, vertical = 4.dp)
+                .padding(horizontal = 4.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            IconButton(
-                onClick = onNavigateToLogin,
-                modifier = Modifier.align(Alignment.CenterStart)
-            ) {
+            IconButton(onClick = onNavigateToLogin) {
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = stringResource(id = R.string.signup_back_to_login),
+                    contentDescription = backLabel,
                     tint = MaterialTheme.colorScheme.onBackground
                 )
             }
+            LanguageSwitcher(
+                label = languageLabel,
+                selectedLanguage = selectedLanguage,
+                onLanguageSelected = onLanguageSelected
+            )
         }
     }
 }
 
 @Composable
-private fun HeaderSection(centered: Boolean) {
+private fun HeaderSection(
+    strings: SignupStrings,
+    centered: Boolean
+) {
     val textAlign = if (centered) TextAlign.Center else TextAlign.Start
     val alignment = if (centered) Alignment.CenterHorizontally else Alignment.Start
     Column(
@@ -195,14 +226,14 @@ private fun HeaderSection(centered: Boolean) {
         modifier = Modifier.fillMaxWidth()
     ) {
         Text(
-            text = stringResource(id = R.string.signup_title),
+            text = strings.title,
             style = MaterialTheme.typography.headlineMedium,
             color = MaterialTheme.colorScheme.onBackground,
             textAlign = textAlign,
             modifier = Modifier.fillMaxWidth()
         )
         Text(
-            text = stringResource(id = R.string.signup_subtitle),
+            text = strings.subtitle,
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = textAlign,
@@ -214,6 +245,7 @@ private fun HeaderSection(centered: Boolean) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun FormSection(
+    strings: SignupStrings,
     state: SignupUiState,
     onEmailChange: (String) -> Unit,
     onPasswordChange: (String) -> Unit,
@@ -231,7 +263,7 @@ private fun FormSection(
             value = state.email,
             onValueChange = onEmailChange,
             modifier = Modifier.fillMaxWidth(),
-            label = { Text(text = stringResource(id = R.string.signup_email_label)) },
+            label = { Text(text = strings.emailLabel) },
             singleLine = true,
             leadingIcon = { IconWithTint(Icons.Filled.Email) },
             keyboardOptions = KeyboardOptions(
@@ -243,18 +275,20 @@ private fun FormSection(
             value = state.password,
             onValueChange = onPasswordChange,
             modifier = Modifier.fillMaxWidth(),
-            label = { Text(text = stringResource(id = R.string.signup_password_label)) },
+            label = { Text(text = strings.passwordLabel) },
             leadingIcon = { IconWithTint(Icons.Filled.Lock) },
             trailingIcon = {
                 PasswordToggle(
                     isVisible = passwordVisible,
-                    onToggle = { passwordVisible = !passwordVisible }
+                    onToggle = { passwordVisible = !passwordVisible },
+                    showLabel = strings.showPassword,
+                    hideLabel = strings.hidePassword
                 )
             },
             singleLine = true,
             supportingText = {
                 Text(
-                    text = stringResource(id = R.string.signup_password_supporting),
+                    text = strings.passwordSupporting,
                     style = MaterialTheme.typography.bodySmall
                 )
             },
@@ -268,12 +302,14 @@ private fun FormSection(
             value = state.confirmPassword,
             onValueChange = onConfirmPasswordChange,
             modifier = Modifier.fillMaxWidth(),
-            label = { Text(text = stringResource(id = R.string.signup_confirm_password_label)) },
+            label = { Text(text = strings.confirmPasswordLabel) },
             leadingIcon = { IconWithTint(Icons.Filled.Lock) },
             trailingIcon = {
                 PasswordToggle(
                     isVisible = confirmPasswordVisible,
-                    onToggle = { confirmPasswordVisible = !confirmPasswordVisible }
+                    onToggle = { confirmPasswordVisible = !confirmPasswordVisible },
+                    showLabel = strings.showPassword,
+                    hideLabel = strings.hidePassword
                 )
             },
             singleLine = true,
@@ -323,9 +359,9 @@ private fun FormSection(
                     strokeWidth = 2.dp
                 )
                 Spacer(modifier = Modifier.size(12.dp))
-                Text(text = stringResource(id = R.string.signup_loading))
+                Text(text = strings.loading)
             } else {
-                Text(text = stringResource(id = R.string.signup_primary_button))
+                Text(text = strings.primaryButton)
             }
         }
 
@@ -345,25 +381,25 @@ private fun FormSection(
                 )
                 Spacer(modifier = Modifier.size(12.dp))
                 Text(
-                    text = stringResource(id = R.string.signup_loading),
+                    text = strings.loading,
                     color = MaterialTheme.colorScheme.onSurface
                 )
             } else {
                 Image(
                     painter = painterResource(id = R.drawable.ic_google_logo),
-                    contentDescription = stringResource(id = R.string.signup_google_icon_description),
+                    contentDescription = strings.googleIconDescription,
                     modifier = Modifier.size(18.dp)
                 )
                 Spacer(modifier = Modifier.size(12.dp))
                 Text(
-                    text = stringResource(id = R.string.signup_google_button),
+                    text = strings.googleButton,
                     color = MaterialTheme.colorScheme.onSurface
                 )
             }
         }
 
         Text(
-            text = stringResource(id = R.string.signup_terms),
+            text = strings.terms,
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Start
@@ -372,7 +408,11 @@ private fun FormSection(
 }
 
 @Composable
-private fun FooterSection(onNavigateToLogin: () -> Unit, centered: Boolean) {
+private fun FooterSection(
+    switchLabel: String,
+    onNavigateToLogin: () -> Unit,
+    centered: Boolean
+) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
         color = MaterialTheme.colorScheme.surface,
@@ -383,7 +423,7 @@ private fun FooterSection(onNavigateToLogin: () -> Unit, centered: Boolean) {
             modifier = Modifier.fillMaxWidth()
         ) {
             Text(
-                text = stringResource(id = R.string.signup_switch_to_login),
+                text = switchLabel,
                 color = MaterialTheme.colorScheme.primary,
                 textAlign = if (centered) TextAlign.Center else TextAlign.Start,
                 modifier = Modifier.fillMaxWidth()
@@ -392,21 +432,64 @@ private fun FooterSection(onNavigateToLogin: () -> Unit, centered: Boolean) {
     }
 }
 
+private data class SignupStrings(
+    val languageSwitchLabel: String,
+    val backToLogin: String,
+    val title: String,
+    val subtitle: String,
+    val emailLabel: String,
+    val passwordLabel: String,
+    val confirmPasswordLabel: String,
+    val passwordSupporting: String,
+    val terms: String,
+    val primaryButton: String,
+    val googleButton: String,
+    val loading: String,
+    val switchToLogin: String,
+    val googleIconDescription: String,
+    val showPassword: String,
+    val hidePassword: String
+)
+
+@Composable
+private fun rememberSignupStrings(language: LanguageOption): SignupStrings {
+    val context = LocalContext.current
+    return remember(language, context) {
+        val localizedContext = context.localized(language)
+        SignupStrings(
+            languageSwitchLabel = localizedContext.getString(R.string.login_language_switch),
+            backToLogin = localizedContext.getString(R.string.signup_back_to_login),
+            title = localizedContext.getString(R.string.signup_title),
+            subtitle = localizedContext.getString(R.string.signup_subtitle),
+            emailLabel = localizedContext.getString(R.string.signup_email_label),
+            passwordLabel = localizedContext.getString(R.string.signup_password_label),
+            confirmPasswordLabel = localizedContext.getString(R.string.signup_confirm_password_label),
+            passwordSupporting = localizedContext.getString(R.string.signup_password_supporting),
+            terms = localizedContext.getString(R.string.signup_terms),
+            primaryButton = localizedContext.getString(R.string.signup_primary_button),
+            googleButton = localizedContext.getString(R.string.signup_google_button),
+            loading = localizedContext.getString(R.string.signup_loading),
+            switchToLogin = localizedContext.getString(R.string.signup_switch_to_login),
+            googleIconDescription = localizedContext.getString(R.string.signup_google_icon_description),
+            showPassword = localizedContext.getString(R.string.signup_show_password),
+            hidePassword = localizedContext.getString(R.string.signup_hide_password)
+        )
+    }
+}
+
 @Composable
 private fun PasswordToggle(
     isVisible: Boolean,
-    onToggle: () -> Unit
+    onToggle: () -> Unit,
+    showLabel: String,
+    hideLabel: String
 ) {
     val icon: ImageVector = if (isVisible) {
         Icons.Outlined.VisibilityOff
     } else {
         Icons.Outlined.Visibility
     }
-    val description = if (isVisible) {
-        stringResource(id = R.string.signup_hide_password)
-    } else {
-        stringResource(id = R.string.signup_show_password)
-    }
+    val description = if (isVisible) hideLabel else showLabel
     IconButton(onClick = onToggle) {
         ImageVectorIcon(
             imageVector = icon,
@@ -453,6 +536,7 @@ private fun SignupScreenPreview() {
             onSignUpClick = {},
             onGoogleSignUpClick = {},
             onNavigateToLogin = {},
+            onLanguageSelected = {},
             onDismissError = {}
         )
     }
@@ -476,6 +560,7 @@ private fun SignupScreenDarkPreview() {
             onSignUpClick = {},
             onGoogleSignUpClick = {},
             onNavigateToLogin = {},
+            onLanguageSelected = {},
             onDismissError = {}
         )
     }
