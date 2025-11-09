@@ -116,6 +116,39 @@ class DebugViewModel(
         }
     }
 
+    /**
+     * 为当前用户添加指定好友并创建空对话
+     * 专门用于测试：lf1991@bu.edu 添加好友 9IxrzUoAJpRpxT5AGRNxEjlqhQC2
+     */
+    fun addSpecificFriend() {
+        viewModelScope.launch {
+            val userId = auth.currentUser?.uid
+            if (userId == null) {
+                isError = true
+                message = "请先登录！"
+                return@launch
+            }
+
+            isLoading = true
+            isError = false
+            message = "正在添加好友并创建对话...\n当前用户: ${auth.currentUser?.email}"
+
+            val targetFriendId = "9IxrzUoAJpRpxT5AGRNxEjlqhQC2"
+
+            firebaseInitializer.addFriendAndCreateEmptyConversation(userId, targetFriendId)
+                .onSuccess { result ->
+                    isError = false
+                    message = result
+                }
+                .onFailure { error ->
+                    isError = true
+                    message = "添加好友失败: ${error.message}\n${error.stackTraceToString()}"
+                }
+
+            isLoading = false
+        }
+    }
+
     fun clearMessage() {
         message = ""
         isError = false
@@ -315,6 +348,20 @@ private fun QuickActionsSection(viewModel: DebugViewModel) {
         ),
         onClick = { viewModel.createTestDataForCurrentUser() }
     )
+
+    Spacer(modifier = Modifier.height(12.dp))
+
+    // 添加指定好友按钮
+    DebugButton(
+        text = "👥 添加指定好友 (双向)",
+        description = "创建双向好友关系，支持双设备对话测试",
+        icon = Icons.Default.PersonAdd,
+        enabled = viewModel.isLoggedIn && !viewModel.isLoading,
+        colors = ButtonDefaults.buttonColors(
+            containerColor = MaterialTheme.colorScheme.secondary
+        ),
+        onClick = { viewModel.addSpecificFriend() }
+    )
 }
 
 @Composable
@@ -443,13 +490,25 @@ private fun InstructionsCard() {
                     • 1个群组（Product Design Team）
                     • 匹配截图的未读消息数和时间
                     
+                    👥 添加指定好友功能（双向好友）：
+                    • 为两个用户互相添加好友关系（双向）
+                    • 创建一个共享的空对话（双向可见）
+                    • 🎯 支持双设备对话测试：
+                      - 设备A：登录 lf1991@bu.edu
+                      - 设备B：登录对应 9IxrzUoAJpRpxT5AGRNxEjlqhQC2 的账号
+                      - 两个用户共享同一对话，可互相发消息
+                    
                     🔍 在 Firebase Console 查看：
                     • users: 用户集合（包含好友信息）
-                    • conversations: 会话集合
+                    • users/{userId}/contacts: 联系人子集合（双向）
+                    • conversations: 会话集合（共享对话）
                     • groups: 群组集合
                     • conversations/{id}/messages: 消息子集合
                     
-                    ⚠️ 注意：测试完成后请清除测试数据
+                    ⚠️ 注意：
+                    • 清除测试数据会删除所有以 test_user_ 和 friend_ 开头的用户
+                    • 清除操作不可撤销，请谨慎使用
+                    • 双向好友关系意味着两个用户都能看到对话
                 """.trimIndent(),
                 style = MaterialTheme.typography.bodySmall
             )

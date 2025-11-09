@@ -275,11 +275,18 @@ fun HomeScreen(
                 startDestination = HomeDestination.Chats.route
             ) {
                 composable(HomeDestination.Chats.route) {
+                    // 获取 HomeViewModel 实例
+                    val homeViewModel: HomeViewModel = hiltViewModel()
                     ChatListScreen(
+                        viewModel = homeViewModel,
                         onChatClick = { conversation ->
+                            // 使用 viewModel 获取对方用户的显示名称和头像
+                            val displayName = homeViewModel.getDisplayName(conversation)
+                            val avatarUrl = homeViewModel.getAvatarUrl(conversation)
+
                             // 导航到对话详情页面，URL编码避免特殊字符问题
-                            val encodedName = URLEncoder.encode(conversation.name, StandardCharsets.UTF_8.toString())
-                            val encodedAvatar = URLEncoder.encode(conversation.avatarUrl, StandardCharsets.UTF_8.toString())
+                            val encodedName = URLEncoder.encode(displayName, StandardCharsets.UTF_8.toString())
+                            val encodedAvatar = URLEncoder.encode(avatarUrl, StandardCharsets.UTF_8.toString())
                             navController.navigate(
                                 "chat_detail/${conversation.id}/$encodedName/$encodedAvatar"
                             )
@@ -475,8 +482,15 @@ private fun ConversationListItem(
     val unreadCount = viewModel.getUnreadCount(conversation)
     val formattedTime = viewModel.formatTime(conversation.lastMessageTime)
 
+    // 使用新的方法获取显示名称和头像
+    val displayName = viewModel.getDisplayName(conversation)
+    val avatarUrl = viewModel.getAvatarUrl(conversation)
+
     // 调试日志
-    Log.d("ConversationListItem", "Conversation: ${conversation.name}, avatarUrl: '${conversation.avatarUrl}'")
+    Log.d("ConversationListItem", "Conversation ID: ${conversation.id}")
+    Log.d("ConversationListItem", "Participants: ${conversation.participants}")
+    Log.d("ConversationListItem", "Display Name: $displayName")
+    Log.d("ConversationListItem", "Avatar URL: $avatarUrl")
 
     Row(
         modifier = Modifier
@@ -487,25 +501,25 @@ private fun ConversationListItem(
         verticalAlignment = Alignment.CenterVertically
     ) {
         // 头像 - 使用 Coil 加载网络图片
-        if (conversation.avatarUrl.isNotBlank()) {
-            Log.d("ConversationListItem", "Loading image for ${conversation.name}: ${conversation.avatarUrl}")
+        if (avatarUrl.isNotBlank()) {
+            Log.d("ConversationListItem", "Loading image for $displayName: $avatarUrl")
             AsyncImage(
-                model = conversation.avatarUrl,
-                contentDescription = "${conversation.name} avatar",
+                model = avatarUrl,
+                contentDescription = "$displayName avatar",
                 modifier = Modifier
                     .size(52.dp)
                     .clip(CircleShape),
                 contentScale = ContentScale.Crop,
                 onError = { error ->
-                    Log.e("ConversationListItem", "Failed to load image for ${conversation.name}: ${error.result.throwable}")
+                    Log.e("ConversationListItem", "Failed to load image for $displayName: ${error.result.throwable}")
                 },
                 onSuccess = {
-                    Log.d("ConversationListItem", "Successfully loaded image for ${conversation.name}")
+                    Log.d("ConversationListItem", "Successfully loaded image for $displayName")
                 }
             )
         } else {
             // 没有头像URL时显示首字母
-            Log.d("ConversationListItem", "No avatarUrl for ${conversation.name}, showing initials")
+            Log.d("ConversationListItem", "No avatarUrl for $displayName, showing initials")
             Box(
                 modifier = Modifier
                     .size(52.dp)
@@ -514,7 +528,7 @@ private fun ConversationListItem(
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = conversation.name.firstOrNull()?.toString() ?: "?",
+                    text = displayName.firstOrNull()?.toString() ?: "?",
                     color = Color.White,
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Medium
@@ -534,7 +548,7 @@ private fun ConversationListItem(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = conversation.name,
+                    text = displayName,
                     color = TextPrimary,
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Medium,

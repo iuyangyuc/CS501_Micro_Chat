@@ -787,6 +787,189 @@ class FirebaseInitializer @Inject constructor(
         Log.d(TAG, "Group created: ${group.name}")
         group
     }
+
+    /**
+     * 为指定用户添加好友并创建空对话（双向）
+     * Add a friend for specified user and create empty conversation (bidirectional)
+     *
+     * 重要：实现双向好友关系，两个用户可以在不同设备上进行对话测试
+     * Important: Implements bidirectional friendship, allowing conversation testing on different devices
+     *
+     * @param currentUserId 当前用户ID (lf1991@bu.edu的ID)
+     * @param friendUserId 好友用户ID
+     */
+    suspend fun addFriendAndCreateEmptyConversation(
+        currentUserId: String,
+        friendUserId: String
+    ): Result<String> = runCatching {
+        Log.d(TAG, "开始添加双向好友关系: currentUserId=$currentUserId, friendUserId=$friendUserId")
+
+        // 1. 检查并获取当前用户信息
+        val currentUserDoc = firestore.collection("users")
+            .document(currentUserId)
+            .get()
+            .await()
+
+        val currentUser = if (currentUserDoc.exists()) {
+            User(
+                id = currentUserId,
+                username = currentUserDoc.getString("username") ?: "User_${currentUserId.take(6)}",
+                email = currentUserDoc.getString("email") ?: "",
+                avatarUrl = currentUserDoc.getString("avatarUrl") ?: "https://api.dicebear.com/7.x/avataaars/svg?seed=$currentUserId",
+                status = UserStatus.valueOf(currentUserDoc.getString("status") ?: "OFFLINE"),
+                statusMessage = currentUserDoc.getString("statusMessage") ?: "",
+                createdAt = currentUserDoc.getLong("createdAt") ?: System.currentTimeMillis(),
+                lastSeenAt = currentUserDoc.getLong("lastSeenAt") ?: System.currentTimeMillis()
+            )
+        } else {
+            throw Exception("当前用户不存在: $currentUserId")
+        }
+
+        // 2. 检查好友用户是否存在，如果不存在则创建
+        val friendDoc = firestore.collection("users")
+            .document(friendUserId)
+            .get()
+            .await()
+
+        val friend = if (friendDoc.exists()) {
+            // 好友已存在，读取信息
+            User(
+                id = friendUserId,
+                username = friendDoc.getString("username") ?: "User_${friendUserId.take(6)}",
+                email = friendDoc.getString("email") ?: "",
+                avatarUrl = friendDoc.getString("avatarUrl") ?: "https://api.dicebear.com/7.x/avataaars/svg?seed=$friendUserId",
+                status = UserStatus.valueOf(friendDoc.getString("status") ?: "OFFLINE"),
+                statusMessage = friendDoc.getString("statusMessage") ?: "",
+                createdAt = friendDoc.getLong("createdAt") ?: System.currentTimeMillis(),
+                lastSeenAt = friendDoc.getLong("lastSeenAt") ?: System.currentTimeMillis()
+            )
+        } else {
+            // 好友不存在，创建新用户
+            val newFriend = User(
+                id = friendUserId,
+                username = "User_${friendUserId.take(6)}",
+                email = "user_${friendUserId.take(6)}@example.com",
+                avatarUrl = "https://api.dicebear.com/7.x/avataaars/svg?seed=$friendUserId",
+                status = UserStatus.OFFLINE,
+                statusMessage = "Hey there! I'm using Micro Chat",
+                createdAt = System.currentTimeMillis(),
+                lastSeenAt = System.currentTimeMillis()
+            )
+
+            // 写入Firebase
+            firestore.collection("users")
+                .document(friendUserId)
+                .set(newFriend.toMap())
+                .await()
+
+            Log.d(TAG, "创建了新用户: ${newFriend.username}")
+            newFriend
+        }
+
+        // 3. 创建共享的空对话（两个用户共用同一个对话）
+        val conversationId = firestore.collection("conversations").document().id
+
+        val conversation = Conversation(
+            id = conversationId,
+            type = ConversationType.PRIVATE,
+            name = "", // 私聊不需要名称，会根据当前用户动态显示
+            avatarUrl = "", // 私聊不需要固定头像
+            participants = listOf(currentUserId, friendUserId),
+            lastMessage = "", // 空消息
+            lastMessageTime = System.currentTimeMillis(), // 当前时间
+            unreadCounts = mapOf(
+                currentUserId to 0,
+                friendUserId to 0
+            ),
+            createdAt = System.currentTimeMillis(),
+            createdBy = currentUserId,
+            isActive = true
+        )
+
+        firestore.collection("conversations")
+            .document(conversationId)
+            .set(conversation.toMap())
+            .await()
+
+        Log.d(TAG, "创建了共享空对话: conversationId=$conversationId")
+
+        // 4. 在当前用户的联系人列表中添加好友
+        val contactForCurrentUser = Contact(
+            userId = currentUserId,
+            contactId = friendUserId,
+            contactName = friend.username,
+            contactAvatarUrl = friend.avatarUrl,
+            alias = "", // 不设置备注
+            tags = emptyList(),
+            isFavorite = false,
+            isBlocked = false,
+            addedAt = System.currentTimeMillis(),
+            conversationId = conversationId // 共享对话ID
+        )
+
+        firestore.collection("users")
+            .document(currentUserId)
+            .collection("contacts")
+            .document(friendUserId)
+            .set(contactForCurrentUser.toMap())
+            .await()
+
+        Log.d(TAG, "已将 ${friend.username} 添加到 ${currentUser.username} 的联系人列表")
+
+        // 5. 在好友的联系人列表中添加当前用户（双向关系）
+        val contactForFriend = Contact(
+            userId = friendUserId,
+            contactId = currentUserId,
+            contactName = currentUser.username,
+            contactAvatarUrl = currentUser.avatarUrl,
+            alias = "", // 不设置备注
+            tags = emptyList(),
+            isFavorite = false,
+            isBlocked = false,
+            addedAt = System.currentTimeMillis(),
+            conversationId = conversationId // 共享对话ID
+        )
+
+        firestore.collection("users")
+            .document(friendUserId)
+            .collection("contacts")
+            .document(currentUserId)
+            .set(contactForFriend.toMap())
+            .await()
+
+        Log.d(TAG, "已将 ${currentUser.username} 添加到 ${friend.username} 的联系人列表")
+
+        """
+            ✅ 成功创建双向好友关系并创建共享对话！
+            
+            👤 用户 1:
+            - 用户名: ${currentUser.username}
+            - 用户ID: $currentUserId
+            - 邮箱: ${currentUser.email}
+            
+            👤 用户 2:
+            - 用户名: ${friend.username}
+            - 用户ID: $friendUserId
+            - 邮箱: ${friend.email}
+            
+            💬 共享对话:
+            - 对话ID: $conversationId
+            - 对话类型: 私聊（双向可见）
+            - 消息数: 0 (空对话)
+            
+            ✨ 双向关系已建立：
+            • ${currentUser.username} 的联系人中有 ${friend.username}
+            • ${friend.username} 的联系人中有 ${currentUser.username}
+            • 两个用户共享同一个对话
+            
+            🎯 测试方式：
+            1️⃣ 设备A：登录 ${currentUser.email}
+            2️⃣ 设备B：登录 ${friend.email}
+            3️⃣ 双方都能看到对话并互相发送消息
+            
+            现在可以在两台设备上进行对话测试了！
+        """.trimIndent()
+    }
 }
 
 /**

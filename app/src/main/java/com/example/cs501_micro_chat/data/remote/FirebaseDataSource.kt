@@ -240,16 +240,20 @@ class FirebaseDataSource @Inject constructor(
     }
 
     /**
-     * 获取用户的所有会话列表
+     * 获取用户的会话列表
      */
     suspend fun getUserConversations(userId: String): Result<List<Conversation>> = runCatching {
-        conversationsCollection
+        val snapshot = conversationsCollection
             .whereArrayContains("participants", userId)
             .whereEqualTo("isActive", true)
             .orderBy("lastMessageTime", Query.Direction.DESCENDING)
             .get()
             .await()
-            .toObjects(Conversation::class.java)
+
+        // 手动映射，确保 id 字段被正确设置为文档 ID
+        snapshot.documents.mapNotNull { doc ->
+            doc.toObject(Conversation::class.java)?.copy(id = doc.id)
+        }
     }
 
     /**
@@ -270,7 +274,10 @@ class FirebaseDataSource @Inject constructor(
                     close(error)
                     return@addSnapshotListener
                 }
-                val conversations = snapshot?.toObjects(Conversation::class.java) ?: emptyList()
+                // 手动映射，确保 id 字段被正确设置为文档 ID
+                val conversations = snapshot?.documents?.mapNotNull { doc ->
+                    doc.toObject(Conversation::class.java)?.copy(id = doc.id)
+                } ?: emptyList()
                 Log.d(TAG, "Received ${conversations.size} conversations from Firestore")
                 // 在客户端按时间排序
                 val sortedConversations = conversations.sortedByDescending { it.lastMessageTime }
@@ -283,11 +290,13 @@ class FirebaseDataSource @Inject constructor(
      * 获取单个会话信息
      */
     suspend fun getConversation(conversationId: String): Result<Conversation?> = runCatching {
-        conversationsCollection
+        val doc = conversationsCollection
             .document(conversationId)
             .get()
             .await()
-            .toObject(Conversation::class.java)
+
+        // 手动映射并设置 id
+        doc.toObject(Conversation::class.java)?.copy(id = doc.id)
     }
 
     /**
@@ -550,5 +559,3 @@ class FirebaseDataSource @Inject constructor(
         deleteConversation(groupId)
     }
 }
-
-

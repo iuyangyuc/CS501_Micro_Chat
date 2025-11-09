@@ -130,6 +130,53 @@ class HomeViewModel @Inject constructor(
     }
 
     /**
+     * 从 participants 中获取对方用户的 ID
+     * 对于私聊，返回 participants 中不是当前用户的那个 ID
+     */
+    fun getOtherUserId(conversation: Conversation): String? {
+        val currentUserId = auth.currentUser?.uid ?: return null
+
+        // 如果 participants 为空或只有一个人，返回 null
+        if (conversation.participants.size < 2) {
+            return null
+        }
+
+        // 返回第一个不是当前用户的 ID
+        return conversation.participants.firstOrNull { it != currentUserId }
+    }
+
+    /**
+     * 获取会话的显示名称
+     * 优先使用对方用户的 ID（从 participants 中提取）
+     */
+    fun getDisplayName(conversation: Conversation): String {
+        // 对于群聊，使用 conversation.name
+        if (conversation.type == com.example.cs501_micro_chat.data.model.ConversationType.GROUP) {
+            return conversation.name.ifEmpty { "群聊" }
+        }
+
+        // 对于私聊，返回对方用户的 ID（临时方案）
+        // 后续可以通过 chatRepository 异步获取用户信息
+        val otherUserId = getOtherUserId(conversation)
+        return otherUserId ?: conversation.name.ifEmpty { "未知用户" }
+    }
+
+    /**
+     * 获取会话的头像 URL
+     * 对于私聊，使用对方用户的头像
+     */
+    fun getAvatarUrl(conversation: Conversation): String {
+        // 对于群聊，使用 conversation.avatarUrl
+        if (conversation.type == com.example.cs501_micro_chat.data.model.ConversationType.GROUP) {
+            return conversation.avatarUrl
+        }
+
+        // 对于私聊，返回空字符串，让 UI 显示首字母
+        // 后续可以通过 chatRepository 异步获取用户头像
+        return ""
+    }
+
+    /**
      * 清除错误消息
      */
     fun clearError() {
