@@ -86,13 +86,13 @@ class SignupViewModel(
                 )
             }
             try {
-                Log.d(SIGNUP_VIEWMODEL_TAG, "Email signup started for $email")
+                logDebug("Email signup started for $email")
                 repository.createUser(email, password)
-                Log.d(SIGNUP_VIEWMODEL_TAG, "Email signup succeeded for $email")
+                logDebug("Email signup succeeded for $email")
                 _uiState.update { it.copy(loadingProvider = null) }
                 _events.send(SignupEvent.SignupSuccess)
             } catch (throwable: Throwable) {
-                Log.w(SIGNUP_VIEWMODEL_TAG, "Email signup failed", throwable)
+                logWarn("Email signup failed", throwable)
                 val language = _uiState.value.selectedLanguage
                 _uiState.update {
                     it.copy(
@@ -105,7 +105,7 @@ class SignupViewModel(
     }
 
     fun onGoogleSignInStarted() {
-        Log.d(SIGNUP_VIEWMODEL_TAG, "Google sign-in intent launched")
+        logDebug("Google sign-in intent launched")
         _uiState.update {
             it.copy(
                 loadingProvider = AuthProvider.Google,
@@ -115,7 +115,7 @@ class SignupViewModel(
     }
 
     fun onGoogleSignInCancelled() {
-        Log.d(SIGNUP_VIEWMODEL_TAG, "Google sign-in cancelled by user")
+        logDebug("Google sign-in cancelled by user")
         val language = _uiState.value.selectedLanguage
         _uiState.update {
             it.copy(
@@ -126,7 +126,7 @@ class SignupViewModel(
     }
 
     fun onGoogleIdTokenReceived(idToken: String?) {
-        Log.d(SIGNUP_VIEWMODEL_TAG, "Google sign-in returned token: ${!idToken.isNullOrBlank()}")
+        logDebug("Google sign-in returned token: ${!idToken.isNullOrBlank()}")
         val language = _uiState.value.selectedLanguage
         if (idToken.isNullOrBlank()) {
             _uiState.update {
@@ -141,11 +141,11 @@ class SignupViewModel(
         viewModelScope.launch {
             try {
                 repository.signInWithGoogle(idToken)
-                Log.d(SIGNUP_VIEWMODEL_TAG, "Google sign-in succeeded")
+                logDebug("Google sign-in succeeded")
                 _uiState.update { it.copy(loadingProvider = null) }
                 _events.send(SignupEvent.SignupSuccess)
             } catch (throwable: Throwable) {
-                Log.w(SIGNUP_VIEWMODEL_TAG, "Google sign-in failed", throwable)
+                logWarn("Google sign-in failed", throwable)
                 val language = _uiState.value.selectedLanguage
                 _uiState.update {
                     it.copy(
@@ -158,7 +158,7 @@ class SignupViewModel(
     }
 
     fun onGoogleSignInFailed(throwable: Throwable) {
-        Log.w(SIGNUP_VIEWMODEL_TAG, "Google sign-in intent failed", throwable)
+        logWarn("Google sign-in intent failed", throwable)
         val language = _uiState.value.selectedLanguage
         _uiState.update {
             it.copy(
@@ -196,3 +196,11 @@ sealed interface SignupEvent {
 }
 
 private const val SIGNUP_VIEWMODEL_TAG = "SignupViewModel"
+
+private fun logDebug(message: String) {
+    runCatching { Log.d(SIGNUP_VIEWMODEL_TAG, message) }
+}
+
+private fun logWarn(message: String, throwable: Throwable) {
+    runCatching { Log.w(SIGNUP_VIEWMODEL_TAG, message, throwable) }
+}
