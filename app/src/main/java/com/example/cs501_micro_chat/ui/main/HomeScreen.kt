@@ -479,6 +479,9 @@ private fun ConversationListItem(
     viewModel: HomeViewModel,
     onClick: () -> Unit = {}
 ) {
+    // 监听 userCache 的变化，确保用户信息加载后界面会更新
+    val userCache by viewModel.userCache.collectAsStateWithLifecycle()
+
     val unreadCount = viewModel.getUnreadCount(conversation)
     val formattedTime = viewModel.formatTime(conversation.lastMessageTime)
 
@@ -491,6 +494,7 @@ private fun ConversationListItem(
     Log.d("ConversationListItem", "Participants: ${conversation.participants}")
     Log.d("ConversationListItem", "Display Name: $displayName")
     Log.d("ConversationListItem", "Avatar URL: $avatarUrl")
+    Log.d("ConversationListItem", "UserCache size: ${userCache.size}")
 
     Row(
         modifier = Modifier
@@ -579,27 +583,6 @@ private fun ConversationListItem(
                     modifier = Modifier.weight(1f)
                 )
 
-                // 移除未读消息徽章显示（按要求）
-                // 如果需要显示未读数，取消下面的注释
-                /*
-                if (unreadCount > 0) {
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Box(
-                        modifier = Modifier
-                            .clip(CircleShape)
-                            .background(UnreadBadgeRed)
-                            .padding(horizontal = 6.dp, vertical = 2.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = if (unreadCount > 99) "99+" else unreadCount.toString(),
-                            color = Color.White,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Medium
-                        )
-                    }
-                }
-                */
             }
         }
     }

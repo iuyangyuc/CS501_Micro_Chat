@@ -48,6 +48,9 @@ class ChatDetailViewModel @Inject constructor(
     private val _currentUserId = MutableStateFlow(auth.currentUser?.uid ?: "")
     val currentUserId: StateFlow<String> = _currentUserId.asStateFlow()
 
+    // 用户信息缓存：userId -> User
+    private val userCache = mutableMapOf<String, com.example.cs501_micro_chat.data.model.User>()
+
     private var currentConversationId: String? = null
 
     /**
@@ -69,7 +72,11 @@ class ChatDetailViewModel @Inject constructor(
                 // 实时监听消息变化
                 chatRepository.observeMessages(conversationId).collect { messageList ->
                     Log.d("ChatDetailViewModel", "Received ${messageList.size} messages")
-                    _messages.value = messageList.sortedBy { it.timestamp }
+
+                    // 补充缺失的用户信息
+                    val enrichedMessages = enrichMessagesWithUserInfo(messageList)
+
+                    _messages.value = enrichedMessages.sortedBy { it.timestamp }
                     _isLoading.value = false
                     _error.value = null
 
@@ -80,6 +87,48 @@ class ChatDetailViewModel @Inject constructor(
                 Log.e("ChatDetailViewModel", "Error loading messages", e)
                 _error.value = "加载消息失败: ${e.message}"
                 _isLoading.value = false
+            }
+        }
+    }
+
+    /**
+     * 补充消息中缺失的用户信息
+     * Enrich messages with missing user information
+     */
+    private suspend fun enrichMessagesWithUserInfo(messages: List<Message>): List<Message> {
+        // 收集所有需要加载的用户 ID（senderName 或 senderAvatarUrl 为空的）
+        val userIdsToLoad = messages
+            .filter { it.senderName.isBlank() || it.senderAvatarUrl.isBlank() }
+            .map { it.senderId }
+            .toSet()
+            .filter { !userCache.containsKey(it) }
+
+        if (userIdsToLoad.isNotEmpty()) {
+            Log.d("ChatDetailViewModel", "Loading user info for ${userIdsToLoad.size} users")
+
+            // 批量加载用户信息
+            chatRepository.getUsers(userIdsToLoad).onSuccess { users ->
+                userCache.putAll(users)
+                Log.d("ChatDetailViewModel", "Loaded ${users.size} users into cache")
+            }.onFailure { error ->
+                Log.e("ChatDetailViewModel", "Failed to load users", error)
+            }
+        }
+
+        // 使用缓存的用户信息补充消息
+        return messages.map { message ->
+            if (message.senderName.isBlank() || message.senderAvatarUrl.isBlank()) {
+                val user = userCache[message.senderId]
+                if (user != null) {
+                    message.copy(
+                        senderName = user.username,
+                        senderAvatarUrl = user.avatarUrl
+                    )
+                } else {
+                    message
+                }
+            } else {
+                message
             }
         }
     }

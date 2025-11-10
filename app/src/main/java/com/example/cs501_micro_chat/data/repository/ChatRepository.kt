@@ -282,6 +282,22 @@ class ChatRepository @Inject constructor(
     suspend fun searchUsers(query: String): Result<List<User>> {
         return firebaseDataSource.searchUsers(query)
     }
+
+    // ==================== 用户相关 User Operations ====================
+
+    /**
+     * 获取用户信息
+     */
+    suspend fun getUser(userId: String): Result<User?> {
+        return firebaseDataSource.getUser(userId)
+    }
+
+    /**
+     * 批量获取用户信息
+     */
+    suspend fun getUsers(userIds: List<String>): Result<Map<String, User>> {
+        return firebaseDataSource.getUsers(userIds)
+    }
 }
 
 

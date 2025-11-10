@@ -60,7 +60,36 @@ class FirebaseDataSource @Inject constructor(
      */
     suspend fun getUser(userId: String): Result<User?> = runCatching {
         val snapshot = usersCollection.document(userId).get().await()
-        snapshot.toObject(User::class.java)
+        snapshot.toObject(User::class.java)?.copy(id = userId)
+    }
+
+    /**
+     * 批量获取用户信息
+     * @param userIds 用户 ID 列表
+     * @return Map<userId, User?>
+     */
+    suspend fun getUsers(userIds: List<String>): Result<Map<String, User>> = runCatching {
+        if (userIds.isEmpty()) {
+            return@runCatching emptyMap()
+        }
+
+        val users = mutableMapOf<String, User>()
+
+        // Firebase 的 whereIn 限制为 10 个元素，需要分批查询
+        userIds.distinct().chunked(10).forEach { chunk ->
+            val snapshot = usersCollection
+                .whereIn("__name__", chunk)
+                .get()
+                .await()
+
+            snapshot.documents.forEach { doc ->
+                doc.toObject(User::class.java)?.let { user ->
+                    users[doc.id] = user.copy(id = doc.id)
+                }
+            }
+        }
+
+        users
     }
 
     /**
@@ -240,50 +269,120 @@ class FirebaseDataSource @Inject constructor(
     }
 
     /**
-     * 获取用户的会话列表
+     * 获取用户的会话列表（包括个人会话和群组会话）
+     * 通过用户的联系人列表获取 conversationId，而不是查询所有会话
+     *
+     * 支持：
+     * - 个人联系人会话（type = "PRIVATE"）
+     * - 群组会话（type = "GROUP"）
      */
     suspend fun getUserConversations(userId: String): Result<List<Conversation>> = runCatching {
-        val snapshot = conversationsCollection
-            .whereArrayContains("participants", userId)
-            .whereEqualTo("isActive", true)
-            .orderBy("lastMessageTime", Query.Direction.DESCENDING)
-            .get()
-            .await()
+        // 1. 获取用户的所有联系人（包括个人和群组）
+        val contacts = getContacts(userId).getOrNull() ?: emptyList()
 
-        // 手动映射，确保 id 字段被正确设置为文档 ID
-        snapshot.documents.mapNotNull { doc ->
-            doc.toObject(Conversation::class.java)?.copy(id = doc.id)
+        // 2. 提取所有 conversationId（过滤掉空的）
+        // 无论是个人联系人还是群组，都有 conversationId 字段
+        val conversationIds = contacts.mapNotNull { it.conversationId.takeIf { id -> id.isNotEmpty() } }
+
+        Log.d(TAG, "getUserConversations: Found ${conversationIds.size} conversation IDs (including groups)")
+
+        // 3. 如果没有会话，直接返回空列表
+        if (conversationIds.isEmpty()) {
+            return@runCatching emptyList()
         }
+
+        // 4. 批量获取会话信息
+        // Firebase 的 whereIn 限制为 10 个元素，需要分批查询
+        val conversations = mutableListOf<Conversation>()
+        conversationIds.chunked(10).forEach { chunk ->
+            val snapshot = conversationsCollection
+                .whereIn("__name__", chunk) // 使用文档 ID 查询
+                .whereEqualTo("isActive", true)
+                .get()
+                .await()
+
+            snapshot.documents.mapNotNullTo(conversations) { doc ->
+                doc.toObject(Conversation::class.java)?.copy(id = doc.id)
+            }
+        }
+
+        Log.d(TAG, "getUserConversations: Retrieved ${conversations.size} conversations from Firestore")
+
+        // 5. 按最后消息时间排序
+        conversations.sortedByDescending { it.lastMessageTime }
     }
 
     /**
-     * 监听用户的会话列表
+     * 监听用户的会话列表（包括个人会话和群组会话）
+     * 通过用户的联系人列表获取 conversationId，而不是查询所有会话
      *
-     * 注意：移除了 orderBy 以避免需要复合索引
-     * 排序改为在客户端（ViewModel）进行
+     * 支持：
+     * - 个人联系人会话（type = "PRIVATE"）
+     * - 群组会话（type = "GROUP"）
+     *
+     * 注意：此方法会先监听联系人列表变化，然后监听对应的会话
      */
     fun observeUserConversations(userId: String): Flow<List<Conversation>> = callbackFlow {
-        val listener = conversationsCollection
-            .whereArrayContains("participants", userId)
-            .whereEqualTo("isActive", true)
-            // 移除 .orderBy() 以避免需要复合索引
-            // 排序将在 HomeViewModel 中进行
-            .addSnapshotListener { snapshot, error ->
-                if (error != null) {
-                    Log.e(TAG, "Error observing conversations", error)
-                    close(error)
+        // 监听用户的联系人列表（包括个人联系人和群组）
+        val contactsListener = usersCollection
+            .document(userId)
+            .collection("contacts")
+            .whereEqualTo("isBlocked", false)
+            .addSnapshotListener { contactsSnapshot, contactsError ->
+                if (contactsError != null) {
+                    Log.e(TAG, "Error observing contacts", contactsError)
+                    close(contactsError)
                     return@addSnapshotListener
                 }
-                // 手动映射，确保 id 字段被正确设置为文档 ID
-                val conversations = snapshot?.documents?.mapNotNull { doc ->
-                    doc.toObject(Conversation::class.java)?.copy(id = doc.id)
-                } ?: emptyList()
-                Log.d(TAG, "Received ${conversations.size} conversations from Firestore")
-                // 在客户端按时间排序
-                val sortedConversations = conversations.sortedByDescending { it.lastMessageTime }
-                trySend(sortedConversations)
+
+                val contacts = contactsSnapshot?.toObjects(Contact::class.java) ?: emptyList()
+
+                // 提取所有 conversationId（无论是个人还是群组）
+                val conversationIds = contacts.mapNotNull {
+                    it.conversationId.takeIf { id -> id.isNotEmpty() }
+                }
+
+                Log.d(TAG, "observeUserConversations: Found ${conversationIds.size} conversation IDs from contacts (including groups)")
+                Log.d(TAG, "observeUserConversations: Contacts breakdown - ${contacts.count { it.type == "GROUP" }} groups, ${contacts.count { it.type == "PRIVATE" }} private")
+
+                if (conversationIds.isEmpty()) {
+                    trySend(emptyList())
+                    return@addSnapshotListener
+                }
+
+                // 监听这些会话的变化
+                // 由于 Firebase 不支持直接监听多个文档 ID，我们需要分批监听或使用组合查询
+                // 这里使用一个简单的方法：查询所有匹配的会话
+                conversationsCollection
+                    .whereEqualTo("isActive", true)
+                    .addSnapshotListener { conversationsSnapshot, conversationsError ->
+                        if (conversationsError != null) {
+                            Log.e(TAG, "Error observing conversations", conversationsError)
+                            close(conversationsError)
+                            return@addSnapshotListener
+                        }
+
+                        // 过滤出属于用户的会话（包括个人和群组）
+                        val allConversations = conversationsSnapshot?.documents?.mapNotNull { doc ->
+                            if (conversationIds.contains(doc.id)) {
+                                doc.toObject(Conversation::class.java)?.copy(id = doc.id)
+                            } else null
+                        } ?: emptyList()
+
+                        Log.d(TAG, "observeUserConversations: Received ${allConversations.size} conversations from Firestore")
+                        Log.d(TAG, "observeUserConversations: Breakdown - ${allConversations.count { it.type == ConversationType.GROUP }} groups, ${allConversations.count { it.type == ConversationType.PRIVATE }} private")
+
+                        // 在客户端按时间排序
+                        val sortedConversations = allConversations.sortedByDescending { it.lastMessageTime }
+                        trySend(sortedConversations)
+                    }
             }
-        awaitClose { listener.remove() }
+
+        awaitClose {
+            // 注意：这里只移除最外层的监听器
+            // 内层监听器会在外层监听器触发时自动更新
+            contactsListener.remove()
+        }
     }
 
     /**

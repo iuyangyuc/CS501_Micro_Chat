@@ -1,15 +1,16 @@
 /**
  * Contact.kt
  *
- * 联系人关系数据模型 - 表示用户之间的好友关系
- * Contact Relationship Data Model - Represents friendship between users
+ * 联系人关系数据模型 - 表示用户之间的好友关系或群组关系
+ * Contact Relationship Data Model - Represents friendship between users or group membership
  *
  * Firebase 路径: /users/{userId}/contacts/{contactId}
  *
  * @property userId 当前用户 ID
- * @property contactId 联系人用户 ID
- * @property contactName 联系人名称
- * @property contactAvatarUrl 联系人头像 URL
+ * @property contactId 联系人用户 ID 或群组 ID
+ * @property contactName 联系人名称或群组名称
+ * @property contactAvatarUrl 联系人头像 URL 或群组头像 URL
+ * @property type 类型：PRIVATE（个人联系人）或 GROUP（群组）
  * @property alias 备注名
  * @property tags 标签列表
  * @property isFavorite 是否为特别关注
@@ -24,6 +25,7 @@ data class Contact(
     val contactId: String = "",
     val contactName: String = "",
     val contactAvatarUrl: String = "",
+    val type: String = "PRIVATE", // "PRIVATE" 或 "GROUP"
     val alias: String = "",
     val tags: List<String> = emptyList(),
     val isFavorite: Boolean = false,
@@ -37,6 +39,7 @@ data class Contact(
         "contactId" to contactId,
         "contactName" to contactName,
         "contactAvatarUrl" to contactAvatarUrl,
+        "type" to type,
         "alias" to alias,
         "tags" to tags,
         "isFavorite" to isFavorite,
@@ -47,5 +50,8 @@ data class Contact(
 
     // 获取显示名称（备注名优先）
     fun getDisplayName(): String = alias.ifEmpty { contactName }
+
+    // 判断是否为群组
+    fun isGroup(): Boolean = type == "GROUP"
 }
 

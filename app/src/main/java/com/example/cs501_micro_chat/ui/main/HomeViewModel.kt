@@ -44,6 +44,10 @@ class HomeViewModel @Inject constructor(
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error.asStateFlow()
 
+    // 用户信息缓存：userId -> User
+    private val _userCache = MutableStateFlow<Map<String, com.example.cs501_micro_chat.data.model.User>>(emptyMap())
+    val userCache: StateFlow<Map<String, com.example.cs501_micro_chat.data.model.User>> = _userCache.asStateFlow()
+
     private val TAG = "HomeViewModel"
 
     init {
@@ -81,11 +85,51 @@ class HomeViewModel @Inject constructor(
                     // 数据已经在 FirebaseDataSource 中按时间排序了
                     _conversations.value = conversations
                     _isLoading.value = false
+
+                    // 加载会话中所有参与者的用户信息
+                    loadUsersForConversations(conversations)
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Error loading conversations", e)
                 _error.value = "加载会话失败: ${e.message}"
                 _isLoading.value = false
+            }
+        }
+    }
+
+    /**
+     * 加载会话中所有参与者的用户信息
+     */
+    private fun loadUsersForConversations(conversations: List<Conversation>) {
+        viewModelScope.launch {
+            try {
+                // 收集所有需要加载的用户 ID
+                val userIds = conversations.flatMap { it.participants }.toSet()
+                val currentUserId = auth.currentUser?.uid
+
+                // 过滤掉已缓存的和当前用户
+                val uncachedUserIds = userIds.filter {
+                    it != currentUserId && !_userCache.value.containsKey(it)
+                }
+
+                if (uncachedUserIds.isEmpty()) {
+                    Log.d(TAG, "All users already cached")
+                    return@launch
+                }
+
+                Log.d(TAG, "Loading ${uncachedUserIds.size} users: $uncachedUserIds")
+
+                // 批量获取用户信息
+                val result = chatRepository.getUsers(uncachedUserIds)
+                result.onSuccess { users ->
+                    Log.d(TAG, "Loaded ${users.size} users")
+                    // 更新缓存
+                    _userCache.value = _userCache.value + users
+                }.onFailure { error ->
+                    Log.e(TAG, "Failed to load users", error)
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error loading users for conversations", e)
             }
         }
     }
@@ -147,7 +191,7 @@ class HomeViewModel @Inject constructor(
 
     /**
      * 获取会话的显示名称
-     * 优先使用对方用户的 ID（从 participants 中提取）
+     * 对于私聊，从缓存中获取对方用户的真实用户名
      */
     fun getDisplayName(conversation: Conversation): String {
         // 对于群聊，使用 conversation.name
@@ -155,15 +199,22 @@ class HomeViewModel @Inject constructor(
             return conversation.name.ifEmpty { "群聊" }
         }
 
-        // 对于私聊，返回对方用户的 ID（临时方案）
-        // 后续可以通过 chatRepository 异步获取用户信息
+        // 对于私聊，从缓存中获取对方用户的真实用户名
         val otherUserId = getOtherUserId(conversation)
-        return otherUserId ?: conversation.name.ifEmpty { "未知用户" }
+        if (otherUserId != null) {
+            val otherUser = _userCache.value[otherUserId]
+            if (otherUser != null) {
+                return otherUser.username
+            }
+        }
+
+        // 如果缓存中没有，返回默认值
+        return conversation.name.ifEmpty { "加载中..." }
     }
 
     /**
      * 获取会话的头像 URL
-     * 对于私聊，使用对方用户的头像
+     * 对于私聊，从缓存中获取对方用户的真实头像
      */
     fun getAvatarUrl(conversation: Conversation): String {
         // 对于群聊，使用 conversation.avatarUrl
@@ -171,8 +222,16 @@ class HomeViewModel @Inject constructor(
             return conversation.avatarUrl
         }
 
-        // 对于私聊，返回空字符串，让 UI 显示首字母
-        // 后续可以通过 chatRepository 异步获取用户头像
+        // 对于私聊，从缓存中获取对方用户的真实头像
+        val otherUserId = getOtherUserId(conversation)
+        if (otherUserId != null) {
+            val otherUser = _userCache.value[otherUserId]
+            if (otherUser != null) {
+                return otherUser.avatarUrl
+            }
+        }
+
+        // 如果缓存中没有，返回空字符串
         return ""
     }
 
