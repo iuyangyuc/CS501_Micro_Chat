@@ -214,35 +214,82 @@ class FirebaseDataSource @Inject constructor(
 
     /**
      * 创建或获取私聊会话
+     *
+     * 优化逻辑：
+     * 1. 从 currentUserId 的 contacts 中查找是否已有与 otherUserId 的会话
+     * 2. 如果找到，返回该会话
+     * 3. 如果没有，创建新会话并同时在 currentUserId 的 contacts 中添加联系人信息
      */
     suspend fun createOrGetPrivateConversation(currentUserId: String, otherUserId: String): Result<Conversation> = runCatching {
-        // 查找已存在的会话
-        val existingConversations = conversationsCollection
-            .whereEqualTo("type", ConversationType.PRIVATE.name)
-            .whereArrayContains("participants", currentUserId)
+        Log.d(TAG, "createOrGetPrivateConversation: currentUser=$currentUserId, otherUser=$otherUserId")
+
+        // 1. 从当前用户的 contacts 中查找是否已有与 otherUserId 的联系人
+        val contactDoc = usersCollection
+            .document(currentUserId)
+            .collection("contacts")
+            .document(otherUserId)
             .get()
             .await()
-            .toObjects(Conversation::class.java)
-            .filter { it.participants.contains(otherUserId) }
 
-        if (existingConversations.isNotEmpty()) {
-            existingConversations.first()
-        } else {
-            // 创建新会话
-            val otherUser = getUser(otherUserId).getOrNull()
-            val conversationId = conversationsCollection.document().id
-            val conversation = Conversation(
-                id = conversationId,
-                type = ConversationType.PRIVATE,
-                name = otherUser?.username ?: "",
-                avatarUrl = otherUser?.avatarUrl ?: "",
-                participants = listOf(currentUserId, otherUserId),
-                createdBy = currentUserId,
-                unreadCounts = mapOf(currentUserId to 0, otherUserId to 0)
-            )
-            conversationsCollection.document(conversationId).set(conversation.toMap()).await()
-            conversation
+        val existingContact = contactDoc.toObject(Contact::class.java)
+
+        // 2. 如果联系人存在且有 conversationId，获取该会话
+        if (existingContact != null && existingContact.conversationId.isNotEmpty()) {
+            Log.d(TAG, "Found existing conversation: ${existingContact.conversationId}")
+            val conversation = getConversation(existingContact.conversationId).getOrNull()
+            if (conversation != null) {
+                return@runCatching conversation
+            }
+            Log.w(TAG, "Conversation ${existingContact.conversationId} not found in Firestore, creating new one")
         }
+
+        // 3. 如果没有找到会话，创建新会话
+        Log.d(TAG, "Creating new conversation")
+        val otherUser = getUser(otherUserId).getOrNull()
+        val conversationId = conversationsCollection.document().id
+
+        val conversation = Conversation(
+            id = conversationId,
+            type = ConversationType.PRIVATE,
+            name = otherUser?.username ?: "",
+            avatarUrl = otherUser?.avatarUrl ?: "",
+            participants = listOf(currentUserId, otherUserId),
+            createdBy = currentUserId,
+            unreadCounts = mapOf(currentUserId to 0, otherUserId to 0)
+        )
+
+        // 保存会话到 Firestore
+        conversationsCollection.document(conversationId).set(conversation.toMap()).await()
+        Log.d(TAG, "Conversation created: $conversationId")
+
+        // 4. 在两个用户的 contacts 中都添加联系人信息（双向关系）
+        val currentTime = System.currentTimeMillis()
+
+        // 为 currentUserId 添加 otherUserId 作为联系人
+        val contactForCurrentUser = Contact(
+            userId = currentUserId,
+            contactId = otherUserId,
+            type = "PRIVATE",
+            conversationId = conversationId,
+            isBlocked = false,
+            addedAt = currentTime
+        )
+        addContact(contactForCurrentUser).getOrThrow()
+        Log.d(TAG, "Contact added for currentUser: $currentUserId -> $otherUserId")
+
+        // 为 otherUserId 添加 currentUserId 作为联系人
+        val contactForOtherUser = Contact(
+            userId = otherUserId,
+            contactId = currentUserId,
+            type = "PRIVATE",
+            conversationId = conversationId,
+            isBlocked = false,
+            addedAt = currentTime
+        )
+        addContact(contactForOtherUser).getOrThrow()
+        Log.d(TAG, "Contact added for otherUser: $otherUserId -> $currentUserId")
+
+        conversation
     }
 
     /**
