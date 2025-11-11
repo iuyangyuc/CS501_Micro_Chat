@@ -30,8 +30,10 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.automirrored.filled.Logout
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -56,13 +58,17 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import androidx.compose.animation.*
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
 import java.net.URLEncoder
 import java.net.URLDecoder
 import java.nio.charset.StandardCharsets
 import coil.compose.AsyncImage
 import com.example.cs501_micro_chat.R
 import com.example.cs501_micro_chat.data.model.Conversation
-import com.example.cs501_micro_chat.ui.chat.ChatDetailScreen
 
 // Figma Design Colors
 private val PrimaryBlue = Color(0xFF3296FA)
@@ -123,106 +129,143 @@ fun HomeScreen(
     onLogout: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Log.d("HomeScreen", "HomeScreen composable started")
     val items = homeDestinationItems
-    Log.d("HomeScreen", "Navigation items count: ${items.size}")
-    items.forEachIndexed { index, item ->
-        Log.d("HomeScreen", "Item $index: ${item.route}")
-    }
-
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
     val currentRoute = currentDestination?.route
 
-    Log.d("HomeScreen", "Current route: $currentRoute")
-
     // 判断是否在对话详情页面
     val isInChatDetail = currentRoute?.startsWith("chat_detail") == true
 
-    Scaffold(
-        modifier = modifier.fillMaxSize(),
-        topBar = {
-            // 在对话详情页面时不显示顶栏
-            if (!isInChatDetail) {
-                // Figma 设计的渐变蓝色顶部栏 - 适配系统状态栏
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    color = Color.Transparent
-                ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(
-                            brush = Brush.verticalGradient(
-                                colors = listOf(PrimaryBlue, LightBlue)
-                            )
-                        )
-                        .statusBarsPadding() // 自动适配系统状态栏高度
-                        .padding(horizontal = 16.dp, vertical = 12.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Spacer(modifier = Modifier.width(32.dp))
-
-                        Text(
-                            text = when (currentRoute) {
-                                HomeDestination.Chats.route -> stringResource(R.string.nav_chats)
-                                HomeDestination.Contacts.route -> stringResource(R.string.nav_contacts)
-                                HomeDestination.Me.route -> stringResource(R.string.nav_me)
-                                else -> stringResource(R.string.app_name)
-                            },
-                            color = Color.White,
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Medium
-                        )
-
-                        // 仅在聊天页面显示添加按钮
-                        if (currentRoute == HomeDestination.Chats.route) {
-                            IconButton(
-                                onClick = { /* TODO: Show menu */ }
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Filled.Add,
-                                    contentDescription = "Add",
-                                    tint = Color.White
-                                )
-                            }
-                        } else {
-                            Spacer(modifier = Modifier.width(32.dp))
-                        }
-                    }
+    // ========== 固定布局：顶栏 + 内容 + 底栏 ==========
+    Column(
+        modifier = modifier.fillMaxSize()
+    ) {
+        // ========== 固定顶栏（始终存在，只改变内容） ==========
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .statusBarsPadding()
+                .background(
+                    brush = Brush.verticalGradient(
+                        colors = listOf(PrimaryBlue, LightBlue)
+                    )
+                )
+                .padding(horizontal = 4.dp, vertical = 8.dp)
+        ) {
+            // 顶栏内容平滑切换
+            AnimatedContent(
+                targetState = isInChatDetail to currentRoute,
+                transitionSpec = {
+                    fadeIn(animationSpec = tween(150)) togetherWith
+                            fadeOut(animationSpec = tween(150))
+                },
+                label = "TopBarContent"
+            ) { (inChatDetail, route) ->
+                if (inChatDetail) {
+                    // ChatDetail 顶栏内容
+                    ChatDetailTopBar(
+                        conversationName = navBackStackEntry?.arguments?.getString("conversationName")?.let {
+                            URLDecoder.decode(it, StandardCharsets.UTF_8.toString())
+                        } ?: "",
+                        conversationAvatar = navBackStackEntry?.arguments?.getString("conversationAvatar")?.let {
+                            URLDecoder.decode(it, StandardCharsets.UTF_8.toString())
+                        } ?: "",
+                        onBack = { navController.popBackStack() }
+                    )
+                } else {
+                    // HomeScreen 顶栏内容
+                    HomeTopBar(
+                        currentRoute = route,
+                        onAddClick = { /* TODO */ }
+                    )
                 }
             }
-            } // 结束 if (!isInChatDetail)
-        },
-        bottomBar = {
-            // 在对话详情页面时不显示底栏
-            if (!isInChatDetail) {
-                // Figma 设计的底部导航栏
-                Surface(
-                    color = Color.White,
-                    shadowElevation = 8.dp
-                ) {
+        }
+
+        // ========== 内容区域（可动画） ==========
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .background(BackgroundGray)
+        ) {
+            NavHost(
+                navController = navController,
+                startDestination = HomeDestination.Chats.route
+            ) {
+                composable(HomeDestination.Chats.route) {
+                    val homeViewModel: HomeViewModel = hiltViewModel()
+                    ChatListScreen(
+                        viewModel = homeViewModel,
+                        onChatClick = { conversation ->
+                            val displayName = homeViewModel.getDisplayName(conversation)
+                            val avatarUrl = homeViewModel.getAvatarUrl(conversation)
+                            val encodedName = URLEncoder.encode(displayName, StandardCharsets.UTF_8.toString())
+                            val encodedAvatar = URLEncoder.encode(avatarUrl, StandardCharsets.UTF_8.toString())
+                            navController.navigate(
+                                "chat_detail/${conversation.id}/$encodedName/$encodedAvatar"
+                            )
+                        }
+                    )
+                }
+
+                composable(HomeDestination.Contacts.route) {
+                    ContactsScreen()
+                }
+
+                composable(HomeDestination.Me.route) {
+                    ProfileScreen(onLogout = onLogout)
+                }
+
+                // ChatDetail 页面 - 从右侧滑入
+                composable(
+                    route = "chat_detail/{conversationId}/{conversationName}/{conversationAvatar}",
+                    arguments = listOf(
+                        navArgument("conversationId") { type = NavType.StringType },
+                        navArgument("conversationName") { type = NavType.StringType },
+                        navArgument("conversationAvatar") { type = NavType.StringType }
+                    ),
+                    enterTransition = {
+                        slideInHorizontally(
+                            initialOffsetX = { fullWidth -> fullWidth },
+                            animationSpec = tween(300)
+                        ) + fadeIn(animationSpec = tween(300))
+                    },
+                    exitTransition = {
+                        fadeOut(animationSpec = tween(300))
+                    },
+                    popEnterTransition = {
+                        fadeIn(animationSpec = tween(300))
+                    },
+                    popExitTransition = {
+                        slideOutHorizontally(
+                            targetOffsetX = { fullWidth -> fullWidth },
+                            animationSpec = tween(300)
+                        ) + fadeOut(animationSpec = tween(300))
+                    }
+                ) { backStackEntry ->
+                    val conversationId = backStackEntry.arguments?.getString("conversationId") ?: ""
+                    ChatDetailContent(conversationId = conversationId)
+                }
+            }
+        }
+
+        // ========== 固定底栏（非 ChatDetail 时显示） ==========
+        if (!isInChatDetail) {
+            Surface(
+                color = Color.White,
+                shadowElevation = 8.dp
+            ) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(vertical = 8.dp),
                     horizontalArrangement = Arrangement.SpaceAround
                 ) {
-                    Log.d("HomeScreen", "Rendering bottom bar, items count: ${items.size}")
-                    items.forEachIndexed { index, destination ->
-                        if (destination == null) {
-                            Log.e("HomeScreen", "Null destination at index $index")
-                            return@forEachIndexed
-                        }
-
-                        Log.d("HomeScreen", "Destination $index: route=${destination.route}")
+                    items.forEach { destination ->
                         val selected = currentRoute == destination.route
-
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
                             modifier = Modifier
@@ -254,77 +297,277 @@ fun HomeScreen(
                     }
                 }
             }
-            } // 结束 if (!isInChatDetail) for bottomBar
         }
-    ) { innerPadding ->
+    }
+}
+
+/**
+ * HomeScreen 的顶栏内容
+ */
+@Composable
+private fun HomeTopBar(
+    currentRoute: String?,
+    onAddClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Spacer(modifier = Modifier.width(48.dp))
+
+        Text(
+            text = when (currentRoute) {
+                HomeDestination.Chats.route -> stringResource(R.string.nav_chats)
+                HomeDestination.Contacts.route -> stringResource(R.string.nav_contacts)
+                HomeDestination.Me.route -> stringResource(R.string.nav_me)
+                else -> ""
+            },
+            color = Color.White,
+            fontSize = 18.sp,
+            fontWeight = FontWeight.SemiBold
+        )
+
+        if (currentRoute == HomeDestination.Chats.route) {
+            IconButton(onClick = onAddClick) {
+                Icon(
+                    imageVector = Icons.Filled.Add,
+                    contentDescription = "Add",
+                    tint = Color.White
+                )
+            }
+        } else {
+            Spacer(modifier = Modifier.width(48.dp))
+        }
+    }
+}
+
+/**
+ * ChatDetail 的顶栏内容
+ */
+@Composable
+private fun ChatDetailTopBar(
+    conversationName: String,
+    conversationAvatar: String,
+    onBack: () -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        IconButton(onClick = onBack) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                contentDescription = "Back",
+                tint = Color.White
+            )
+        }
+
+        if (conversationAvatar.isNotBlank()) {
+            AsyncImage(
+                model = conversationAvatar,
+                contentDescription = "$conversationName avatar",
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(CircleShape),
+                contentScale = ContentScale.Crop
+            )
+        } else {
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(CircleShape)
+                    .background(Color.White.copy(alpha = 0.3f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = conversationName.firstOrNull()?.toString() ?: "?",
+                    color = Color.White,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Medium
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.width(12.dp))
+
+        Text(
+            text = conversationName,
+            color = Color.White,
+            fontSize = 16.sp,
+            fontWeight = FontWeight.Medium,
+            modifier = Modifier.weight(1f)
+        )
+
+        IconButton(onClick = { /* TODO */ }) {
+            Icon(
+                imageVector = Icons.Default.MoreVert,
+                contentDescription = "More",
+                tint = Color.White
+            )
+        }
+    }
+}
+
+/**
+ * ChatDetail 的内容区域（不包含顶栏）
+ */
+@Composable
+private fun ChatDetailContent(conversationId: String) {
+    val viewModel: com.example.cs501_micro_chat.ui.chat.ChatDetailViewModel = hiltViewModel()
+
+    LaunchedEffect(conversationId) {
+        viewModel.loadMessages(conversationId)
+    }
+
+    val messages by viewModel.messages.collectAsStateWithLifecycle()
+    val currentUserId by viewModel.currentUserId.collectAsStateWithLifecycle()
+
+    var inputText by remember { mutableStateOf("") }
+    val listState = rememberLazyListState()
+
+    LaunchedEffect(messages.size) {
+        if (messages.isNotEmpty()) {
+            listState.animateScrollToItem(messages.size - 1)
+        }
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.White)
+    ) {
+        // 消息列表
         Box(
             modifier = Modifier
-                .fillMaxSize()
-                // 只有在非对话详情页面时才应用padding
-                .then(
-                    if (!isInChatDetail) {
-                        Modifier.padding(innerPadding)
-                    } else {
-                        Modifier
-                    }
-                )
-                .background(BackgroundGray)
+                .weight(1f)
+                .fillMaxWidth()
         ) {
-            NavHost(
-                navController = navController,
-                startDestination = HomeDestination.Chats.route
-            ) {
-                composable(HomeDestination.Chats.route) {
-                    // 获取 HomeViewModel 实例
-                    val homeViewModel: HomeViewModel = hiltViewModel()
-                    ChatListScreen(
-                        viewModel = homeViewModel,
-                        onChatClick = { conversation ->
-                            // 使用 viewModel 获取对方用户的显示名称和头像
-                            val displayName = homeViewModel.getDisplayName(conversation)
-                            val avatarUrl = homeViewModel.getAvatarUrl(conversation)
-
-                            // 导航到对话详情页面，URL编码避免特殊字符问题
-                            val encodedName = URLEncoder.encode(displayName, StandardCharsets.UTF_8.toString())
-                            val encodedAvatar = URLEncoder.encode(avatarUrl, StandardCharsets.UTF_8.toString())
-                            navController.navigate(
-                                "chat_detail/${conversation.id}/$encodedName/$encodedAvatar"
-                            )
+            if (messages.isEmpty()) {
+                Column(
+                    modifier = Modifier.align(Alignment.Center),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.ChatBubbleOutline,
+                        contentDescription = null,
+                        tint = TextSecondary,
+                        modifier = Modifier.size(64.dp)
+                    )
+                    Text(
+                        text = "暂无消息",
+                        color = TextSecondary,
+                        fontSize = 16.sp
+                    )
+                }
+            } else {
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(
+                        items = messages,
+                        key = { message ->
+                            if (message.id.isNotBlank()) message.id
+                            else "${message.timestamp}_${message.senderId}_${message.content.hashCode()}"
                         }
+                    ) { message ->
+                        com.example.cs501_micro_chat.ui.chat.MessageBubble(
+                            message = message,
+                            isSelf = message.senderId == currentUserId
+                        )
+                    }
+                }
+            }
+        }
+
+        // 输入栏
+        Surface(
+            color = Color.White,
+            shadowElevation = 8.dp
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.Bottom
+            ) {
+                IconButton(
+                    onClick = { /* TODO */ },
+                    modifier = Modifier.size(40.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Mic,
+                        contentDescription = "Voice",
+                        tint = TextSecondary
                     )
                 }
 
-                composable(HomeDestination.Contacts.route) {
-                    ContactsScreen()
+                Row(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(SearchBarGray)
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    TextField(
+                        value = inputText,
+                        onValueChange = { inputText = it },
+                        modifier = Modifier.weight(1f),
+                        placeholder = {
+                            Text(
+                                text = "Type a message...",
+                                color = TextSecondary,
+                                fontSize = 14.sp
+                            )
+                        },
+                        colors = TextFieldDefaults.colors(
+                            focusedContainerColor = Color.Transparent,
+                            unfocusedContainerColor = Color.Transparent,
+                            focusedIndicatorColor = Color.Transparent,
+                            unfocusedIndicatorColor = Color.Transparent
+                        ),
+                        maxLines = 4
+                    )
                 }
 
-                composable(HomeDestination.Me.route) {
-                    ProfileScreen(onLogout = onLogout)
-                }
+                Spacer(modifier = Modifier.width(4.dp))
 
-                // 对话详情页面
-                composable(
-                    route = "chat_detail/{conversationId}/{conversationName}/{conversationAvatar}",
-                    arguments = listOf(
-                        navArgument("conversationId") { type = NavType.StringType },
-                        navArgument("conversationName") { type = NavType.StringType },
-                        navArgument("conversationAvatar") { type = NavType.StringType }
-                    )
-                ) { backStackEntry ->
-                    val conversationId = backStackEntry.arguments?.getString("conversationId") ?: ""
-                    val encodedName = backStackEntry.arguments?.getString("conversationName") ?: ""
-                    val encodedAvatar = backStackEntry.arguments?.getString("conversationAvatar") ?: ""
-
-                    // URL解码
-                    val conversationName = URLDecoder.decode(encodedName, StandardCharsets.UTF_8.toString())
-                    val conversationAvatar = URLDecoder.decode(encodedAvatar, StandardCharsets.UTF_8.toString())
-
-                    ChatDetailScreen(
-                        conversationId = conversationId,
-                        conversationName = conversationName,
-                        conversationAvatar = conversationAvatar,
-                        onBack = { navController.popBackStack() }
-                    )
+                if (inputText.trim().isNotEmpty()) {
+                    IconButton(
+                        onClick = {
+                            if (inputText.isNotBlank()) {
+                                viewModel.sendMessage(conversationId, inputText.trim())
+                                inputText = ""
+                            }
+                        },
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(CircleShape)
+                            .background(PrimaryBlue)
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.Send,
+                            contentDescription = "Send",
+                            tint = Color.White,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                } else {
+                    IconButton(
+                        onClick = { /* TODO */ },
+                        modifier = Modifier.size(40.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Add,
+                            contentDescription = "Attachment",
+                            tint = TextSecondary
+                        )
+                    }
                 }
             }
         }

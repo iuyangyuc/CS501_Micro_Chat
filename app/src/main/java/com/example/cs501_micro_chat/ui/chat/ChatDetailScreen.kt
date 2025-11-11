@@ -405,7 +405,7 @@ fun ChatDetailScreen(
  * Message bubble component (Based on Figma design)
  */
 @Composable
-private fun MessageBubble(
+internal fun MessageBubble(
     message: Message,
     isSelf: Boolean
 ) {
