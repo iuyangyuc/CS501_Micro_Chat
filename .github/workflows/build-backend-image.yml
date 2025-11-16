@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - master
+      - yyc/openAI
     paths:
       - 'backend_java/**'
       - '.github/workflows/build-backend-image.yml'
