@@ -634,126 +634,170 @@ private fun ChatListScreen(
     val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
     val error by viewModel.error.collectAsStateWithLifecycle()
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color.White)
-    ) {
-        // 搜索栏
-        Surface(
-            color = Color.White,
-            shadowElevation = 2.dp
+    // 搜索相关状态
+    val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
+    val searchResults by viewModel.searchResults.collectAsStateWithLifecycle()
+    val isSearching by viewModel.isSearching.collectAsStateWithLifecycle()
+
+    // 控制搜索框是否激活
+    var isSearchActive by remember { mutableStateOf(false) }
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.White)
         ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(SearchBarGray)
-                    .padding(horizontal = 12.dp, vertical = 10.dp),
-                verticalAlignment = Alignment.CenterVertically
+            // 搜索栏
+            Surface(
+                color = Color.White,
+                shadowElevation = 2.dp
             ) {
-                Icon(
-                    imageVector = Icons.Filled.Search,
-                    contentDescription = "Search",
-                    tint = TextSecondary,
-                    modifier = Modifier.size(20.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = "Search",
-                    color = TextSecondary,
-                    fontSize = 15.sp
-                )
+                Column {
+                    if (isSearchActive) {
+                        // 激活状态：可编辑的搜索框
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(SearchBarGray)
+                                .padding(horizontal = 12.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Search,
+                                contentDescription = "Search",
+                                tint = TextSecondary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            TextField(
+                                value = searchQuery,
+                                onValueChange = { viewModel.updateSearchQuery(it) },
+                                modifier = Modifier.weight(1f),
+                                placeholder = {
+                                    Text(
+                                        text = "Search",
+                                        color = TextSecondary,
+                                        fontSize = 15.sp
+                                    )
+                                },
+                                colors = TextFieldDefaults.colors(
+                                    focusedContainerColor = Color.Transparent,
+                                    unfocusedContainerColor = Color.Transparent,
+                                    disabledContainerColor = Color.Transparent,
+                                    focusedIndicatorColor = Color.Transparent,
+                                    unfocusedIndicatorColor = Color.Transparent,
+                                    disabledIndicatorColor = Color.Transparent,
+                                ),
+                                singleLine = true
+                            )
+                            if (searchQuery.isNotBlank()) {
+                                IconButton(
+                                    onClick = { viewModel.clearSearch() },
+                                    modifier = Modifier.size(20.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Close,
+                                        contentDescription = "Clear",
+                                        tint = TextSecondary,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+                            }
+                            IconButton(
+                                onClick = {
+                                    viewModel.clearSearch()
+                                    isSearchActive = false
+                                },
+                                modifier = Modifier.size(24.dp)
+                            ) {
+                                Text(
+                                    text = "Cancel",
+                                    color = PrimaryBlue,
+                                    fontSize = 14.sp
+                                )
+                            }
+                        }
+                    } else {
+                        // 默认状态：占位符搜索框
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(SearchBarGray)
+                                .clickable { isSearchActive = true }
+                                .padding(horizontal = 12.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Search,
+                                contentDescription = "Search",
+                                tint = TextSecondary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Search",
+                                color = TextSecondary,
+                                fontSize = 15.sp
+                            )
+                        }
+                    }
+                }
             }
-        }
 
-        // 错误提示
-        error?.let { errorMessage ->
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.errorContainer
-                )
-            ) {
-                Row(
-                    modifier = Modifier.padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
+            // 错误提示
+            error?.let { errorMessage ->
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.errorContainer
+                    )
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Error,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.error
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = errorMessage,
-                        color = MaterialTheme.colorScheme.onErrorContainer
-                    )
+                    Row(
+                        modifier = Modifier.padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Error,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.error
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = errorMessage,
+                            color = MaterialTheme.colorScheme.onErrorContainer
+                        )
+                    }
                 }
             }
-        }
 
-        // 加载指示器
-        if (isLoading && conversations.isEmpty()) {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
-                CircularProgressIndicator(color = PrimaryBlue)
-            }
-        }
-        // 空状态
-        else if (conversations.isEmpty()) {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.Chat,
-                        contentDescription = null,
-                        tint = TextSecondary,
-                        modifier = Modifier.size(64.dp)
-                    )
-                    Text(
-                        text = "No Conversations Yet",
-                        color = TextSecondary,
-                        fontSize = 16.sp
-                    )
-                    Text(
-                        text = "Start a new chat to connect with others!",
-                        color = TextSecondary,
-                        fontSize = 14.sp
-                    )
-                }
-            }
-        }
-        // 会话列表
-        else {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize()
-            ) {
-                items(
-                    items = conversations,
-                    key = { it.id }
-                ) { conversation ->
-                    ConversationListItem(
-                        conversation = conversation,
-                        viewModel = viewModel,
-                        onClick = { onChatClick(conversation) }
-                    )
-                    HorizontalDivider(
-                        modifier = Modifier.padding(start = 72.dp),
-                        thickness = 0.5.dp,
-                        color = Color(0xFFE5E7EB)
-                    )
-                }
+            // 显示搜索结果或对话列表
+            if (isSearchActive && searchQuery.isNotBlank()) {
+                // 搜索结果
+                ConversationSearchResultsList(
+                    searchResults = searchResults,
+                    isSearching = isSearching,
+                    viewModel = viewModel,
+                    onChatClick = { conversation ->
+                        viewModel.clearSearch()
+                        isSearchActive = false
+                        onChatClick(conversation)
+                    }
+                )
+            } else {
+                // 正常对话列表
+                ConversationsList(
+                    conversations = conversations,
+                    isLoading = isLoading,
+                    viewModel = viewModel,
+                    onChatClick = onChatClick
+                )
             }
         }
     }
@@ -878,6 +922,158 @@ private fun ConversationListItem(
 }
 
 /**
+ * 对话搜索结果列表
+ * Conversation search results list
+ */
+@Composable
+private fun ConversationSearchResultsList(
+    searchResults: List<Conversation>,
+    isSearching: Boolean,
+    viewModel: HomeViewModel,
+    onChatClick: (Conversation) -> Unit
+) {
+    if (isSearching) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            CircularProgressIndicator(color = PrimaryBlue)
+        }
+    } else if (searchResults.isEmpty()) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.SearchOff,
+                    contentDescription = null,
+                    tint = TextSecondary,
+                    modifier = Modifier.size(64.dp)
+                )
+                Text(
+                    text = "No results found",
+                    color = TextPrimary,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Medium
+                )
+                Text(
+                    text = "Try searching with a different keyword",
+                    color = TextSecondary,
+                    fontSize = 14.sp
+                )
+            }
+        }
+    } else {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize()
+        ) {
+            item {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "${searchResults.size} result${if (searchResults.size > 1) "s" else ""} found",
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                    color = TextSecondary,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium
+                )
+            }
+            items(
+                items = searchResults,
+                key = { it.id }
+            ) { conversation ->
+                ConversationListItem(
+                    conversation = conversation,
+                    viewModel = viewModel,
+                    onClick = { onChatClick(conversation) }
+                )
+                HorizontalDivider(
+                    modifier = Modifier.padding(start = 72.dp),
+                    thickness = 0.5.dp,
+                    color = Color(0xFFE5E7EB)
+                )
+            }
+        }
+    }
+}
+
+/**
+ * 正常对话列表
+ * Normal conversations list
+ */
+@Composable
+private fun ConversationsList(
+    conversations: List<Conversation>,
+    isLoading: Boolean,
+    viewModel: HomeViewModel,
+    onChatClick: (Conversation) -> Unit
+) {
+    // 加载指示器
+    if (isLoading && conversations.isEmpty()) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            CircularProgressIndicator(color = PrimaryBlue)
+        }
+    }
+    // 空状态
+    else if (conversations.isEmpty()) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.Chat,
+                    contentDescription = null,
+                    tint = TextSecondary,
+                    modifier = Modifier.size(64.dp)
+                )
+                Text(
+                    text = "No Conversations Yet",
+                    color = TextSecondary,
+                    fontSize = 16.sp
+                )
+                Text(
+                    text = "Start a new chat to connect with others!",
+                    color = TextSecondary,
+                    fontSize = 14.sp
+                )
+            }
+        }
+    }
+    // 会话列表
+    else {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize()
+        ) {
+            items(
+                items = conversations,
+                key = { it.id }
+            ) { conversation ->
+                ConversationListItem(
+                    conversation = conversation,
+                    viewModel = viewModel,
+                    onClick = { onChatClick(conversation) }
+                )
+                HorizontalDivider(
+                    modifier = Modifier.padding(start = 72.dp),
+                    thickness = 0.5.dp,
+                    color = Color(0xFFE5E7EB)
+                )
+            }
+        }
+    }
+}
+
+/**
  * 联系人页面（基于 Figma 设计）- 显示分组和联系人列表
  * Contacts screen (Based on Figma design) - Shows groups and contacts list
  */
@@ -892,153 +1088,351 @@ private fun ContactsScreen(
     val error by viewModel.error.collectAsStateWithLifecycle()
     val conversationCache by viewModel.conversationCache.collectAsStateWithLifecycle()
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color.White)
-    ) {
-        // 搜索栏
-        Surface(
-            color = Color.White,
-            shadowElevation = 2.dp
+    // 搜索相关状态
+    val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
+    val searchResults by viewModel.searchResults.collectAsStateWithLifecycle()
+    val isSearching by viewModel.isSearching.collectAsStateWithLifecycle()
+
+    // 控制搜索框是否激活
+    var isSearchActive by remember { mutableStateOf(false) }
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.White)
         ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(SearchBarGray)
-                    .padding(horizontal = 12.dp, vertical = 10.dp),
-                verticalAlignment = Alignment.CenterVertically
+            // 搜索栏
+            Surface(
+                color = Color.White,
+                shadowElevation = 2.dp
+            ) {
+                Column {
+                    if (isSearchActive) {
+                        // 激活状态：可编辑的搜索框
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(SearchBarGray)
+                                .padding(horizontal = 12.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Search,
+                                contentDescription = "Search",
+                                tint = TextSecondary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            TextField(
+                                value = searchQuery,
+                                onValueChange = { viewModel.updateSearchQuery(it) },
+                                modifier = Modifier.weight(1f),
+                                placeholder = {
+                                    Text(
+                                        text = "Search contacts",
+                                        color = TextSecondary,
+                                        fontSize = 15.sp
+                                    )
+                                },
+                                colors = TextFieldDefaults.colors(
+                                    focusedContainerColor = Color.Transparent,
+                                    unfocusedContainerColor = Color.Transparent,
+                                    disabledContainerColor = Color.Transparent,
+                                    focusedIndicatorColor = Color.Transparent,
+                                    unfocusedIndicatorColor = Color.Transparent,
+                                    disabledIndicatorColor = Color.Transparent,
+                                ),
+                                singleLine = true
+                            )
+                            if (searchQuery.isNotBlank()) {
+                                IconButton(
+                                    onClick = { viewModel.clearSearch() },
+                                    modifier = Modifier.size(20.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Close,
+                                        contentDescription = "Clear",
+                                        tint = TextSecondary,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+                            }
+                            IconButton(
+                                onClick = {
+                                    viewModel.clearSearch()
+                                    isSearchActive = false
+                                },
+                                modifier = Modifier.size(24.dp)
+                            ) {
+                                Text(
+                                    text = "Cancel",
+                                    color = PrimaryBlue,
+                                    fontSize = 14.sp
+                                )
+                            }
+                        }
+                    } else {
+                        // 默认状态：占位符搜索框
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(SearchBarGray)
+                                .clickable { isSearchActive = true }
+                                .padding(horizontal = 12.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Search,
+                                contentDescription = "Search",
+                                tint = TextSecondary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Search contacts",
+                                color = TextSecondary,
+                                fontSize = 15.sp
+                            )
+                        }
+                    }
+                }
+            }
+
+            // 错误提示
+            error?.let { errorMessage ->
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.errorContainer
+                    )
+                ) {
+                    Row(
+                        modifier = Modifier.padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Error,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.error
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = errorMessage,
+                            color = MaterialTheme.colorScheme.onErrorContainer
+                        )
+                    }
+                }
+            }
+
+            // 显示搜索结果或联系人列表
+            if (isSearchActive && searchQuery.isNotBlank()) {
+                // 搜索结果
+                SearchResultsList(
+                    searchResults = searchResults,
+                    isSearching = isSearching,
+                    viewModel = viewModel,
+                    onContactClick = { contact ->
+                        viewModel.clearSearch()
+                        isSearchActive = false
+                        onContactClick(contact)
+                    }
+                )
+            } else {
+                // 正常联系人列表
+                ContactsList(
+                    groups = groups,
+                    privateContacts = privateContacts,
+                    isLoading = isLoading,
+                    viewModel = viewModel,
+                    onContactClick = onContactClick
+                )
+            }
+        }
+    }
+}
+
+/**
+ * 搜索结果列表
+ * Search results list
+ */
+@Composable
+private fun SearchResultsList(
+    searchResults: List<Contact>,
+    isSearching: Boolean,
+    viewModel: ContactsViewModel,
+    onContactClick: (Contact) -> Unit
+) {
+    if (isSearching) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            CircularProgressIndicator(color = PrimaryBlue)
+        }
+    } else if (searchResults.isEmpty()) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Icon(
-                    imageVector = Icons.Filled.Search,
-                    contentDescription = "Search",
+                    imageVector = Icons.Filled.SearchOff,
+                    contentDescription = null,
                     tint = TextSecondary,
-                    modifier = Modifier.size(20.dp)
+                    modifier = Modifier.size(64.dp)
                 )
-                Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = "Search contacts",
+                    text = "No results found",
+                    color = TextPrimary,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Medium
+                )
+                Text(
+                    text = "Try searching with a different keyword",
                     color = TextSecondary,
-                    fontSize = 15.sp
+                    fontSize = 14.sp
                 )
             }
         }
-
-        // 错误提示
-        error?.let { errorMessage ->
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.errorContainer
+    } else {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize()
+        ) {
+            item {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "${searchResults.size} result${if (searchResults.size > 1) "s" else ""} found",
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                    color = TextSecondary,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium
                 )
-            ) {
-                Row(
-                    modifier = Modifier.padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Error,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.error
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = errorMessage,
-                        color = MaterialTheme.colorScheme.onErrorContainer
-                    )
-                }
+            }
+            items(
+                items = searchResults,
+                key = { it.contactId }
+            ) { contact ->
+                ContactListItem(
+                    contact = contact,
+                    viewModel = viewModel,
+                    onClick = { onContactClick(contact) }
+                )
+                HorizontalDivider(
+                    modifier = Modifier.padding(start = 72.dp),
+                    thickness = 0.5.dp,
+                    color = Color(0xFFE5E7EB)
+                )
             }
         }
+    }
+}
 
-        // 加载指示器
-        if (isLoading && groups.isEmpty() && privateContacts.isEmpty()) {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
+/**
+ * 正常联系人列表
+ * Normal contacts list
+ */
+@Composable
+private fun ContactsList(
+    groups: List<Contact>,
+    privateContacts: List<Contact>,
+    isLoading: Boolean,
+    viewModel: ContactsViewModel,
+    onContactClick: (Contact) -> Unit
+) {
+    // 加载指示器
+    if (isLoading && groups.isEmpty() && privateContacts.isEmpty()) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            CircularProgressIndicator(color = PrimaryBlue)
+        }
+    }
+    // 空状态
+    else if (groups.isEmpty() && privateContacts.isEmpty()) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                CircularProgressIndicator(color = PrimaryBlue)
+                Icon(
+                    imageVector = Icons.Filled.People,
+                    contentDescription = null,
+                    tint = TextSecondary,
+                    modifier = Modifier.size(64.dp)
+                )
+                Text(
+                    text = "No Contacts Yet",
+                    color = TextSecondary,
+                    fontSize = 16.sp
+                )
+                Text(
+                    text = "Add friends to start chatting!",
+                    color = TextSecondary,
+                    fontSize = 14.sp
+                )
             }
         }
-        // 空状态
-        else if (groups.isEmpty() && privateContacts.isEmpty()) {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.People,
-                        contentDescription = null,
-                        tint = TextSecondary,
-                        modifier = Modifier.size(64.dp)
+    }
+    // 联系人列表
+    else {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize()
+        ) {
+            // Groups 分组
+            if (groups.isNotEmpty()) {
+                item {
+                    SectionHeader(title = "GROUPS (${groups.size})")
+                }
+                items(
+                    items = groups,
+                    key = { it.contactId }
+                ) { contact ->
+                    ContactListItem(
+                        contact = contact,
+                        viewModel = viewModel,
+                        onClick = { onContactClick(contact) }
                     )
-                    Text(
-                        text = "No Contacts Yet",
-                        color = TextSecondary,
-                        fontSize = 16.sp
-                    )
-                    Text(
-                        text = "Add friends to start chatting!",
-                        color = TextSecondary,
-                        fontSize = 14.sp
+                    HorizontalDivider(
+                        modifier = Modifier.padding(start = 72.dp),
+                        thickness = 0.5.dp,
+                        color = Color(0xFFE5E7EB)
                     )
                 }
             }
-        }
-        // 联系人列表
-        else {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize()
-            ) {
-                // Groups 分组
-                if (groups.isNotEmpty()) {
-                    item {
-                        SectionHeader(title = "GROUPS (${groups.size})")
-                    }
-                    items(
-                        items = groups,
-                        key = { it.contactId }
-                    ) { contact ->
-                        ContactListItem(
-                            contact = contact,
-                            viewModel = viewModel,
-                            onClick = { onContactClick(contact) }
-                        )
-                        HorizontalDivider(
-                            modifier = Modifier.padding(start = 72.dp),
-                            thickness = 0.5.dp,
-                            color = Color(0xFFE5E7EB)
-                        )
-                    }
-                }
 
-                // Contacts 分组
-                if (privateContacts.isNotEmpty()) {
-                    item {
-                        SectionHeader(title = "CONTACTS (${privateContacts.size})")
-                    }
-                    items(
-                        items = privateContacts,
-                        key = { it.contactId }
-                    ) { contact ->
-                        ContactListItem(
-                            contact = contact,
-                            viewModel = viewModel,
-                            onClick = { onContactClick(contact) }
-                        )
-                        HorizontalDivider(
-                            modifier = Modifier.padding(start = 72.dp),
-                            thickness = 0.5.dp,
-                            color = Color(0xFFE5E7EB)
-                        )
-                    }
+            // Contacts 分组
+            if (privateContacts.isNotEmpty()) {
+                item {
+                    SectionHeader(title = "CONTACTS (${privateContacts.size})")
+                }
+                items(
+                    items = privateContacts,
+                    key = { it.contactId }
+                ) { contact ->
+                    ContactListItem(
+                        contact = contact,
+                        viewModel = viewModel,
+                        onClick = { onContactClick(contact) }
+                    )
+                    HorizontalDivider(
+                        modifier = Modifier.padding(start = 72.dp),
+                        thickness = 0.5.dp,
+                        color = Color(0xFFE5E7EB)
+                    )
                 }
             }
         }

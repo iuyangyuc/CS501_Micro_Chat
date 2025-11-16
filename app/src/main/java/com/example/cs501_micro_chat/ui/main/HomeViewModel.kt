@@ -48,6 +48,16 @@ class HomeViewModel @Inject constructor(
     private val _userCache = MutableStateFlow<Map<String, com.example.cs501_micro_chat.data.model.User>>(emptyMap())
     val userCache: StateFlow<Map<String, com.example.cs501_micro_chat.data.model.User>> = _userCache.asStateFlow()
 
+    // 搜索相关状态
+    private val _searchQuery = MutableStateFlow("")
+    val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
+
+    private val _searchResults = MutableStateFlow<List<Conversation>>(emptyList())
+    val searchResults: StateFlow<List<Conversation>> = _searchResults.asStateFlow()
+
+    private val _isSearching = MutableStateFlow(false)
+    val isSearching: StateFlow<Boolean> = _isSearching.asStateFlow()
+
     private val TAG = "HomeViewModel"
 
     init {
@@ -240,6 +250,67 @@ class HomeViewModel @Inject constructor(
      */
     fun clearError() {
         _error.value = null
+    }
+
+    /**
+     * 更新搜索关键词
+     */
+    fun updateSearchQuery(query: String) {
+        _searchQuery.value = query
+        if (query.isBlank()) {
+            _searchResults.value = emptyList()
+            _isSearching.value = false
+        } else {
+            searchConversations(query)
+        }
+    }
+
+    /**
+     * 搜索对话
+     * 在当前用户的所有对话中搜索，支持搜索对话名称和最后一条消息
+     */
+    private fun searchConversations(query: String) {
+        _isSearching.value = true
+
+        val normalizedQuery = query.lowercase().trim()
+
+        // 在所有对话中搜索
+        val results = _conversations.value.filter { conversation ->
+            // 获取显示名称
+            val displayName = getDisplayName(conversation)
+
+            // 搜索条件：对话名称 或 最后一条消息内容
+            displayName.lowercase().contains(normalizedQuery) ||
+            conversation.lastMessage.lowercase().contains(normalizedQuery)
+        }
+
+        // 按相关性排序：完全匹配 > 开头匹配 > 包含匹配
+        val sortedResults = results.sortedWith(compareBy(
+            { conversation ->
+                val displayName = getDisplayName(conversation).lowercase()
+                when {
+                    displayName == normalizedQuery -> 0
+                    displayName.startsWith(normalizedQuery) -> 1
+                    else -> 2
+                }
+            },
+            // 二级排序：按时间倒序
+            { -it.lastMessageTime }
+        ))
+
+        _searchResults.value = sortedResults
+        _isSearching.value = false
+
+        Log.d(TAG, "Search for '$query' found ${sortedResults.size} results")
+    }
+
+    /**
+     * 清空搜索
+     */
+    fun clearSearch() {
+        _searchQuery.value = ""
+        _searchResults.value = emptyList()
+        _isSearching.value = false
     }
 }
 

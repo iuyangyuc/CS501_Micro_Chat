@@ -54,6 +54,16 @@ class ContactsViewModel @Inject constructor(
     private val _conversationCache = MutableStateFlow<Map<String, Conversation>>(emptyMap())
     val conversationCache: StateFlow<Map<String, Conversation>> = _conversationCache.asStateFlow()
 
+    // 搜索相关状态
+    private val _searchQuery = MutableStateFlow("")
+    val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
+
+    private val _searchResults = MutableStateFlow<List<Contact>>(emptyList())
+    val searchResults: StateFlow<List<Contact>> = _searchResults.asStateFlow()
+
+    private val _isSearching = MutableStateFlow(false)
+    val isSearching: StateFlow<Boolean> = _isSearching.asStateFlow()
+
     private val TAG = "ContactsViewModel"
 
     init {
@@ -186,5 +196,68 @@ class ContactsViewModel @Inject constructor(
      */
     fun refresh() {
         loadContacts()
+    }
+
+    /**
+     * 更新搜索关键词
+     */
+    fun updateSearchQuery(query: String) {
+        _searchQuery.value = query
+        if (query.isBlank()) {
+            _searchResults.value = emptyList()
+            _isSearching.value = false
+        } else {
+            searchContacts(query)
+        }
+    }
+
+    /**
+     * 搜索联系人
+     * 在当前用户的 contacts 中搜索，支持搜索 contactName 和 contactId
+     */
+    private fun searchContacts(query: String) {
+        _isSearching.value = true
+
+        val normalizedQuery = query.lowercase().trim()
+
+        // 在所有联系人中搜索（包括 groups 和 privateContacts）
+        val allContacts = _contacts.value
+
+        val results = allContacts.filter { contact ->
+            // 获取显示名称
+            val displayName = getDisplayName(contact)
+
+            // 搜索条件：contactId 或 contactName（包括备注名）
+            contact.contactId.lowercase().contains(normalizedQuery) ||
+            displayName.lowercase().contains(normalizedQuery) ||
+            contact.contactName.lowercase().contains(normalizedQuery)
+        }
+
+        // 按相关性排序：完全匹配 > 开头匹配 > 包含匹配
+        val sortedResults = results.sortedWith(compareBy(
+            { contact ->
+                val displayName = getDisplayName(contact).lowercase()
+                when {
+                    displayName == normalizedQuery -> 0
+                    displayName.startsWith(normalizedQuery) -> 1
+                    else -> 2
+                }
+            },
+            { getDisplayName(it).lowercase() }
+        ))
+
+        _searchResults.value = sortedResults
+        _isSearching.value = false
+
+        Log.d(TAG, "Search for '$query' found ${sortedResults.size} results")
+    }
+
+    /**
+     * 清空搜索
+     */
+    fun clearSearch() {
+        _searchQuery.value = ""
+        _searchResults.value = emptyList()
+        _isSearching.value = false
     }
 }
