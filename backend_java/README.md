@@ -66,3 +66,20 @@ Response:
   }
 }
 ```
+
+## Docker
+
+Build and run the backend in a container (no local JDK/Maven needed):
+
+```bash
+# from repo root
+docker build -t micro-chat-translation-backend backend_java
+# or if you are already inside backend_java/, use:
+# docker build -t micro-chat-translation-backend .
+docker run --rm -p 4002:4002 \
+  -e OPENAI_API_KEY=sk-your-key \
+  -e OPENAI_TRANSLATION_MODEL=gpt-4o-mini \
+  micro-chat-translation-backend
+```
+
+Override `PORT` or `OPENAI_TEMPERATURE` with additional `-e` flags as needed.
