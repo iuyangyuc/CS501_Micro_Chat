@@ -15,6 +15,8 @@ RUN ./mvnw -q -B -DskipTests package
 FROM eclipse-temurin:17-jre
 WORKDIR /app
 
+ARG OPENAI_API_KEY=changeme
+ENV OPENAI_API_KEY=${OPENAI_API_KEY}
 ENV PORT=4002
 EXPOSE 4002
 

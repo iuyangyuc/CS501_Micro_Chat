@@ -16,6 +16,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.Base64;
 
 import static spark.Spark.get;
 import static spark.Spark.port;
@@ -50,6 +51,7 @@ public final class TranslationServer {
         });
 
         post("/translate", (req, res) -> handleTranslate(req, res, config));
+        post("/tts", (req, res) -> handleTextToSpeech(req, res, config));
 
         System.out.printf("[translation-backend-java] Listening on port %d (model: %s)%n", config.port, config.model);
     }
@@ -112,6 +114,76 @@ public final class TranslationServer {
         }
     }
 
+    private static String handleTextToSpeech(Request req, Response res, ServerConfig config) {
+        res.type("application/json");
+
+        if (config.apiKey == null || config.apiKey.isBlank()) {
+            res.status(500);
+            return jsonError("OPENAI_API_KEY is not configured on the server");
+        }
+
+        JsonNode body;
+        try {
+            body = MAPPER.readTree(req.body());
+        } catch (IOException e) {
+            res.status(400);
+            return jsonError("Invalid JSON payload: " + e.getMessage());
+        }
+
+        String text = textValue(body, "text");
+        if (text == null || text.isBlank()) {
+            res.status(400);
+            return jsonError("text is required and must be a non-empty string");
+        }
+
+        String voice = textValue(body, "voice");
+        if (voice == null || voice.isBlank()) {
+            voice = "alloy";
+        }
+
+        String format = textValue(body, "format");
+        if (format == null || format.isBlank()) {
+            format = "mp3";
+        }
+
+        Double speed = null;
+        JsonNode speedNode = body.get("speed");
+        if (speedNode != null && !speedNode.isNull()) {
+            if (speedNode.isNumber()) {
+                speed = speedNode.asDouble();
+            } else if (speedNode.isTextual()) {
+                try {
+                    speed = Double.parseDouble(speedNode.asText());
+                } catch (NumberFormatException ex) {
+                    res.status(400);
+                    return jsonError("speed must be numeric if provided");
+                }
+            } else {
+                res.status(400);
+                return jsonError("speed must be numeric if provided");
+            }
+        }
+
+        try {
+            byte[] audioBytes = callOpenAITts(config, text, voice, format, speed);
+            ObjectNode responseBody = MAPPER.createObjectNode();
+            responseBody.put("audioBase64", Base64.getEncoder().encodeToString(audioBytes));
+            responseBody.put("voice", voice);
+            responseBody.put("format", format);
+            responseBody.put("model", config.ttsModel());
+            if (speed != null) {
+                responseBody.put("speed", speed);
+            }
+
+            res.status(200);
+            return responseBody.toString();
+        } catch (IOException | InterruptedException e) {
+            System.err.println("[translation-backend-java] tts error: " + e.getMessage());
+            res.status(502);
+            return jsonError("Text-to-speech failed: " + e.getMessage());
+        }
+    }
+
     private static ObjectNode callOpenAI(ServerConfig config,
                                          String text,
                                          String sourceLanguage,
@@ -145,6 +217,39 @@ public final class TranslationServer {
         }
 
         return (ObjectNode) MAPPER.readTree(response.body());
+    }
+
+    private static byte[] callOpenAITts(ServerConfig config,
+                                        String text,
+                                        String voice,
+                                        String format,
+                                        Double speed) throws IOException, InterruptedException {
+        ObjectNode payload = MAPPER.createObjectNode();
+        payload.put("model", config.ttsModel());
+        payload.put("input", text);
+        payload.put("voice", voice);
+        if (format != null && !format.isBlank()) {
+            payload.put("format", format);
+        }
+        if (speed != null) {
+            payload.put("speed", speed);
+        }
+
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create("https://api.openai.com/v1/audio/speech"))
+                .timeout(Duration.ofSeconds(60))
+                .header("Authorization", "Bearer " + config.apiKey)
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(payload.toString(), StandardCharsets.UTF_8))
+                .build();
+
+        HttpResponse<byte[]> response = HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofByteArray());
+        if (response.statusCode() >= 400) {
+            String errorBody = new String(response.body(), StandardCharsets.UTF_8);
+            throw new IOException("OpenAI TTS API error (status " + response.statusCode() + "): " + errorBody);
+        }
+
+        return response.body();
     }
 
     private static String extractTranslation(JsonNode completion) throws JsonProcessingException {
@@ -204,10 +309,11 @@ public final class TranslationServer {
         return error.toString();
     }
 
-    private record ServerConfig(String apiKey, String model, int port, Double temperature) {
+    private record ServerConfig(String apiKey, String model, int port, Double temperature, String ttsModel) {
         private static ServerConfig from(Dotenv dotenv) {
             String apiKey = firstNonBlank(System.getenv("OPENAI_API_KEY"), dotenv.get("OPENAI_API_KEY", ""));
             String model = firstNonBlank(System.getenv("OPENAI_TRANSLATION_MODEL"), dotenv.get("OPENAI_TRANSLATION_MODEL", "gpt-4o-mini"));
+            String ttsModel = firstNonBlank(System.getenv("OPENAI_TTS_MODEL"), dotenv.get("OPENAI_TTS_MODEL", "gpt-4o-mini-tts"));
             String portValue = firstNonBlank(System.getenv("PORT"), dotenv.get("PORT", "4002"));
             String temperatureValue = firstNonBlank(System.getenv("OPENAI_TEMPERATURE"), dotenv.get("OPENAI_TEMPERATURE", ""));
             int port = 4002;
@@ -224,7 +330,7 @@ public final class TranslationServer {
                     System.err.println("[translation-backend-java] Invalid OPENAI_TEMPERATURE value, ignoring and using model default");
                 }
             }
-            return new ServerConfig(apiKey, model, port, temperature);
+            return new ServerConfig(apiKey, model, port, temperature, ttsModel);
         }
 
         private static String firstNonBlank(String first, String second) {
