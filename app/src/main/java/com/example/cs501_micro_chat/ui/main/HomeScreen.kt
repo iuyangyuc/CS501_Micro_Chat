@@ -69,6 +69,7 @@ import java.nio.charset.StandardCharsets
 import coil.compose.AsyncImage
 import com.example.cs501_micro_chat.R
 import com.example.cs501_micro_chat.data.model.Conversation
+import com.example.cs501_micro_chat.data.model.Contact
 
 // Figma Design Colors
 private val PrimaryBlue = Color(0xFF3296FA)
@@ -117,6 +118,31 @@ private val homeDestinationItems: List<HomeDestination>
     )
 
 /**
+ * 路由配置 - 定义哪些页面需要显示底部导航栏
+ * Route configuration - Define which pages should show bottom navigation
+ */
+private object RouteConfig {
+    /**
+     * 检查给定路由是否应该显示底部导航栏
+     * 只有主页面（Chats, Contacts, Me）显示底部导航栏
+     * 其他所有子页面（如 ChatDetail、设置页等）都不显示
+     */
+    fun shouldShowBottomBar(route: String?): Boolean {
+        if (route == null) return false
+
+        // 定义显示底部导航栏的路由列表
+        val bottomBarRoutes = setOf(
+            HomeDestination.Chats.route,
+            HomeDestination.Contacts.route,
+            HomeDestination.Me.route
+        )
+
+        // 只有这些主页面才显示底部导航栏
+        return route in bottomBarRoutes
+    }
+}
+
+/**
  * 主界面组合项（基于 Figma 设计）
  * Home screen composable (Based on Figma design)
  *
@@ -135,7 +161,9 @@ fun HomeScreen(
     val currentDestination = navBackStackEntry?.destination
     val currentRoute = currentDestination?.route
 
-    // 判断是否在对话详情页面
+    // 使用 RouteConfig 判断是否显示底部导航栏
+    val shouldShowBottomBar = RouteConfig.shouldShowBottomBar(currentRoute)
+    // 判断是否在对话详情页面（用于顶栏显示）
     val isInChatDetail = currentRoute?.startsWith("chat_detail") == true
 
     // ========== 固定布局：顶栏 + 内容 + 底栏 ==========
@@ -252,49 +280,45 @@ fun HomeScreen(
             }
         }
 
-        // ========== 固定底栏（非 ChatDetail 时显示） ==========
-        if (!isInChatDetail) {
-            Surface(
-                color = Color.White,
-                shadowElevation = 8.dp
+        // ========== 固定底栏（根据路由配置决定是否显示） ==========
+        if (shouldShowBottomBar) {
+            NavigationBar(
+                containerColor = Color.White,
+                tonalElevation = 8.dp
             ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 8.dp),
-                    horizontalArrangement = Arrangement.SpaceAround
-                ) {
-                    items.forEach { destination ->
-                        val selected = currentRoute == destination.route
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(8.dp))
-                                .clickable {
-                                    navController.navigate(destination.route) {
-                                        popUpTo(navController.graph.findStartDestination().id) {
-                                            saveState = true
-                                        }
-                                        launchSingleTop = true
-                                        restoreState = true
-                                    }
-                                }
-                                .padding(horizontal = 20.dp, vertical = 4.dp)
-                        ) {
+                items.forEach { destination ->
+                    NavigationBarItem(
+                        icon = {
                             Icon(
                                 imageVector = destination.icon,
                                 contentDescription = stringResource(destination.labelResId),
-                                tint = if (selected) PrimaryBlue else TextSecondary,
-                                modifier = Modifier.size(26.dp)
+                                modifier = Modifier.size(24.dp)
                             )
-                            Spacer(modifier = Modifier.height(2.dp))
+                        },
+                        label = {
                             Text(
                                 text = stringResource(destination.labelResId),
-                                color = if (selected) PrimaryBlue else TextSecondary,
                                 fontSize = 12.sp
                             )
-                        }
-                    }
+                        },
+                        selected = currentRoute == destination.route,
+                        onClick = {
+                            navController.navigate(destination.route) {
+                                popUpTo(navController.graph.findStartDestination().id) {
+                                    saveState = true
+                                }
+                                launchSingleTop = true
+                                restoreState = true
+                            }
+                        },
+                        colors = NavigationBarItemDefaults.colors(
+                            selectedIconColor = PrimaryBlue,
+                            selectedTextColor = PrimaryBlue,
+                            unselectedIconColor = TextSecondary,
+                            unselectedTextColor = TextSecondary,
+                            indicatorColor = PrimaryBlue.copy(alpha = 0.12f)
+                        )
+                    )
                 }
             }
         }
@@ -328,7 +352,8 @@ private fun HomeTopBar(
             fontWeight = FontWeight.SemiBold
         )
 
-        if (currentRoute == HomeDestination.Chats.route) {
+        // Chats 和 Contacts 页面都显示加号按钮
+        if (currentRoute == HomeDestination.Chats.route || currentRoute == HomeDestination.Contacts.route) {
             IconButton(onClick = onAddClick) {
                 Icon(
                     imageVector = Icons.Filled.Add,
@@ -456,7 +481,7 @@ private fun ChatDetailContent(conversationId: String) {
                         modifier = Modifier.size(64.dp)
                     )
                     Text(
-                        text = "暂无消息",
+                        text = "Nothing Here Yet",
                         color = TextSecondary,
                         fontSize = 16.sp
                     )
@@ -675,12 +700,12 @@ private fun ChatListScreen(
                         modifier = Modifier.size(64.dp)
                     )
                     Text(
-                        text = "暂无聊天",
+                        text = "No Conversations Yet",
                         color = TextSecondary,
                         fontSize = 16.sp
                     )
                     Text(
-                        text = "开始一个新对话吧！",
+                        text = "Start a new chat to connect with others!",
                         color = TextSecondary,
                         fontSize = 14.sp
                     )
@@ -725,7 +750,6 @@ private fun ConversationListItem(
     // 监听 userCache 的变化，确保用户信息加载后界面会更新
     val userCache by viewModel.userCache.collectAsStateWithLifecycle()
 
-    val unreadCount = viewModel.getUnreadCount(conversation)
     val formattedTime = viewModel.formatTime(conversation.lastMessageTime)
 
     // 使用新的方法获取显示名称和头像
@@ -832,11 +856,19 @@ private fun ConversationListItem(
 }
 
 /**
- * 联系人页面（占位符）
- * Contacts screen (Placeholder)
+ * 联系人页面（基于 Figma 设计）- 显示分组和联系人列表
+ * Contacts screen (Based on Figma design) - Shows groups and contacts list
  */
 @Composable
-private fun ContactsScreen() {
+private fun ContactsScreen(
+    viewModel: ContactsViewModel = hiltViewModel()
+) {
+    val groups by viewModel.groups.collectAsStateWithLifecycle()
+    val privateContacts by viewModel.privateContacts.collectAsStateWithLifecycle()
+    val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
+    val error by viewModel.error.collectAsStateWithLifecycle()
+    val conversationCache by viewModel.conversationCache.collectAsStateWithLifecycle()
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -871,33 +903,250 @@ private fun ContactsScreen() {
             }
         }
 
-        // 占位符内容
-        Box(
-            modifier = Modifier.fillMaxSize(),
-            contentAlignment = Alignment.Center
-        ) {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+        // 错误提示
+        error?.let { errorMessage ->
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.errorContainer
+                )
             ) {
-                Icon(
-                    imageVector = Icons.Filled.People,
-                    contentDescription = null,
-                    modifier = Modifier.size(64.dp),
-                    tint = TextSecondary
-                )
+                Row(
+                    modifier = Modifier.padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Error,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.error
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = errorMessage,
+                        color = MaterialTheme.colorScheme.onErrorContainer
+                    )
+                }
+            }
+        }
+
+        // 加载指示器
+        if (isLoading && groups.isEmpty() && privateContacts.isEmpty()) {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator(color = PrimaryBlue)
+            }
+        }
+        // 空状态
+        else if (groups.isEmpty() && privateContacts.isEmpty()) {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.People,
+                        contentDescription = null,
+                        tint = TextSecondary,
+                        modifier = Modifier.size(64.dp)
+                    )
+                    Text(
+                        text = "No Contacts Yet",
+                        color = TextSecondary,
+                        fontSize = 16.sp
+                    )
+                    Text(
+                        text = "Add friends to start chatting!",
+                        color = TextSecondary,
+                        fontSize = 14.sp
+                    )
+                }
+            }
+        }
+        // 联系人列表
+        else {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize()
+            ) {
+                // Groups 分组
+                if (groups.isNotEmpty()) {
+                    item {
+                        SectionHeader(title = "GROUPS (${groups.size})")
+                    }
+                    items(
+                        items = groups,
+                        key = { it.contactId }
+                    ) { contact ->
+                        ContactListItem(
+                            contact = contact,
+                            viewModel = viewModel,
+                            onClick = { /* TODO: 打开群聊详情 */ }
+                        )
+                        HorizontalDivider(
+                            modifier = Modifier.padding(start = 72.dp),
+                            thickness = 0.5.dp,
+                            color = Color(0xFFE5E7EB)
+                        )
+                    }
+                }
+
+                // Contacts 分组
+                if (privateContacts.isNotEmpty()) {
+                    item {
+                        SectionHeader(title = "CONTACTS (${privateContacts.size})")
+                    }
+                    items(
+                        items = privateContacts,
+                        key = { it.contactId }
+                    ) { contact ->
+                        ContactListItem(
+                            contact = contact,
+                            viewModel = viewModel,
+                            onClick = { /* TODO: 打开私聊详情 */ }
+                        )
+                        HorizontalDivider(
+                            modifier = Modifier.padding(start = 72.dp),
+                            thickness = 0.5.dp,
+                            color = Color(0xFFE5E7EB)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * 分组标题
+ * Section header for contacts list
+ */
+@Composable
+private fun SectionHeader(title: String) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = BackgroundGray
+    ) {
+        Text(
+            text = title,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+            color = TextSecondary,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Medium
+        )
+    }
+}
+
+/**
+ * 联系人列表项
+ * Contact list item
+ */
+@Composable
+private fun ContactListItem(
+    contact: Contact,
+    viewModel: ContactsViewModel,
+    onClick: () -> Unit
+) {
+    // 监听 conversationCache 的变化，确保 GROUP 信息加载后界面会更新
+    val conversationCache by viewModel.conversationCache.collectAsStateWithLifecycle()
+
+    // 使用 ViewModel 的方法获取显示名称和头像（对 GROUP 会从 Conversation 中获取）
+    val displayName = viewModel.getDisplayName(contact)
+    val avatarUrl = viewModel.getAvatarUrl(contact)
+
+    // 调试日志
+    Log.d("ContactListItem", "Contact ID: ${contact.contactId}")
+    Log.d("ContactListItem", "Contact Type: ${contact.type}")
+    Log.d("ContactListItem", "Conversation ID: ${contact.conversationId}")
+    Log.d("ContactListItem", "Display Name: $displayName")
+    Log.d("ContactListItem", "Avatar URL: $avatarUrl")
+    Log.d("ContactListItem", "ConversationCache size: ${conversationCache.size}")
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .background(Color.White)
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // 头像
+        if (avatarUrl.isNotBlank()) {
+            Log.d("ContactListItem", "Loading image for $displayName: $avatarUrl")
+            AsyncImage(
+                model = avatarUrl,
+                contentDescription = "$displayName avatar",
+                modifier = Modifier
+                    .size(52.dp)
+                    .clip(CircleShape),
+                contentScale = ContentScale.Crop,
+                onError = { error ->
+                    Log.e("ContactListItem", "Failed to load image for $displayName: ${error.result.throwable}")
+                },
+                onSuccess = {
+                    Log.d("ContactListItem", "Successfully loaded image for $displayName")
+                }
+            )
+        } else {
+            // 没有头像URL时显示首字母
+            Log.d("ContactListItem", "No avatarUrl for $displayName, showing initials")
+            Box(
+                modifier = Modifier
+                    .size(52.dp)
+                    .clip(CircleShape)
+                    .background(if (contact.isGroup()) Color(0xFFFF9800) else PrimaryBlue),
+                contentAlignment = Alignment.Center
+            ) {
                 Text(
-                    text = "Contacts page",
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = TextPrimary
-                )
-                Text(
-                    text = "Coming soon...",
-                    fontSize = 14.sp,
-                    color = TextSecondary
+                    text = displayName.firstOrNull()?.toString()?.uppercase() ?: "?",
+                    color = Color.White,
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Medium
                 )
             }
+        }
+
+        Spacer(modifier = Modifier.width(12.dp))
+
+        // 联系人信息
+        Column(
+            modifier = Modifier.weight(1f)
+        ) {
+            Text(
+                text = displayName,
+                color = TextPrimary,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Medium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+
+            // 如果有备注名，显示原始名称
+            if (contact.alias.isNotBlank()) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = contact.contactName,
+                    color = TextSecondary,
+                    fontSize = 14.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+
+        // 群组图标
+        if (contact.isGroup()) {
+            Icon(
+                imageVector = Icons.Filled.People,
+                contentDescription = "Group",
+                tint = TextSecondary,
+                modifier = Modifier.size(20.dp)
+            )
         }
     }
 }
