@@ -240,7 +240,29 @@ fun HomeScreen(
                 }
 
                 composable(HomeDestination.Contacts.route) {
-                    ContactsScreen()
+                    val contactsViewModel: ContactsViewModel = hiltViewModel()
+                    ContactsScreen(
+                        viewModel = contactsViewModel,
+                        onContactClick = { contact ->
+                            // 获取 conversationId
+                            val conversationId = contact.conversationId
+
+                            if (conversationId.isNotBlank()) {
+                                // 获取显示名称和头像
+                                val displayName = contactsViewModel.getDisplayName(contact)
+                                val avatarUrl = contactsViewModel.getAvatarUrl(contact)
+
+                                // URL 编码
+                                val encodedName = URLEncoder.encode(displayName, StandardCharsets.UTF_8.toString())
+                                val encodedAvatar = URLEncoder.encode(avatarUrl, StandardCharsets.UTF_8.toString())
+
+                                // 导航到对话详情页面
+                                navController.navigate(
+                                    "chat_detail/$conversationId/$encodedName/$encodedAvatar"
+                                )
+                            }
+                        }
+                    )
                 }
 
                 composable(HomeDestination.Me.route) {
@@ -861,7 +883,8 @@ private fun ConversationListItem(
  */
 @Composable
 private fun ContactsScreen(
-    viewModel: ContactsViewModel = hiltViewModel()
+    viewModel: ContactsViewModel = hiltViewModel(),
+    onContactClick: (Contact) -> Unit = {}
 ) {
     val groups by viewModel.groups.collectAsStateWithLifecycle()
     val privateContacts by viewModel.privateContacts.collectAsStateWithLifecycle()
@@ -986,7 +1009,7 @@ private fun ContactsScreen(
                         ContactListItem(
                             contact = contact,
                             viewModel = viewModel,
-                            onClick = { /* TODO: 打开群聊详情 */ }
+                            onClick = { onContactClick(contact) }
                         )
                         HorizontalDivider(
                             modifier = Modifier.padding(start = 72.dp),
@@ -1008,7 +1031,7 @@ private fun ContactsScreen(
                         ContactListItem(
                             contact = contact,
                             viewModel = viewModel,
-                            onClick = { /* TODO: 打开私聊详情 */ }
+                            onClick = { onContactClick(contact) }
                         )
                         HorizontalDivider(
                             modifier = Modifier.padding(start = 72.dp),
