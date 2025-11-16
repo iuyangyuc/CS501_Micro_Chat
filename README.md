@@ -29,6 +29,7 @@ This app targets international consumers, bilingual individuals, and anyone look
 | [FIREBASE_QUICK_REFERENCE.md](FIREBASE_QUICK_REFERENCE.md) | 快速参考卡 |
 | [DEPENDENCIES_SETUP.md](DEPENDENCIES_SETUP.md) | 依赖配置指南 |
 | [FIREBASE_IMPLEMENTATION_SUMMARY.md](FIREBASE_IMPLEMENTATION_SUMMARY.md) | 实施总结 |
+| [FIREBASE_STORAGE_USAGE.md](FIREBASE_STORAGE_USAGE.md) | Firebase Storage CDN 上传/下载/删除示例 |
 
 ### 🚀 快速开始
 
@@ -205,4 +206,3 @@ This project is for educational purposes as part of CS501 coursework.
 ---
 
 **Happy Coding! 🚀**
-
