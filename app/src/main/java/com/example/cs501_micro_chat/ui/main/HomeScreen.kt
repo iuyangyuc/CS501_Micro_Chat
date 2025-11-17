@@ -204,10 +204,7 @@ fun HomeScreen(
                     )
                 } else {
                     // HomeScreen 顶栏内容
-                    HomeTopBar(
-                        currentRoute = route,
-                        onAddClick = { /* TODO */ }
-                    )
+                    HomeTopBar(currentRoute = route)
                 }
             }
         }
@@ -351,10 +348,10 @@ fun HomeScreen(
  * HomeScreen 的顶栏内容
  */
 @Composable
-private fun HomeTopBar(
-    currentRoute: String?,
-    onAddClick: () -> Unit
-) {
+private fun HomeTopBar(currentRoute: String?) {
+    // 控制下拉菜单的显示状态
+    var showAddMenu by remember { mutableStateOf(false) }
+
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -374,14 +371,82 @@ private fun HomeTopBar(
             fontWeight = FontWeight.SemiBold
         )
 
-        // Chats 和 Contacts 页面都显示加号按钮
+        // Chats 和 Contacts 页面都显示加号按钮和下拉菜单
         if (currentRoute == HomeDestination.Chats.route || currentRoute == HomeDestination.Contacts.route) {
-            IconButton(onClick = onAddClick) {
-                Icon(
-                    imageVector = Icons.Filled.Add,
-                    contentDescription = "Add",
-                    tint = Color.White
-                )
+            Box {
+                IconButton(onClick = { showAddMenu = true }) {
+                    Icon(
+                        imageVector = Icons.Filled.Add,
+                        contentDescription = "Add",
+                        tint = Color.White
+                    )
+                }
+
+                // 下拉菜单
+                DropdownMenu(
+                    expanded = showAddMenu,
+                    onDismissRequest = { showAddMenu = false },
+                    modifier = Modifier.background(Color.White)
+                ) {
+                    // 新增联系人选项
+                    DropdownMenuItem(
+                        text = {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Start
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.PersonAdd,
+                                    contentDescription = "Add Contact",
+                                    tint = TextPrimary,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Text(
+                                    text = "New Contact",
+                                    color = TextPrimary,
+                                    fontSize = 15.sp
+                                )
+                            }
+                        },
+                        onClick = {
+                            showAddMenu = false
+                            // TODO: 实现新增联系人功能
+                        }
+                    )
+
+                    HorizontalDivider(
+                        thickness = 0.5.dp,
+                        color = Color(0xFFE5E7EB)
+                    )
+
+                    // 新增群组选项
+                    DropdownMenuItem(
+                        text = {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Start
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.GroupAdd,
+                                    contentDescription = "Create Group",
+                                    tint = TextPrimary,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Text(
+                                    text = "New Group",
+                                    color = TextPrimary,
+                                    fontSize = 15.sp
+                                )
+                            }
+                        },
+                        onClick = {
+                            showAddMenu = false
+                            // TODO: 实现新增群组功能
+                        }
+                    )
+                }
             }
         } else {
             Spacer(modifier = Modifier.width(48.dp))
