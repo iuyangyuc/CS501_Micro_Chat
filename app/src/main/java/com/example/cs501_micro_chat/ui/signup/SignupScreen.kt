@@ -1,15 +1,17 @@
 package com.example.cs501_micro_chat.ui.signup
 
+import android.annotation.SuppressLint
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -46,10 +48,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.ImeAction
@@ -68,6 +71,7 @@ import com.example.cs501_micro_chat.ui.auth.LanguageSwitcher
 import com.example.cs501_micro_chat.ui.auth.localized
 import com.example.cs501_micro_chat.ui.theme.CS501_Micro_ChatTheme
 
+@SuppressLint("UnusedBoxWithConstraintsScope")
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SignupScreen(
@@ -85,8 +89,10 @@ fun SignupScreen(
 ) {
     val scrollState = rememberScrollState()
     val strings = rememberSignupStrings(state.selectedLanguage)
+    val backgroundColor = MaterialTheme.colorScheme.background
     Scaffold(
         modifier = modifier.fillMaxSize(),
+        containerColor = backgroundColor,
         topBar = {
             SignupTopBar(
                 backLabel = strings.backToLogin,
@@ -101,9 +107,12 @@ fun SignupScreen(
             modifier = Modifier
                 .padding(paddingValues)
                 .fillMaxSize()
+                .background(backgroundColor)
         ) {
-            val width = maxWidth
-            val height = maxHeight
+            val density = LocalDensity.current
+            val boxConstraints = constraints
+            val width = with(density) { boxConstraints.maxWidth.toDp() }
+            val height = with(density) { boxConstraints.maxHeight.toDp() }
             val layoutDirection = LocalLayoutDirection.current
             val isExpandedWidth = width >= 720.dp
             val isMediumWidth = width >= 600.dp

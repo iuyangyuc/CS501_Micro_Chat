@@ -37,7 +37,7 @@ import com.google.android.gms.auth.api.signin.GoogleSignInStatusCodes
 
 @Composable
 fun LoginRoute(
-    onNavigateToSignup: (LanguageOption) -> Unit,
+    onNavigateToSignup: () -> Unit,
     onLoginSuccess: () -> Unit,
     onViewTerms: () -> Unit = {},
     onViewPrivacy: () -> Unit = {},

@@ -23,6 +23,8 @@ package com.example.cs501_micro_chat.ui.main
 
 import android.util.Log
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.ui.draw.shadow
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -36,12 +38,14 @@ import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
@@ -70,15 +74,32 @@ import coil.compose.AsyncImage
 import com.example.cs501_micro_chat.R
 import com.example.cs501_micro_chat.data.model.Conversation
 import com.example.cs501_micro_chat.data.model.Contact
+import com.example.cs501_micro_chat.ui.settings.AboutScreen
+import com.example.cs501_micro_chat.ui.settings.PrivacySettingsScreen
+import com.example.cs501_micro_chat.ui.settings.ProfileEditScreen
+import com.example.cs501_micro_chat.ui.settings.SettingsScreen
+import com.example.cs501_micro_chat.ui.theme.ThemeOption
+import com.example.cs501_micro_chat.ui.theme.ThemeViewModel
 
 // Figma Design Colors
 private val PrimaryBlue = Color(0xFF3296FA)
 private val LightBlue = Color(0xFF66B3FF)
 private val BackgroundGray = Color(0xFFF9FAFB)
 private val SearchBarGray = Color(0xFFF3F4F6)
-private val TextPrimary = Color(0xFF111827)
+private val TextPrimary = Color(0xFF1F2937)
 private val TextSecondary = Color(0xFF6B7280)
 private val UnreadBadgeRed = Color(0xFFEF4444)
+
+@Composable
+private fun primaryTextColor() = MaterialTheme.colorScheme.onSurface
+
+@Composable
+private fun secondaryTextColor() = MaterialTheme.colorScheme.onSurfaceVariant
+private const val LANGUAGE_SETTINGS_ROUTE = "language_settings"
+private const val PRIVACY_SETTINGS_ROUTE = "privacy_settings"
+private const val ABOUT_ROUTE = "about"
+private const val PROFILE_EDIT_ROUTE = "profile_edit"
+private const val PROFILE_UPDATED_KEY = "profile_updated"
 
 
 /**
@@ -118,31 +139,6 @@ private val homeDestinationItems: List<HomeDestination>
     )
 
 /**
- * 路由配置 - 定义哪些页面需要显示底部导航栏
- * Route configuration - Define which pages should show bottom navigation
- */
-private object RouteConfig {
-    /**
-     * 检查给定路由是否应该显示底部导航栏
-     * 只有主页面（Chats, Contacts, Me）显示底部导航栏
-     * 其他所有子页面（如 ChatDetail、设置页等）都不显示
-     */
-    fun shouldShowBottomBar(route: String?): Boolean {
-        if (route == null) return false
-
-        // 定义显示底部导航栏的路由列表
-        val bottomBarRoutes = setOf(
-            HomeDestination.Chats.route,
-            HomeDestination.Contacts.route,
-            HomeDestination.Me.route
-        )
-
-        // 只有这些主页面才显示底部导航栏
-        return route in bottomBarRoutes
-    }
-}
-
-/**
  * 主界面组合项（基于 Figma 设计）
  * Home screen composable (Based on Figma design)
  *
@@ -160,15 +156,17 @@ fun HomeScreen(
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
     val currentRoute = currentDestination?.route
-
-    // 使用 RouteConfig 判断是否显示底部导航栏
-    val shouldShowBottomBar = RouteConfig.shouldShowBottomBar(currentRoute)
-    // 判断是否在对话详情页面（用于顶栏显示）
-    val isInChatDetail = currentRoute?.startsWith("chat_detail") == true
+    val isFullScreenRoute = currentRoute?.let {
+        it.startsWith("chat_detail") || it == LANGUAGE_SETTINGS_ROUTE || it == PRIVACY_SETTINGS_ROUTE || it == ABOUT_ROUTE || it == PROFILE_EDIT_ROUTE
+    } == true
+    val backgroundColor = MaterialTheme.colorScheme.background
+    val surfaceColor = MaterialTheme.colorScheme.surface
 
     // ========== 固定布局：顶栏 + 内容 + 底栏 ==========
     Column(
-        modifier = modifier.fillMaxSize()
+        modifier = modifier
+            .fillMaxSize()
+            .background(backgroundColor)
     ) {
         // ========== 固定顶栏（始终存在，只改变内容） ==========
         Box(
@@ -184,27 +182,47 @@ fun HomeScreen(
         ) {
             // 顶栏内容平滑切换
             AnimatedContent(
-                targetState = isInChatDetail to currentRoute,
+                targetState = currentRoute,
                 transitionSpec = {
                     fadeIn(animationSpec = tween(150)) togetherWith
                             fadeOut(animationSpec = tween(150))
                 },
                 label = "TopBarContent"
-            ) { (inChatDetail, route) ->
-                if (inChatDetail) {
-                    // ChatDetail 顶栏内容
-                    ChatDetailTopBar(
-                        conversationName = navBackStackEntry?.arguments?.getString("conversationName")?.let {
-                            URLDecoder.decode(it, StandardCharsets.UTF_8.toString())
-                        } ?: "",
-                        conversationAvatar = navBackStackEntry?.arguments?.getString("conversationAvatar")?.let {
-                            URLDecoder.decode(it, StandardCharsets.UTF_8.toString())
-                        } ?: "",
-                        onBack = { navController.popBackStack() }
-                    )
-                } else {
-                    // HomeScreen 顶栏内容
-                    HomeTopBar(currentRoute = route)
+            ) { route ->
+                when {
+                    route?.startsWith("chat_detail") == true -> {
+                        ChatDetailTopBar(
+                            conversationName = navBackStackEntry?.arguments?.getString("conversationName")?.let {
+                                URLDecoder.decode(it, StandardCharsets.UTF_8.toString())
+                            } ?: "",
+                            conversationAvatar = navBackStackEntry?.arguments?.getString("conversationAvatar")?.let {
+                                URLDecoder.decode(it, StandardCharsets.UTF_8.toString())
+                            } ?: "",
+                            onBack = { navController.popBackStack() }
+                        )
+                    }
+
+                    route == LANGUAGE_SETTINGS_ROUTE -> {
+                        LanguageSettingsTopBar(onBack = { navController.popBackStack() })
+                    }
+
+                    route == PRIVACY_SETTINGS_ROUTE -> {
+                        PrivacySettingsTopBar(onBack = { navController.popBackStack() })
+                    }
+
+                    route == ABOUT_ROUTE -> {
+                        AboutTopBar(onBack = { navController.popBackStack() })
+                    }
+
+                    route == PROFILE_EDIT_ROUTE -> {
+                        ProfileHeaderTopBar()
+                    }
+
+                    else -> {
+                        HomeTopBar(
+                            currentRoute = route
+                        )
+                    }
                 }
             }
         }
@@ -214,7 +232,7 @@ fun HomeScreen(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth()
-                .background(BackgroundGray)
+                .background(backgroundColor)
         ) {
             NavHost(
                 navController = navController,
@@ -262,8 +280,54 @@ fun HomeScreen(
                     )
                 }
 
-                composable(HomeDestination.Me.route) {
-                    ProfileScreen(onLogout = onLogout)
+                composable(HomeDestination.Me.route) { backStackEntry ->
+                    val themeViewModel: ThemeViewModel = hiltViewModel()
+                    val themeOption by themeViewModel.themeOption.collectAsStateWithLifecycle()
+                    val profileViewModel: ProfileSettingsViewModel = hiltViewModel()
+                    val profileState by profileViewModel.uiState.collectAsStateWithLifecycle()
+                    val savedStateHandle = backStackEntry.savedStateHandle
+                    val profileUpdatedFlow = remember(savedStateHandle) {
+                        savedStateHandle.getStateFlow(PROFILE_UPDATED_KEY, false)
+                    }
+                    val profileUpdated by profileUpdatedFlow.collectAsStateWithLifecycle()
+
+                    LaunchedEffect(profileUpdated) {
+                        if (profileUpdated) {
+                            profileViewModel.refreshProfile()
+                            savedStateHandle[PROFILE_UPDATED_KEY] = false
+                        }
+                    }
+
+                    ProfileScreen(
+                        onLogout = onLogout,
+                        onLanguageClick = { navController.navigate(LANGUAGE_SETTINGS_ROUTE) },
+                        onPrivacyClick = { navController.navigate(PRIVACY_SETTINGS_ROUTE) },
+                        onAboutClick = { navController.navigate(ABOUT_ROUTE) },
+                        onProfileClick = { navController.navigate(PROFILE_EDIT_ROUTE) },
+                        themeOption = themeOption,
+                        onThemeSelected = themeViewModel::selectTheme,
+                        profileState = profileState
+                    )
+                }
+                composable(LANGUAGE_SETTINGS_ROUTE) {
+                    SettingsScreen()
+                }
+                composable(PRIVACY_SETTINGS_ROUTE) {
+                    PrivacySettingsScreen()
+                }
+                composable(ABOUT_ROUTE) {
+                    AboutScreen()
+                }
+                composable(PROFILE_EDIT_ROUTE) {
+                    ProfileEditScreen(
+                        onBack = { navController.popBackStack() },
+                        onProfileSaved = {
+                            navController.previousBackStackEntry
+                                ?.savedStateHandle
+                                ?.set(PROFILE_UPDATED_KEY, true)
+                            navController.popBackStack()
+                        }
+                    )
                 }
 
                 // ChatDetail 页面 - 从右侧滑入
@@ -299,10 +363,10 @@ fun HomeScreen(
             }
         }
 
-        // ========== 固定底栏（根据路由配置决定是否显示） ==========
-        if (shouldShowBottomBar) {
+        // ========== 固定底栏（非 ChatDetail 时显示） ==========
+        if (!isFullScreenRoute) {
             NavigationBar(
-                containerColor = Color.White,
+                containerColor = surfaceColor,
                 tonalElevation = 8.dp
             ) {
                 items.forEach { destination ->
@@ -333,8 +397,8 @@ fun HomeScreen(
                         colors = NavigationBarItemDefaults.colors(
                             selectedIconColor = PrimaryBlue,
                             selectedTextColor = PrimaryBlue,
-                            unselectedIconColor = TextSecondary,
-                            unselectedTextColor = TextSecondary,
+                            unselectedIconColor = secondaryTextColor(),
+                            unselectedTextColor = secondaryTextColor(),
                             indicatorColor = PrimaryBlue.copy(alpha = 0.12f)
                         )
                     )
@@ -348,7 +412,9 @@ fun HomeScreen(
  * HomeScreen 的顶栏内容
  */
 @Composable
-private fun HomeTopBar(currentRoute: String?) {
+fun HomeTopBar(
+    currentRoute: String?
+) {
     // 控制下拉菜单的显示状态
     var showAddMenu by remember { mutableStateOf(false) }
 
@@ -454,11 +520,111 @@ private fun HomeTopBar(currentRoute: String?) {
     }
 }
 
+@Composable
+fun ProfileHeaderTopBar() {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = stringResource(R.string.profile_header_title),
+            color = Color.White,
+            fontSize = 18.sp,
+            fontWeight = FontWeight.SemiBold
+        )
+    }
+}
+
+@Composable
+fun LanguageSettingsTopBar(
+    onBack: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        IconButton(onClick = onBack) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                contentDescription = stringResource(R.string.content_description_back),
+                tint = Color.White
+            )
+        }
+
+        Text(
+            text = stringResource(R.string.language_settings_title),
+            color = Color.White,
+            fontSize = 20.sp,
+            fontWeight = FontWeight.SemiBold
+        )
+        Spacer(modifier = Modifier.weight(1f))
+    }
+}
+
+@Composable
+fun PrivacySettingsTopBar(
+    onBack: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        IconButton(onClick = onBack) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                contentDescription = stringResource(R.string.content_description_back),
+                tint = Color.White
+            )
+        }
+
+        Text(
+            text = stringResource(R.string.settings_privacy),
+            color = Color.White,
+            fontSize = 20.sp,
+            fontWeight = FontWeight.SemiBold
+        )
+        Spacer(modifier = Modifier.weight(1f))
+    }
+}
+
+@Composable
+fun AboutTopBar(
+    onBack: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        IconButton(onClick = onBack) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                contentDescription = stringResource(R.string.content_description_back),
+                tint = Color.White
+            )
+        }
+
+        Text(
+            text = stringResource(R.string.settings_about),
+            color = Color.White,
+            fontSize = 20.sp,
+            fontWeight = FontWeight.SemiBold
+        )
+        Spacer(modifier = Modifier.weight(1f))
+    }
+}
+
 /**
  * ChatDetail 的顶栏内容
  */
 @Composable
-private fun ChatDetailTopBar(
+fun ChatDetailTopBar(
     conversationName: String,
     conversationAvatar: String,
     onBack: () -> Unit
@@ -470,7 +636,7 @@ private fun ChatDetailTopBar(
         IconButton(onClick = onBack) {
             Icon(
                 imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                contentDescription = "Back",
+                contentDescription = stringResource(R.string.content_description_back),
                 tint = Color.White
             )
         }
@@ -478,7 +644,7 @@ private fun ChatDetailTopBar(
         if (conversationAvatar.isNotBlank()) {
             AsyncImage(
                 model = conversationAvatar,
-                contentDescription = "$conversationName avatar",
+                contentDescription = stringResource(R.string.content_description_avatar, conversationName),
                 modifier = Modifier
                     .size(36.dp)
                     .clip(CircleShape),
@@ -514,7 +680,7 @@ private fun ChatDetailTopBar(
         IconButton(onClick = { /* TODO */ }) {
             Icon(
                 imageVector = Icons.Default.MoreVert,
-                contentDescription = "More",
+                contentDescription = stringResource(R.string.content_description_more),
                 tint = Color.White
             )
         }
@@ -525,7 +691,7 @@ private fun ChatDetailTopBar(
  * ChatDetail 的内容区域（不包含顶栏）
  */
 @Composable
-private fun ChatDetailContent(conversationId: String) {
+fun ChatDetailContent(conversationId: String) {
     val viewModel: com.example.cs501_micro_chat.ui.chat.ChatDetailViewModel = hiltViewModel()
 
     LaunchedEffect(conversationId) {
@@ -544,10 +710,13 @@ private fun ChatDetailContent(conversationId: String) {
         }
     }
 
+    val backgroundColor = MaterialTheme.colorScheme.background
+    val surfaceColorChat = MaterialTheme.colorScheme.surface
+    val searchBackgroundChat = MaterialTheme.colorScheme.surfaceVariant
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.White)
+            .background(backgroundColor)
     ) {
         // 消息列表
         Box(
@@ -564,12 +733,12 @@ private fun ChatDetailContent(conversationId: String) {
                     Icon(
                         imageVector = Icons.Default.ChatBubbleOutline,
                         contentDescription = null,
-                        tint = TextSecondary,
+                        tint = secondaryTextColor(),
                         modifier = Modifier.size(64.dp)
                     )
                     Text(
-                        text = "Nothing Here Yet",
-                        color = TextSecondary,
+                        text = stringResource(R.string.chat_placeholder_no_messages),
+                        color = secondaryTextColor(),
                         fontSize = 16.sp
                     )
                 }
@@ -598,7 +767,7 @@ private fun ChatDetailContent(conversationId: String) {
 
         // 输入栏
         Surface(
-            color = Color.White,
+            color = surfaceColorChat,
             shadowElevation = 8.dp
         ) {
             Row(
@@ -613,8 +782,8 @@ private fun ChatDetailContent(conversationId: String) {
                 ) {
                     Icon(
                         imageVector = Icons.Default.Mic,
-                        contentDescription = "Voice",
-                        tint = TextSecondary
+                        contentDescription = stringResource(R.string.content_description_voice),
+                        tint = secondaryTextColor()
                     )
                 }
 
@@ -622,7 +791,7 @@ private fun ChatDetailContent(conversationId: String) {
                     modifier = Modifier
                         .weight(1f)
                         .clip(RoundedCornerShape(20.dp))
-                        .background(SearchBarGray)
+                        .background(searchBackgroundChat)
                         .padding(horizontal = 12.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -632,8 +801,8 @@ private fun ChatDetailContent(conversationId: String) {
                         modifier = Modifier.weight(1f),
                         placeholder = {
                             Text(
-                                text = "Type a message...",
-                                color = TextSecondary,
+                                text = stringResource(R.string.chat_input_placeholder),
+                                color = secondaryTextColor(),
                                 fontSize = 14.sp
                             )
                         },
@@ -660,12 +829,12 @@ private fun ChatDetailContent(conversationId: String) {
                         modifier = Modifier
                             .size(40.dp)
                             .clip(CircleShape)
-                            .background(PrimaryBlue)
+                            .background(MaterialTheme.colorScheme.primary)
                     ) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.Send,
-                            contentDescription = "Send",
-                            tint = Color.White,
+                            contentDescription = stringResource(R.string.content_description_send),
+                            tint = MaterialTheme.colorScheme.onPrimary,
                             modifier = Modifier.size(20.dp)
                         )
                     }
@@ -676,8 +845,8 @@ private fun ChatDetailContent(conversationId: String) {
                     ) {
                         Icon(
                             imageVector = Icons.Default.Add,
-                            contentDescription = "Attachment",
-                            tint = TextSecondary
+                            contentDescription = stringResource(R.string.content_description_attachment),
+                            tint = secondaryTextColor()
                         )
                     }
                 }
@@ -691,13 +860,12 @@ private fun ChatDetailContent(conversationId: String) {
  * Chat list screen (Based on Figma design) - Reads real data from Firebase
  */
 @Composable
-private fun ChatListScreen(
+fun ChatListScreen(
     viewModel: HomeViewModel = hiltViewModel(),
     onChatClick: (Conversation) -> Unit = {}
 ) {
     val conversations by viewModel.conversations.collectAsStateWithLifecycle()
     val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
-    val error by viewModel.error.collectAsStateWithLifecycle()
 
     // 搜索相关状态
     val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
@@ -814,34 +982,6 @@ private fun ChatListScreen(
                 }
             }
 
-            // 错误提示
-            error?.let { errorMessage ->
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.errorContainer
-                    )
-                ) {
-                    Row(
-                        modifier = Modifier.padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Error,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.error
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = errorMessage,
-                            color = MaterialTheme.colorScheme.onErrorContainer
-                        )
-                    }
-                }
-            }
-
             // 显示搜索结果或对话列表
             if (isSearchActive && searchQuery.isNotBlank()) {
                 // 搜索结果
@@ -873,7 +1013,7 @@ private fun ChatListScreen(
  * Conversation list item (Based on Figma design) - Displays real conversation data
  */
 @Composable
-private fun ConversationListItem(
+fun ConversationListItem(
     conversation: Conversation,
     viewModel: HomeViewModel,
     onClick: () -> Unit = {}
@@ -894,11 +1034,12 @@ private fun ConversationListItem(
     Log.d("ConversationListItem", "Avatar URL: $avatarUrl")
     Log.d("ConversationListItem", "UserCache size: ${userCache.size}")
 
+    val rowBackground = MaterialTheme.colorScheme.surface
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .background(Color.White)
+            .background(rowBackground)
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -907,7 +1048,7 @@ private fun ConversationListItem(
             Log.d("ConversationListItem", "Loading image for $displayName: $avatarUrl")
             AsyncImage(
                 model = avatarUrl,
-                contentDescription = "$displayName avatar",
+                contentDescription = stringResource(R.string.content_description_avatar, displayName),
                 modifier = Modifier
                     .size(52.dp)
                     .clip(CircleShape),
@@ -951,7 +1092,7 @@ private fun ConversationListItem(
             ) {
                 Text(
                     text = displayName,
-                    color = TextPrimary,
+                    color = primaryTextColor(),
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Medium,
                     maxLines = 1,
@@ -960,7 +1101,7 @@ private fun ConversationListItem(
                 )
                 Text(
                     text = formattedTime,
-                    color = TextSecondary,
+                    color = secondaryTextColor(),
                     fontSize = 12.sp
                 )
             }
@@ -974,7 +1115,7 @@ private fun ConversationListItem(
             ) {
                 Text(
                     text = conversation.lastMessage,
-                    color = TextSecondary,
+                    color = secondaryTextColor(),
                     fontSize = 14.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -991,7 +1132,7 @@ private fun ConversationListItem(
  * Conversation search results list
  */
 @Composable
-private fun ConversationSearchResultsList(
+fun ConversationSearchResultsList(
     searchResults: List<Conversation>,
     isSearching: Boolean,
     viewModel: HomeViewModel,
@@ -1070,7 +1211,7 @@ private fun ConversationSearchResultsList(
  * Normal conversations list
  */
 @Composable
-private fun ConversationsList(
+fun ConversationsList(
     conversations: List<Conversation>,
     isLoading: Boolean,
     viewModel: HomeViewModel,
@@ -1143,15 +1284,13 @@ private fun ConversationsList(
  * Contacts screen (Based on Figma design) - Shows groups and contacts list
  */
 @Composable
-private fun ContactsScreen(
+fun ContactsScreen(
     viewModel: ContactsViewModel = hiltViewModel(),
     onContactClick: (Contact) -> Unit = {}
 ) {
     val groups by viewModel.groups.collectAsStateWithLifecycle()
     val privateContacts by viewModel.privateContacts.collectAsStateWithLifecycle()
     val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
-    val error by viewModel.error.collectAsStateWithLifecycle()
-    val conversationCache by viewModel.conversationCache.collectAsStateWithLifecycle()
 
     // 搜索相关状态
     val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
@@ -1268,34 +1407,6 @@ private fun ContactsScreen(
                 }
             }
 
-            // 错误提示
-            error?.let { errorMessage ->
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.errorContainer
-                    )
-                ) {
-                    Row(
-                        modifier = Modifier.padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Error,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.error
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = errorMessage,
-                            color = MaterialTheme.colorScheme.onErrorContainer
-                        )
-                    }
-                }
-            }
-
             // 显示搜索结果或联系人列表
             if (isSearchActive && searchQuery.isNotBlank()) {
                 // 搜索结果
@@ -1328,7 +1439,7 @@ private fun ContactsScreen(
  * Search results list
  */
 @Composable
-private fun SearchResultsList(
+fun SearchResultsList(
     searchResults: List<Contact>,
     isSearching: Boolean,
     viewModel: ContactsViewModel,
@@ -1407,7 +1518,7 @@ private fun SearchResultsList(
  * Normal contacts list
  */
 @Composable
-private fun ContactsList(
+fun ContactsList(
     groups: List<Contact>,
     privateContacts: List<Contact>,
     isLoading: Boolean,
@@ -1436,8 +1547,8 @@ private fun ContactsList(
                 Icon(
                     imageVector = Icons.Filled.People,
                     contentDescription = null,
-                    tint = TextSecondary,
-                    modifier = Modifier.size(64.dp)
+                    modifier = Modifier.size(64.dp),
+                    tint = secondaryTextColor()
                 )
                 Text(
                     text = "No Contacts Yet",
@@ -1509,7 +1620,7 @@ private fun ContactsList(
  * Section header for contacts list
  */
 @Composable
-private fun SectionHeader(title: String) {
+fun SectionHeader(title: String) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
         color = BackgroundGray
@@ -1529,7 +1640,7 @@ private fun SectionHeader(title: String) {
  * Contact list item
  */
 @Composable
-private fun ContactListItem(
+fun ContactListItem(
     contact: Contact,
     viewModel: ContactsViewModel,
     onClick: () -> Unit
@@ -1585,38 +1696,15 @@ private fun ContactListItem(
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = displayName.firstOrNull()?.toString()?.uppercase() ?: "?",
-                    color = Color.White,
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Medium
+                    text = stringResource(R.string.contacts_empty_title),
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = primaryTextColor()
                 )
-            }
-        }
-
-        Spacer(modifier = Modifier.width(12.dp))
-
-        // 联系人信息
-        Column(
-            modifier = Modifier.weight(1f)
-        ) {
-            Text(
-                text = displayName,
-                color = TextPrimary,
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Medium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-
-            // 如果有备注名，显示原始名称
-            if (contact.alias.isNotBlank()) {
-                Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = contact.contactName,
-                    color = TextSecondary,
+                    text = stringResource(R.string.contacts_empty_subtitle),
                     fontSize = 14.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    color = secondaryTextColor()
                 )
             }
         }
@@ -1637,70 +1725,117 @@ private fun ContactListItem(
  * 个人设置页面（包含退出登录）
  * Profile settings screen (Includes logout)
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun ProfileScreen(
-    onLogout: () -> Unit
+fun ProfileScreen(
+    onLogout: () -> Unit,
+    onLanguageClick: () -> Unit,
+    onPrivacyClick: () -> Unit,
+    onAboutClick: () -> Unit,
+    onProfileClick: () -> Unit,
+    themeOption: ThemeOption,
+    onThemeSelected: (ThemeOption) -> Unit,
+    profileState: ProfileSettingsUiState
 ) {
+    val backgroundColor = MaterialTheme.colorScheme.background
+    val surfaceColor = MaterialTheme.colorScheme.surface
+    val cardColor = MaterialTheme.colorScheme.surfaceVariant
+    val dividerColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
+    val displayName = if (profileState.displayName.isNotBlank()) {
+        profileState.displayName
+    } else {
+        stringResource(R.string.profile_placeholder_name)
+    }
+    val email = if (profileState.email.isNotBlank()) {
+        profileState.email
+    } else {
+        stringResource(R.string.profile_placeholder_email)
+    }
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.White)
+            .background(backgroundColor)
     ) {
         // 用户信息卡片
+        val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
+        val headerElevation = if (isDark) 10.dp else 4.dp
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(16.dp),
-            color = Color.White,
-            shadowElevation = 2.dp,
+            color = surfaceColor,
+            shadowElevation = headerElevation,
+            tonalElevation = if (isDark) 6.dp else 0.dp,
             shape = RoundedCornerShape(12.dp)
         ) {
-            Row(
+            val highlightColor =
+                if (isDark) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.85f) else surfaceColor
+            Box(
                 modifier = Modifier
-                    .clickable { /* TODO: Edit profile */ }
-                    .padding(16.dp),
-                verticalAlignment = Alignment.CenterVertically
+                    .shadow(if (isDark) 12.dp else 4.dp, RoundedCornerShape(12.dp), clip = false)
+                    .border(
+                        width = 1.dp,
+                        color = if (isDark) MaterialTheme.colorScheme.outline.copy(alpha = 0.3f) else Color.Transparent,
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(highlightColor)
+                    .clickable(onClick = onProfileClick)
+                    .padding(16.dp)
             ) {
-                // 头像
-                Box(
-                    modifier = Modifier
-                        .size(64.dp)
-                        .clip(CircleShape)
-                        .background(PrimaryBlue),
-                    contentAlignment = Alignment.Center
+                Row(
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
+                    // 头像
+                    Box(
+                        modifier = Modifier
+                            .size(64.dp)
+                            .clip(CircleShape)
+                            .background(PrimaryBlue),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (profileState.avatarUrl.isNotBlank()) {
+                            AsyncImage(
+                                model = profileState.avatarUrl,
+                                contentDescription = stringResource(R.string.profile_edit_avatar_content_description),
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        } else {
+                            Icon(
+                                imageVector = Icons.Filled.Person,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(32.dp)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.width(16.dp))
+
+                    Column(
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text(
+                            text = displayName,
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = primaryTextColor()
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = email,
+                            fontSize = 14.sp,
+                            color = secondaryTextColor()
+                        )
+                    }
+
                     Icon(
-                        imageVector = Icons.Filled.Person,
+                        imageVector = Icons.Filled.ChevronRight,
                         contentDescription = null,
-                        tint = Color.White,
-                        modifier = Modifier.size(32.dp)
+                        tint = secondaryTextColor()
                     )
                 }
-
-                Spacer(modifier = Modifier.width(16.dp))
-
-                Column(
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text(
-                        text = "User Name",
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = TextPrimary
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "user@example.com",
-                        fontSize = 14.sp,
-                        color = TextSecondary
-                    )
-                }
-
-                Icon(
-                    imageVector = Icons.Filled.ChevronRight,
-                    contentDescription = null,
-                    tint = TextSecondary
-                )
             }
         }
 
@@ -1709,44 +1844,103 @@ private fun ProfileScreen(
         // 设置项列表
         Surface(
             modifier = Modifier.fillMaxWidth(),
-            color = Color.White
+            color = surfaceColor
         ) {
             Column {
                 SettingItem(
                     icon = Icons.Filled.Notifications,
-                    title = "Notifications",
-                    onClick = { /* TODO */ }
+                    title = stringResource(R.string.settings_notifications),
+                    subtitle = stringResource(R.string.settings_notifications_subtitle),
+                    onClick = { }
                 )
                 HorizontalDivider(
                     modifier = Modifier.padding(start = 56.dp),
                     thickness = 0.5.dp,
-                    color = Color(0xFFE5E7EB)
+                    color = dividerColor
                 )
                 SettingItem(
                     icon = Icons.Filled.Lock,
-                    title = "Privacy",
-                    onClick = { /* TODO */ }
+                    title = stringResource(R.string.settings_privacy),
+                    onClick = onPrivacyClick
                 )
                 HorizontalDivider(
                     modifier = Modifier.padding(start = 56.dp),
                     thickness = 0.5.dp,
-                    color = Color(0xFFE5E7EB)
+                    color = dividerColor
                 )
                 SettingItem(
                     icon = Icons.Filled.Language,
-                    title = "Language",
-                    onClick = { /* TODO */ }
+                    title = stringResource(R.string.settings_language),
+                    onClick = onLanguageClick
                 )
                 HorizontalDivider(
                     modifier = Modifier.padding(start = 56.dp),
                     thickness = 0.5.dp,
-                    color = Color(0xFFE5E7EB)
+                    color = dividerColor
                 )
                 SettingItem(
                     icon = Icons.Filled.Info,
-                    title = "About",
-                    onClick = { /* TODO */ }
+                    title = stringResource(R.string.settings_about),
+                    onClick = onAboutClick
                 )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp),
+            colors = CardDefaults.cardColors(containerColor = cardColor),
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text(
+                    text = stringResource(R.string.theme_section_title),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    text = stringResource(R.string.theme_section_description),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = secondaryTextColor()
+                )
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    ThemeOption.entries.forEach { option ->
+                        val chipBorder = FilterChipDefaults.filterChipBorder(
+                            enabled = true,
+                            selected = option == themeOption,
+                            borderColor = MaterialTheme.colorScheme.outline,
+                            selectedBorderColor = MaterialTheme.colorScheme.primary
+                        )
+                        FilterChip(
+                            selected = option == themeOption,
+                            onClick = { onThemeSelected(option) },
+                            label = {
+                                Text(text = stringResource(option.labelRes))
+                            },
+                            border = chipBorder,
+                            leadingIcon = if (option == themeOption) {
+                                {
+                                    Icon(
+                                        imageVector = Icons.Filled.Check,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                            } else null
+                        )
+                    }
+                }
             }
         }
 
@@ -1766,6 +1960,7 @@ private fun ProfileScreen(
             Icon(
                 imageVector = Icons.AutoMirrored.Filled.Logout,
                 contentDescription = null,
+                tint = MaterialTheme.colorScheme.onPrimary,
                 modifier = Modifier.size(20.dp)
             )
             Spacer(modifier = Modifier.width(8.dp))
@@ -1773,18 +1968,19 @@ private fun ProfileScreen(
                 text = stringResource(R.string.home_logout),
                 fontSize = 16.sp
             )
-        }
-    }
-}
+        } // End Button
+    } // End Column (ProfileScreen main content)
+} // End ProfileScreen function
 
 /**
  * 设置项组件
  * Setting item component
  */
 @Composable
-private fun SettingItem(
+fun SettingItem(
     icon: ImageVector,
     title: String,
+    subtitle: String? = null,
     onClick: () -> Unit
 ) {
     Row(
@@ -1797,21 +1993,29 @@ private fun SettingItem(
         Icon(
             imageVector = icon,
             contentDescription = null,
-            tint = TextSecondary,
+            tint = secondaryTextColor(),
             modifier = Modifier.size(24.dp)
         )
         Spacer(modifier = Modifier.width(16.dp))
-        Text(
-            text = title,
-            fontSize = 16.sp,
-            color = TextPrimary,
-            modifier = Modifier.weight(1f)
-        )
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                fontSize = 16.sp,
+                color = primaryTextColor()
+            )
+            subtitle?.let {
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = it,
+                    fontSize = 13.sp,
+                    color = secondaryTextColor()
+                )
+            }
+        }
         Icon(
             imageVector = Icons.Filled.ChevronRight,
             contentDescription = null,
-            tint = TextSecondary
+            tint = secondaryTextColor()
         )
     }
 }
-

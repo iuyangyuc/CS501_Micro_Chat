@@ -1,12 +1,19 @@
 package com.example.cs501_micro_chat.ui.auth
 
-import androidx.annotation.StringRes
-import com.example.cs501_micro_chat.R
-
 enum class LanguageOption(
-    @StringRes val labelRes: Int,
+    val displayName: String,
     val languageTag: String
 ) {
-    Chinese(R.string.login_language_chinese, "zh"),
-    English(R.string.login_language_english, "en")
+    English("English", "en"),
+    Chinese("中文（简体）", "zh"),
+    TraditionalChinese("中文（繁體）", "zh-TW"),
+    Spanish("Español", "es"),
+    French("Français", "fr"),
+    Russian("Русский", "ru");
+
+    companion object {
+        fun fromName(name: String): LanguageOption {
+            return entries.firstOrNull { it.name == name } ?: English
+        }
+    }
 }

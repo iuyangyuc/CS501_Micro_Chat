@@ -9,7 +9,7 @@ data class SignupUiState(
     val confirmPassword: String = "",
     val loadingProvider: AuthProvider? = null,
     val errorMessage: String? = null,
-    val selectedLanguage: LanguageOption = LanguageOption.Chinese
+    val selectedLanguage: LanguageOption = LanguageOption.English
 ) {
     val isLoading: Boolean
         get() = loadingProvider != null
