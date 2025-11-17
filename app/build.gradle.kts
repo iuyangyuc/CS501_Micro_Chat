@@ -69,6 +69,9 @@ dependencies {
     implementation(libs.kotlinx.coroutines.play.services)
     implementation(libs.lottie.compose)
     implementation(libs.coil.compose)
+    implementation(libs.androidx.datastore.preferences)
+    implementation(libs.androidx.appcompat)
+    implementation(libs.google.material)
 
     // Hilt
     implementation(libs.hilt.android)
@@ -89,4 +92,3 @@ dependencies {
 kapt {
     correctErrorTypes = true
 }
-

@@ -8,10 +8,13 @@
  */
 package com.example.cs501_micro_chat.di
 
+import android.app.Application
 import com.example.cs501_micro_chat.data.remote.FirebaseDataSource
 import com.example.cs501_micro_chat.data.repository.AuthRepository
 import com.example.cs501_micro_chat.data.repository.ChatRepository
+import com.example.cs501_micro_chat.data.repository.FirebaseProfileRepository
 import com.example.cs501_micro_chat.data.repository.FirebaseAuthRepository
+import com.example.cs501_micro_chat.data.repository.ProfileRepository
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreSettings
@@ -58,6 +61,17 @@ object FirebaseModule {
         return FirebaseStorage.getInstance()
     }
 
+    @Provides
+    @Singleton
+    fun provideProfileRepository(
+        auth: FirebaseAuth,
+        firestore: FirebaseFirestore,
+        storage: FirebaseStorage,
+        application: Application
+    ): ProfileRepository {
+        return FirebaseProfileRepository(auth, firestore, storage, application)
+    }
+
     /**
      * 提供 AuthRepository 实例
      */
@@ -94,4 +108,3 @@ object FirebaseModule {
         return ChatRepository(firebaseDataSource, auth)
     }
 }
-

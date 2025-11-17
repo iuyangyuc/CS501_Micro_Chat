@@ -91,6 +91,7 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -133,7 +134,7 @@ fun LoginScreen(
     onLanguageSelected: (LanguageOption) -> Unit,
     onLoginClick: () -> Unit,
     onGoogleLoginClick: () -> Unit,
-    onNavigateToSignup: (LanguageOption) -> Unit,
+    onNavigateToSignup: () -> Unit,
     onDismissError: () -> Unit,
     onViewTerms: () -> Unit,
     onViewPrivacy: () -> Unit,
@@ -142,6 +143,9 @@ fun LoginScreen(
     headerLogTag: String = "LoginScreen"
 ) {
     val strings = rememberLoginStrings(state.selectedLanguage)
+    val backgroundColor = MaterialTheme.colorScheme.background
+    val cardColor = MaterialTheme.colorScheme.surface
+    val chipColor = MaterialTheme.colorScheme.surfaceVariant
     var emailFocused by remember { mutableStateOf(false) }
     var passwordFocused by remember { mutableStateOf(false) }
     val hasFieldFocus = emailFocused || passwordFocused
@@ -154,17 +158,23 @@ fun LoginScreen(
         }
     }
 
-    BoxWithConstraints(modifier = modifier.fillMaxSize()) {
-        val width = this.maxWidth
-        val height = this.maxHeight
+    BoxWithConstraints(
+        modifier = modifier
+            .fillMaxSize()
+            .background(backgroundColor)
+    ) {
+        val density = LocalDensity.current
+        val boxConstraints = constraints
+        val width = with(density) { boxConstraints.maxWidth.toDp() }
+        val height = with(density) { boxConstraints.maxHeight.toDp() }
         val layoutDirection = LocalLayoutDirection.current
         val widthRatio = (width.value / 360f).coerceIn(1f, 3f)
         val heightRatio = (height.value / 720f).coerceIn(0.5f, 1.8f)
         val compactFactor = 1.1f - heightRatio
 
         val collapsedCardFraction = (0.45f + compactFactor * 0.20f).coerceIn(0.35f, 0.65f)
-        val googleCardFraction = (collapsedCardFraction + 0.25f + compactFactor * 0.12f - (widthRatio - 1f) * 0.04f)
-            .coerceIn(0.40f, 0.90f)
+        val googleCardFraction = (collapsedCardFraction + 0.15f + compactFactor * 0.12f - (widthRatio - 1f) * 0.04f)
+            .coerceIn(0.35f, 0.90f)
         val emailCardFraction = (collapsedCardFraction + 0.30f).coerceIn(0.70f, 0.95f)
         val focusCardFraction = (emailCardFraction + 0.08f - compactFactor * 0.05f).coerceIn(0.83f, 1.0f)
 
@@ -233,7 +243,6 @@ fun LoginScreen(
         val googleHorizontalPadding = (16f + (widthRatio - 1f) * 6f).coerceIn(16f, 28f).dp
         val googleTitleOffset = (12f + (heightRatio - 1f) * 24f).coerceIn(-8f, 28f).dp
 
-        // 语言切换按钮的位置 - 根据屏幕尺寸自适应
         // Language switcher position - adaptive to screen size
         val languageOffsetEnd = ((width - 360.dp).coerceAtLeast(0.dp) * 0.2f).coerceAtMost(160.dp)
         val languageOffsetTop = (height * 0.08f).coerceIn(48.dp, 120.dp)
@@ -260,7 +269,7 @@ fun LoginScreen(
             Box(
                 modifier = Modifier
                     .clip(cardShape)
-                    .background(Color.White)
+                    .background(cardColor)
             ) {
                 LoginCardContent(
                     strings = strings,
@@ -272,7 +281,7 @@ fun LoginScreen(
                     onResetProviderSelection = onResetProviderSelection,
                     onLoginClick = onLoginClick,
                     onGoogleLoginClick = onGoogleLoginClick,
-                    onNavigateToSignup = { onNavigateToSignup(state.selectedLanguage) },
+                    onNavigateToSignup = onNavigateToSignup,
                     onDismissError = onDismissError,
                     onViewTerms = onViewTerms,
                     onViewPrivacy = onViewPrivacy,
@@ -286,13 +295,12 @@ fun LoginScreen(
             }
         }
 
-        // 语言切换器 - 确保在最上层并可点击，自适应屏幕位置
         // Language switcher - ensure it's on top layer and clickable, adaptive position
         Surface(
             modifier = Modifier
                 .align(Alignment.TopEnd)
                 .padding(top = languageOffsetTop, end = 16.dp + languageOffsetEnd),
-            color = Color.White.copy(alpha = 0.85f),
+            color = chipColor.copy(alpha = 0.9f),
             shape = RoundedCornerShape(12.dp),
             shadowElevation = 4.dp,
             tonalElevation = 4.dp
@@ -741,7 +749,7 @@ private fun GoogleLoginSection(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier
                 .fillMaxWidth()
-                .weight(0.5f)
+                .weight(0.4f)
             //modifier = Modifier.fillMaxWidth()
         ) {
             Text(
@@ -1054,7 +1062,7 @@ private fun LoginScreenPreview() {
             onLanguageSelected = {},
             onLoginClick = {},
             onGoogleLoginClick = {},
-            onNavigateToSignup = { _ -> },
+            onNavigateToSignup = {},
             onDismissError = {},
             onViewTerms = {},
             onViewPrivacy = {}
@@ -1083,7 +1091,7 @@ private fun LoginScreenErrorPreview() {
             onLanguageSelected = {},
             onLoginClick = {},
             onGoogleLoginClick = {},
-            onNavigateToSignup = { _ -> },
+            onNavigateToSignup = {},
             onDismissError = {},
             onViewTerms = {},
             onViewPrivacy = {}

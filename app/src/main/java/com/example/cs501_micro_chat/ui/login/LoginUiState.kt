@@ -34,7 +34,7 @@ data class LoginUiState(
     val loadingProvider: AuthProvider? = null,
     val errorMessage: String? = null,
     val agreementChecked: Boolean = false,
-    val selectedLanguage: LanguageOption = LanguageOption.Chinese,
+    val selectedLanguage: LanguageOption = LanguageOption.English,
     val activeProvider: AuthProvider? = null
 ) {
     val isLoading: Boolean
