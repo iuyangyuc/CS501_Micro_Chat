@@ -81,15 +81,12 @@ import com.example.cs501_micro_chat.ui.settings.SettingsScreen
 import com.example.cs501_micro_chat.ui.theme.ThemeOption
 import com.example.cs501_micro_chat.ui.theme.ThemeViewModel
 
-// Figma Design Colors
+// Figma Design Colors (still used for branding)
 private val PrimaryBlue = Color(0xFF3296FA)
 private val LightBlue = Color(0xFF66B3FF)
-private val BackgroundGray = Color(0xFFF9FAFB)
-private val SearchBarGray = Color(0xFFF3F4F6)
-private val TextPrimary = Color(0xFF1F2937)
-private val TextSecondary = Color(0xFF6B7280)
 private val UnreadBadgeRed = Color(0xFFEF4444)
 
+// Helper functions for text colors (supports Dark Mode)
 @Composable
 private fun primaryTextColor() = MaterialTheme.colorScheme.onSurface
 
@@ -464,13 +461,13 @@ fun HomeTopBar(
                                 Icon(
                                     imageVector = Icons.Filled.PersonAdd,
                                     contentDescription = "Add Contact",
-                                    tint = TextPrimary,
+                                    tint = primaryTextColor(),
                                     modifier = Modifier.size(20.dp)
                                 )
                                 Spacer(modifier = Modifier.width(12.dp))
                                 Text(
                                     text = "New Contact",
-                                    color = TextPrimary,
+                                    color = primaryTextColor(),
                                     fontSize = 15.sp
                                 )
                             }
@@ -483,7 +480,7 @@ fun HomeTopBar(
 
                     HorizontalDivider(
                         thickness = 0.5.dp,
-                        color = Color(0xFFE5E7EB)
+                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
                     )
 
                     // 新增群组选项
@@ -496,13 +493,13 @@ fun HomeTopBar(
                                 Icon(
                                     imageVector = Icons.Filled.GroupAdd,
                                     contentDescription = "Create Group",
-                                    tint = TextPrimary,
+                                    tint = primaryTextColor(),
                                     modifier = Modifier.size(20.dp)
                                 )
                                 Spacer(modifier = Modifier.width(12.dp))
                                 Text(
                                     text = "New Group",
-                                    color = TextPrimary,
+                                    color = primaryTextColor(),
                                     fontSize = 15.sp
                                 )
                             }
@@ -875,15 +872,19 @@ fun ChatListScreen(
     // 控制搜索框是否激活
     var isSearchActive by remember { mutableStateOf(false) }
 
+    val backgroundColor = MaterialTheme.colorScheme.background
+    val surfaceColor = MaterialTheme.colorScheme.surface
+    val searchBarColor = MaterialTheme.colorScheme.surfaceVariant
+
     Box(modifier = Modifier.fillMaxSize()) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color.White)
+                .background(backgroundColor)
         ) {
             // 搜索栏
             Surface(
-                color = Color.White,
+                color = surfaceColor,
                 shadowElevation = 2.dp
             ) {
                 Column {
@@ -894,14 +895,14 @@ fun ChatListScreen(
                                 .fillMaxWidth()
                                 .padding(16.dp)
                                 .clip(RoundedCornerShape(8.dp))
-                                .background(SearchBarGray)
+                                .background(searchBarColor)
                                 .padding(horizontal = 12.dp, vertical = 8.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Icon(
                                 imageVector = Icons.Filled.Search,
                                 contentDescription = "Search",
-                                tint = TextSecondary,
+                                tint = secondaryTextColor(),
                                 modifier = Modifier.size(20.dp)
                             )
                             Spacer(modifier = Modifier.width(8.dp))
@@ -912,7 +913,7 @@ fun ChatListScreen(
                                 placeholder = {
                                     Text(
                                         text = "Search",
-                                        color = TextSecondary,
+                                        color = secondaryTextColor(),
                                         fontSize = 15.sp
                                     )
                                 },
@@ -923,6 +924,8 @@ fun ChatListScreen(
                                     focusedIndicatorColor = Color.Transparent,
                                     unfocusedIndicatorColor = Color.Transparent,
                                     disabledIndicatorColor = Color.Transparent,
+                                    focusedTextColor = primaryTextColor(),
+                                    unfocusedTextColor = primaryTextColor(),
                                 ),
                                 singleLine = true
                             )
@@ -934,7 +937,7 @@ fun ChatListScreen(
                                     Icon(
                                         imageVector = Icons.Default.Close,
                                         contentDescription = "Clear",
-                                        tint = TextSecondary,
+                                        tint = secondaryTextColor(),
                                         modifier = Modifier.size(16.dp)
                                     )
                                 }
@@ -960,7 +963,7 @@ fun ChatListScreen(
                                 .fillMaxWidth()
                                 .padding(16.dp)
                                 .clip(RoundedCornerShape(8.dp))
-                                .background(SearchBarGray)
+                                .background(searchBarColor)
                                 .clickable { isSearchActive = true }
                                 .padding(horizontal = 12.dp, vertical = 10.dp),
                             verticalAlignment = Alignment.CenterVertically
@@ -968,13 +971,13 @@ fun ChatListScreen(
                             Icon(
                                 imageVector = Icons.Filled.Search,
                                 contentDescription = "Search",
-                                tint = TextSecondary,
+                                tint = secondaryTextColor(),
                                 modifier = Modifier.size(20.dp)
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
                                 text = "Search",
-                                color = TextSecondary,
+                                color = secondaryTextColor(),
                                 fontSize = 15.sp
                             )
                         }
@@ -1138,6 +1141,8 @@ fun ConversationSearchResultsList(
     viewModel: HomeViewModel,
     onChatClick: (Conversation) -> Unit
 ) {
+    val dividerColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
+
     if (isSearching) {
         Box(
             modifier = Modifier.fillMaxSize(),
@@ -1157,18 +1162,18 @@ fun ConversationSearchResultsList(
                 Icon(
                     imageVector = Icons.Filled.SearchOff,
                     contentDescription = null,
-                    tint = TextSecondary,
+                    tint = secondaryTextColor(),
                     modifier = Modifier.size(64.dp)
                 )
                 Text(
                     text = "No results found",
-                    color = TextPrimary,
+                    color = primaryTextColor(),
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Medium
                 )
                 Text(
                     text = "Try searching with a different keyword",
-                    color = TextSecondary,
+                    color = secondaryTextColor(),
                     fontSize = 14.sp
                 )
             }
@@ -1182,7 +1187,7 @@ fun ConversationSearchResultsList(
                 Text(
                     text = "${searchResults.size} result${if (searchResults.size > 1) "s" else ""} found",
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                    color = TextSecondary,
+                    color = secondaryTextColor(),
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Medium
                 )
@@ -1199,7 +1204,7 @@ fun ConversationSearchResultsList(
                 HorizontalDivider(
                     modifier = Modifier.padding(start = 72.dp),
                     thickness = 0.5.dp,
-                    color = Color(0xFFE5E7EB)
+                    color = dividerColor
                 )
             }
         }
@@ -1217,6 +1222,8 @@ fun ConversationsList(
     viewModel: HomeViewModel,
     onChatClick: (Conversation) -> Unit
 ) {
+    val dividerColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
+
     // 加载指示器
     if (isLoading && conversations.isEmpty()) {
         Box(
@@ -1239,17 +1246,17 @@ fun ConversationsList(
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.Chat,
                     contentDescription = null,
-                    tint = TextSecondary,
+                    tint = secondaryTextColor(),
                     modifier = Modifier.size(64.dp)
                 )
                 Text(
                     text = "No Conversations Yet",
-                    color = TextSecondary,
+                    color = secondaryTextColor(),
                     fontSize = 16.sp
                 )
                 Text(
                     text = "Start a new chat to connect with others!",
-                    color = TextSecondary,
+                    color = secondaryTextColor(),
                     fontSize = 14.sp
                 )
             }
@@ -1272,7 +1279,7 @@ fun ConversationsList(
                 HorizontalDivider(
                     modifier = Modifier.padding(start = 72.dp),
                     thickness = 0.5.dp,
-                    color = Color(0xFFE5E7EB)
+                    color = dividerColor
                 )
             }
         }
@@ -1297,6 +1304,10 @@ fun ContactsScreen(
     val searchResults by viewModel.searchResults.collectAsStateWithLifecycle()
     val isSearching by viewModel.isSearching.collectAsStateWithLifecycle()
 
+    val backgroundColor = MaterialTheme.colorScheme.background
+    val surfaceColor = MaterialTheme.colorScheme.surface
+    val searchBarColor = MaterialTheme.colorScheme.surfaceVariant
+
     // 控制搜索框是否激活
     var isSearchActive by remember { mutableStateOf(false) }
 
@@ -1304,11 +1315,11 @@ fun ContactsScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color.White)
+                .background(backgroundColor)
         ) {
             // 搜索栏
             Surface(
-                color = Color.White,
+                color = surfaceColor,
                 shadowElevation = 2.dp
             ) {
                 Column {
@@ -1319,14 +1330,14 @@ fun ContactsScreen(
                                 .fillMaxWidth()
                                 .padding(16.dp)
                                 .clip(RoundedCornerShape(8.dp))
-                                .background(SearchBarGray)
+                                .background(searchBarColor)
                                 .padding(horizontal = 12.dp, vertical = 8.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Icon(
                                 imageVector = Icons.Filled.Search,
                                 contentDescription = "Search",
-                                tint = TextSecondary,
+                                tint = secondaryTextColor(),
                                 modifier = Modifier.size(20.dp)
                             )
                             Spacer(modifier = Modifier.width(8.dp))
@@ -1337,7 +1348,7 @@ fun ContactsScreen(
                                 placeholder = {
                                     Text(
                                         text = "Search contacts",
-                                        color = TextSecondary,
+                                        color = secondaryTextColor(),
                                         fontSize = 15.sp
                                     )
                                 },
@@ -1348,6 +1359,8 @@ fun ContactsScreen(
                                     focusedIndicatorColor = Color.Transparent,
                                     unfocusedIndicatorColor = Color.Transparent,
                                     disabledIndicatorColor = Color.Transparent,
+                                    focusedTextColor = primaryTextColor(),
+                                    unfocusedTextColor = primaryTextColor(),
                                 ),
                                 singleLine = true
                             )
@@ -1359,7 +1372,7 @@ fun ContactsScreen(
                                     Icon(
                                         imageVector = Icons.Default.Close,
                                         contentDescription = "Clear",
-                                        tint = TextSecondary,
+                                        tint = secondaryTextColor(),
                                         modifier = Modifier.size(16.dp)
                                     )
                                 }
@@ -1385,7 +1398,7 @@ fun ContactsScreen(
                                 .fillMaxWidth()
                                 .padding(16.dp)
                                 .clip(RoundedCornerShape(8.dp))
-                                .background(SearchBarGray)
+                                .background(searchBarColor)
                                 .clickable { isSearchActive = true }
                                 .padding(horizontal = 12.dp, vertical = 10.dp),
                             verticalAlignment = Alignment.CenterVertically
@@ -1393,13 +1406,13 @@ fun ContactsScreen(
                             Icon(
                                 imageVector = Icons.Filled.Search,
                                 contentDescription = "Search",
-                                tint = TextSecondary,
+                                tint = secondaryTextColor(),
                                 modifier = Modifier.size(20.dp)
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
                                 text = "Search contacts",
-                                color = TextSecondary,
+                                color = secondaryTextColor(),
                                 fontSize = 15.sp
                             )
                         }
@@ -1445,6 +1458,8 @@ fun SearchResultsList(
     viewModel: ContactsViewModel,
     onContactClick: (Contact) -> Unit
 ) {
+    val dividerColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
+
     if (isSearching) {
         Box(
             modifier = Modifier.fillMaxSize(),
@@ -1464,18 +1479,18 @@ fun SearchResultsList(
                 Icon(
                     imageVector = Icons.Filled.SearchOff,
                     contentDescription = null,
-                    tint = TextSecondary,
+                    tint = secondaryTextColor(),
                     modifier = Modifier.size(64.dp)
                 )
                 Text(
                     text = "No results found",
-                    color = TextPrimary,
+                    color = primaryTextColor(),
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Medium
                 )
                 Text(
                     text = "Try searching with a different keyword",
-                    color = TextSecondary,
+                    color = secondaryTextColor(),
                     fontSize = 14.sp
                 )
             }
@@ -1489,7 +1504,7 @@ fun SearchResultsList(
                 Text(
                     text = "${searchResults.size} result${if (searchResults.size > 1) "s" else ""} found",
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                    color = TextSecondary,
+                    color = secondaryTextColor(),
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Medium
                 )
@@ -1506,7 +1521,7 @@ fun SearchResultsList(
                 HorizontalDivider(
                     modifier = Modifier.padding(start = 72.dp),
                     thickness = 0.5.dp,
-                    color = Color(0xFFE5E7EB)
+                    color = dividerColor
                 )
             }
         }
@@ -1525,6 +1540,8 @@ fun ContactsList(
     viewModel: ContactsViewModel,
     onContactClick: (Contact) -> Unit
 ) {
+    val dividerColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
+
     // 加载指示器
     if (isLoading && groups.isEmpty() && privateContacts.isEmpty()) {
         Box(
@@ -1552,12 +1569,12 @@ fun ContactsList(
                 )
                 Text(
                     text = "No Contacts Yet",
-                    color = TextSecondary,
+                    color = secondaryTextColor(),
                     fontSize = 16.sp
                 )
                 Text(
                     text = "Add friends to start chatting!",
-                    color = TextSecondary,
+                    color = secondaryTextColor(),
                     fontSize = 14.sp
                 )
             }
@@ -1585,7 +1602,7 @@ fun ContactsList(
                     HorizontalDivider(
                         modifier = Modifier.padding(start = 72.dp),
                         thickness = 0.5.dp,
-                        color = Color(0xFFE5E7EB)
+                        color = dividerColor
                     )
                 }
             }
@@ -1607,7 +1624,7 @@ fun ContactsList(
                     HorizontalDivider(
                         modifier = Modifier.padding(start = 72.dp),
                         thickness = 0.5.dp,
-                        color = Color(0xFFE5E7EB)
+                        color = dividerColor
                     )
                 }
             }
@@ -1621,14 +1638,16 @@ fun ContactsList(
  */
 @Composable
 fun SectionHeader(title: String) {
+    val sectionBackgroundColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        color = BackgroundGray
+        color = sectionBackgroundColor
     ) {
         Text(
             text = title,
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-            color = TextSecondary,
+            color = secondaryTextColor(),
             fontSize = 13.sp,
             fontWeight = FontWeight.Medium
         )
@@ -1660,11 +1679,13 @@ fun ContactListItem(
     Log.d("ContactListItem", "Avatar URL: $avatarUrl")
     Log.d("ContactListItem", "ConversationCache size: ${conversationCache.size}")
 
+    val surfaceColor = MaterialTheme.colorScheme.surface
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .background(Color.White)
+            .background(surfaceColor)
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -1696,25 +1717,62 @@ fun ContactListItem(
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = stringResource(R.string.contacts_empty_title),
-                    fontSize = 18.sp,
+                    text = displayName.firstOrNull()?.uppercase() ?: "?",
+                    fontSize = 20.sp,
                     fontWeight = FontWeight.Medium,
-                    color = primaryTextColor()
-                )
-                Text(
-                    text = stringResource(R.string.contacts_empty_subtitle),
-                    fontSize = 14.sp,
-                    color = secondaryTextColor()
+                    color = Color.White
                 )
             }
         }
 
-        // 群组图标
-        if (contact.isGroup()) {
+        Spacer(modifier = Modifier.width(12.dp))
+
+        // 联系人信息
+        Column(
+            modifier = Modifier.weight(1f)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = displayName,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = primaryTextColor(),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+
+                // 群组图标
+                if (contact.isGroup()) {
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Icon(
+                        imageVector = Icons.Filled.People,
+                        contentDescription = "Group",
+                        tint = secondaryTextColor(),
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+            }
+
+            // 显示备注或标签（如果有）
+            if (contact.alias.isNotBlank()) {
+                Text(
+                    text = "备注: ${contact.alias}",
+                    fontSize = 13.sp,
+                    color = secondaryTextColor(),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+
+        // 收藏图标
+        if (contact.isFavorite) {
             Icon(
-                imageVector = Icons.Filled.People,
-                contentDescription = "Group",
-                tint = TextSecondary,
+                imageVector = Icons.Filled.Star,
+                contentDescription = "Favorite",
+                tint = Color(0xFFFFC107),
                 modifier = Modifier.size(20.dp)
             )
         }

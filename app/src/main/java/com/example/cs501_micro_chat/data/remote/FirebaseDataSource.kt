@@ -29,6 +29,7 @@ import com.google.firebase.firestore.Query
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -169,8 +170,11 @@ class FirebaseDataSource @Inject constructor(
 
     /**
      * 监听联系人列表变化
+     * 自动补充 contactName 和 contactAvatarUrl（如果为空）
      */
     fun observeContacts(userId: String): Flow<List<Contact>> = callbackFlow {
+        val scope = this // Capture the ProducerScope to use inside the listener
+
         val listener = usersCollection
             .document(userId)
             .collection("contacts")
@@ -180,8 +184,31 @@ class FirebaseDataSource @Inject constructor(
                     close(error)
                     return@addSnapshotListener
                 }
+
+                // 获取联系人基础信息
                 val contacts = snapshot?.toObjects(Contact::class.java) ?: emptyList()
-                trySend(contacts)
+
+                // 异步补充每个联系人的详细信息（如果缺失）
+                scope.launch {
+                    try {
+                        val enrichedContacts = contacts.map { contact ->
+                            // 如果 contactName 或 contactAvatarUrl 为空，从对应用户获取
+                            if (contact.type == "PRIVATE" && (contact.contactName.isEmpty() || contact.contactAvatarUrl.isEmpty())) {
+                                val user = getUser(contact.contactId).getOrNull()
+                                contact.copy(
+                                    contactName = if (contact.contactName.isEmpty()) user?.username ?: "" else contact.contactName,
+                                    contactAvatarUrl = if (contact.contactAvatarUrl.isEmpty()) user?.avatarUrl ?: "" else contact.contactAvatarUrl
+                                )
+                            } else {
+                                contact
+                            }
+                        }
+                        trySend(enrichedContacts)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Error enriching contacts", e)
+                        trySend(contacts) // Fall back to original contacts
+                    }
+                }
             }
         awaitClose { listener.remove() }
     }
@@ -265,10 +292,15 @@ class FirebaseDataSource @Inject constructor(
         // 4. 在两个用户的 contacts 中都添加联系人信息（双向关系）
         val currentTime = System.currentTimeMillis()
 
+        // 获取两个用户的详细信息
+        val currentUser = getUser(currentUserId).getOrNull()
+
         // 为 currentUserId 添加 otherUserId 作为联系人
         val contactForCurrentUser = Contact(
             userId = currentUserId,
             contactId = otherUserId,
+            contactName = otherUser?.username ?: "",
+            contactAvatarUrl = otherUser?.avatarUrl ?: "",
             type = "PRIVATE",
             conversationId = conversationId,
             isBlocked = false,
@@ -281,6 +313,8 @@ class FirebaseDataSource @Inject constructor(
         val contactForOtherUser = Contact(
             userId = otherUserId,
             contactId = currentUserId,
+            contactName = currentUser?.username ?: "",
+            contactAvatarUrl = currentUser?.avatarUrl ?: "",
             type = "PRIVATE",
             conversationId = conversationId,
             isBlocked = false,
