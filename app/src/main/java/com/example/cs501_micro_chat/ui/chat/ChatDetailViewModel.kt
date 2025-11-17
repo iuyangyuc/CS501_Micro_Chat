@@ -48,6 +48,9 @@ class ChatDetailViewModel @Inject constructor(
     private val _currentUserId = MutableStateFlow(auth.currentUser?.uid ?: "")
     val currentUserId: StateFlow<String> = _currentUserId.asStateFlow()
 
+    private val _otherUserId = MutableStateFlow("")
+    val otherUserId: StateFlow<String> = _otherUserId.asStateFlow()
+
     // 用户信息缓存：userId -> User
     private val userCache = mutableMapOf<String, com.example.cs501_micro_chat.data.model.User>()
 
@@ -68,6 +71,7 @@ class ChatDetailViewModel @Inject constructor(
         _error.value = null
 
         viewModelScope.launch {
+            loadConversationMeta(conversationId)
             try {
                 // 实时监听消息变化
                 chatRepository.observeMessages(conversationId).collect { messageList ->
@@ -88,6 +92,21 @@ class ChatDetailViewModel @Inject constructor(
                 _error.value = "加载消息失败: ${e.message}"
                 _isLoading.value = false
             }
+        }
+    }
+
+    private suspend fun loadConversationMeta(conversationId: String) {
+        chatRepository.getConversation(conversationId).onSuccess { conversation ->
+            val convo = conversation ?: return@onSuccess
+            if (convo.type == com.example.cs501_micro_chat.data.model.ConversationType.PRIVATE) {
+                val currentId = _currentUserId.value
+                val other = convo.participants.firstOrNull { it != currentId }.orEmpty()
+                _otherUserId.value = other
+            } else {
+                _otherUserId.value = ""
+            }
+        }.onFailure { error ->
+            Log.e("ChatDetailViewModel", "Failed to load conversation meta", error)
         }
     }
 
@@ -195,4 +214,3 @@ class ChatDetailViewModel @Inject constructor(
         _error.value = null
     }
 }
-

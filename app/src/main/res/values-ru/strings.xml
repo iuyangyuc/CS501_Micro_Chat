@@ -150,4 +150,11 @@
     <string name="profile_edit_avatar_content_description">Предпросмотр аватара</string>
     <string name="profile_edit_remove_avatar">Сбросить</string>
     <string name="profile_camera_permission_denied">Чтобы сделать фото, необходимо разрешение на использование камеры.</string>
+    <string name="user_profile_title">Профиль</string>
+    <string name="user_profile_send_message">Отправить сообщение</string>
+    <string name="user_profile_sending_message">Открываю чат...</string>
+    <string name="user_profile_delete_contact">Удалить контакт</string>
+    <string name="user_profile_deleting_contact">Удаление...</string>
+    <string name="user_profile_unknown_user">Неизвестный пользователь</string>
+    <string name="user_profile_not_provided">Не указано</string>
 </resources>

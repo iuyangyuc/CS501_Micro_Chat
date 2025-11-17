@@ -150,4 +150,11 @@
     <string name="profile_edit_avatar_content_description">头像预览</string>
     <string name="profile_edit_remove_avatar">重置</string>
     <string name="profile_camera_permission_denied">需要相机权限才能拍照。</string>
+    <string name="user_profile_title">个人资料</string>
+    <string name="user_profile_send_message">发送消息</string>
+    <string name="user_profile_sending_message">正在打开聊天...</string>
+    <string name="user_profile_delete_contact">删除联系人</string>
+    <string name="user_profile_deleting_contact">正在删除...</string>
+    <string name="user_profile_unknown_user">未知用户</string>
+    <string name="user_profile_not_provided">未提供</string>
 </resources>

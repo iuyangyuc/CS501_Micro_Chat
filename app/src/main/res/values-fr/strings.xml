@@ -150,4 +150,11 @@
     <string name="profile_edit_avatar_content_description">Aperçu de l’avatar</string>
     <string name="profile_edit_remove_avatar">Réinitialiser</string>
     <string name="profile_camera_permission_denied">L’autorisation caméra est requise pour prendre une photo.</string>
+    <string name="user_profile_title">Profil</string>
+    <string name="user_profile_send_message">Envoyer un message</string>
+    <string name="user_profile_sending_message">Ouverture du chat...</string>
+    <string name="user_profile_delete_contact">Supprimer le contact</string>
+    <string name="user_profile_deleting_contact">Suppression...</string>
+    <string name="user_profile_unknown_user">Utilisateur inconnu</string>
+    <string name="user_profile_not_provided">Non renseigné</string>
 </resources>

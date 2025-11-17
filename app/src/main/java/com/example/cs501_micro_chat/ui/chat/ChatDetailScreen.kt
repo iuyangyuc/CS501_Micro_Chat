@@ -426,7 +426,8 @@ fun ChatDetailScreen(
 @Composable
 internal fun MessageBubble(
     message: Message,
-    isSelf: Boolean
+    isSelf: Boolean,
+    onAvatarClick: (String) -> Unit = {}
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -434,21 +435,21 @@ internal fun MessageBubble(
     ) {
         if (!isSelf) {
             // 对方头像
+            val avatarModifier = Modifier
+                .size(40.dp)
+                .clip(CircleShape)
+                .clickable { if (message.senderId.isNotBlank()) onAvatarClick(message.senderId) }
+
             if (message.senderAvatarUrl.isNotBlank()) {
                 AsyncImage(
                     model = message.senderAvatarUrl,
                     contentDescription = stringResource(R.string.content_description_avatar, message.senderName),
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(CircleShape),
+                    modifier = avatarModifier,
                     contentScale = ContentScale.Crop
                 )
             } else {
                 Box(
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(CircleShape)
-                        .background(PrimaryBlue),
+                    modifier = avatarModifier.background(PrimaryBlue),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(

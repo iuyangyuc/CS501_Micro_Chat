@@ -74,12 +74,17 @@ import coil.compose.AsyncImage
 import com.example.cs501_micro_chat.R
 import com.example.cs501_micro_chat.data.model.Conversation
 import com.example.cs501_micro_chat.data.model.Contact
+import com.example.cs501_micro_chat.ui.profile.UserProfileScreen
 import com.example.cs501_micro_chat.ui.settings.AboutScreen
 import com.example.cs501_micro_chat.ui.settings.PrivacySettingsScreen
 import com.example.cs501_micro_chat.ui.settings.ProfileEditScreen
 import com.example.cs501_micro_chat.ui.settings.SettingsScreen
+import com.example.cs501_micro_chat.ui.chat.ChatDetailViewModel
 import com.example.cs501_micro_chat.ui.theme.ThemeOption
 import com.example.cs501_micro_chat.ui.theme.ThemeViewModel
+import java.text.Collator
+import java.util.Locale
+import kotlinx.coroutines.launch
 
 // Figma Design Colors (still used for branding)
 private val PrimaryBlue = Color(0xFF3296FA)
@@ -96,6 +101,7 @@ private const val LANGUAGE_SETTINGS_ROUTE = "language_settings"
 private const val PRIVACY_SETTINGS_ROUTE = "privacy_settings"
 private const val ABOUT_ROUTE = "about"
 private const val PROFILE_EDIT_ROUTE = "profile_edit"
+private const val USER_PROFILE_ROUTE = "user_profile"
 private const val PROFILE_UPDATED_KEY = "profile_updated"
 
 
@@ -154,7 +160,12 @@ fun HomeScreen(
     val currentDestination = navBackStackEntry?.destination
     val currentRoute = currentDestination?.route
     val isFullScreenRoute = currentRoute?.let {
-        it.startsWith("chat_detail") || it == LANGUAGE_SETTINGS_ROUTE || it == PRIVACY_SETTINGS_ROUTE || it == ABOUT_ROUTE || it == PROFILE_EDIT_ROUTE
+        it.startsWith("chat_detail") ||
+                it == LANGUAGE_SETTINGS_ROUTE ||
+                it == PRIVACY_SETTINGS_ROUTE ||
+                it == ABOUT_ROUTE ||
+                it == PROFILE_EDIT_ROUTE ||
+                it.startsWith(USER_PROFILE_ROUTE)
     } == true
     val backgroundColor = MaterialTheme.colorScheme.background
     val surfaceColor = MaterialTheme.colorScheme.surface
@@ -188,6 +199,8 @@ fun HomeScreen(
             ) { route ->
                 when {
                     route?.startsWith("chat_detail") == true -> {
+                        val chatDetailViewModel: ChatDetailViewModel = hiltViewModel(navBackStackEntry!!)
+                        val otherUserId by chatDetailViewModel.otherUserId.collectAsStateWithLifecycle()
                         ChatDetailTopBar(
                             conversationName = navBackStackEntry?.arguments?.getString("conversationName")?.let {
                                 URLDecoder.decode(it, StandardCharsets.UTF_8.toString())
@@ -195,7 +208,12 @@ fun HomeScreen(
                             conversationAvatar = navBackStackEntry?.arguments?.getString("conversationAvatar")?.let {
                                 URLDecoder.decode(it, StandardCharsets.UTF_8.toString())
                             } ?: "",
-                            onBack = { navController.popBackStack() }
+                            onBack = { navController.popBackStack() },
+                            onProfileClick = {
+                                if (otherUserId.isNotBlank()) {
+                                    navController.navigate("$USER_PROFILE_ROUTE/$otherUserId")
+                                }
+                            }
                         )
                     }
 
@@ -213,6 +231,10 @@ fun HomeScreen(
 
                     route == PROFILE_EDIT_ROUTE -> {
                         ProfileHeaderTopBar()
+                    }
+
+                    route?.startsWith(USER_PROFILE_ROUTE) == true -> {
+                        ProfileHeaderTopBar(onBack = { navController.popBackStack() })
                     }
 
                     else -> {
@@ -273,6 +295,9 @@ fun HomeScreen(
                                     "chat_detail/$conversationId/$encodedName/$encodedAvatar"
                                 )
                             }
+                            },
+                        onAvatarClick = { userId ->
+                            navController.navigate("$USER_PROFILE_ROUTE/$userId")
                         }
                     )
                 }
@@ -355,7 +380,33 @@ fun HomeScreen(
                     }
                 ) { backStackEntry ->
                     val conversationId = backStackEntry.arguments?.getString("conversationId") ?: ""
-                    ChatDetailContent(conversationId = conversationId)
+                    ChatDetailContent(
+                        conversationId = conversationId,
+                        onAvatarClick = { userId ->
+                            navController.navigate("$USER_PROFILE_ROUTE/$userId")
+                        }
+                    )
+                }
+
+                composable(
+                    route = "$USER_PROFILE_ROUTE/{userId}",
+                    arguments = listOf(navArgument("userId") { type = NavType.StringType })
+                ) { backStackEntry ->
+                    val userId = backStackEntry.arguments?.getString("userId") ?: return@composable
+                    UserProfileScreen(
+                        userId = userId,
+                        onBack = { navController.popBackStack() },
+                        onStartChat = { conversationId, name, avatarUrl ->
+                            val encodedName = URLEncoder.encode(name, StandardCharsets.UTF_8.toString())
+                            val encodedAvatar = URLEncoder.encode(avatarUrl, StandardCharsets.UTF_8.toString())
+                            navController.navigate("chat_detail/$conversationId/$encodedName/$encodedAvatar") {
+                                popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                                launchSingleTop = true
+                                restoreState = true
+                            }
+                        },
+                        onDeleted = { navController.popBackStack() }
+                    )
                 }
             }
         }
@@ -416,7 +467,9 @@ fun HomeTopBar(
     var showAddMenu by remember { mutableStateOf(false) }
 
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(56.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -518,17 +571,31 @@ fun HomeTopBar(
 }
 
 @Composable
-fun ProfileHeaderTopBar() {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.Center,
-        verticalAlignment = Alignment.CenterVertically
+fun ProfileHeaderTopBar(onBack: (() -> Unit)? = null) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(56.dp)
     ) {
+        if (onBack != null) {
+            IconButton(
+                onClick = onBack,
+                modifier = Modifier.align(Alignment.CenterStart)
+            ) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = stringResource(R.string.content_description_back),
+                    tint = Color.White
+                )
+            }
+        }
+
         Text(
             text = stringResource(R.string.profile_header_title),
             color = Color.White,
             fontSize = 18.sp,
-            fontWeight = FontWeight.SemiBold
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.align(Alignment.Center)
         )
     }
 }
@@ -624,7 +691,8 @@ fun AboutTopBar(
 fun ChatDetailTopBar(
     conversationName: String,
     conversationAvatar: String,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onProfileClick: () -> Unit = {}
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -674,7 +742,7 @@ fun ChatDetailTopBar(
             modifier = Modifier.weight(1f)
         )
 
-        IconButton(onClick = { /* TODO */ }) {
+        IconButton(onClick = onProfileClick) {
             Icon(
                 imageVector = Icons.Default.MoreVert,
                 contentDescription = stringResource(R.string.content_description_more),
@@ -688,7 +756,10 @@ fun ChatDetailTopBar(
  * ChatDetail 的内容区域（不包含顶栏）
  */
 @Composable
-fun ChatDetailContent(conversationId: String) {
+fun ChatDetailContent(
+    conversationId: String,
+    onAvatarClick: (String) -> Unit = {}
+) {
     val viewModel: com.example.cs501_micro_chat.ui.chat.ChatDetailViewModel = hiltViewModel()
 
     LaunchedEffect(conversationId) {
@@ -755,7 +826,8 @@ fun ChatDetailContent(conversationId: String) {
                     ) { message ->
                         com.example.cs501_micro_chat.ui.chat.MessageBubble(
                             message = message,
-                            isSelf = message.senderId == currentUserId
+                            isSelf = message.senderId == currentUserId,
+                            onAvatarClick = onAvatarClick
                         )
                     }
                 }
@@ -1293,7 +1365,8 @@ fun ConversationsList(
 @Composable
 fun ContactsScreen(
     viewModel: ContactsViewModel = hiltViewModel(),
-    onContactClick: (Contact) -> Unit = {}
+    onContactClick: (Contact) -> Unit = {},
+    onAvatarClick: (String) -> Unit = {}
 ) {
     val groups by viewModel.groups.collectAsStateWithLifecycle()
     val privateContacts by viewModel.privateContacts.collectAsStateWithLifecycle()
@@ -1431,7 +1504,8 @@ fun ContactsScreen(
                         viewModel.clearSearch()
                         isSearchActive = false
                         onContactClick(contact)
-                    }
+                    },
+                    onAvatarClick = onAvatarClick
                 )
             } else {
                 // 正常联系人列表
@@ -1440,7 +1514,8 @@ fun ContactsScreen(
                     privateContacts = privateContacts,
                     isLoading = isLoading,
                     viewModel = viewModel,
-                    onContactClick = onContactClick
+                    onContactClick = onContactClick,
+                    onAvatarClick = onAvatarClick
                 )
             }
         }
@@ -1456,7 +1531,8 @@ fun SearchResultsList(
     searchResults: List<Contact>,
     isSearching: Boolean,
     viewModel: ContactsViewModel,
-    onContactClick: (Contact) -> Unit
+    onContactClick: (Contact) -> Unit,
+    onAvatarClick: (String) -> Unit
 ) {
     val dividerColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
 
@@ -1516,7 +1592,8 @@ fun SearchResultsList(
                 ContactListItem(
                     contact = contact,
                     viewModel = viewModel,
-                    onClick = { onContactClick(contact) }
+                    onClick = { onContactClick(contact) },
+                    onAvatarClick = onAvatarClick
                 )
                 HorizontalDivider(
                     modifier = Modifier.padding(start = 72.dp),
@@ -1538,9 +1615,25 @@ fun ContactsList(
     privateContacts: List<Contact>,
     isLoading: Boolean,
     viewModel: ContactsViewModel,
-    onContactClick: (Contact) -> Unit
+    onContactClick: (Contact) -> Unit,
+    onAvatarClick: (String) -> Unit
 ) {
     val dividerColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
+    val collator = remember { Collator.getInstance(Locale.getDefault()).apply { strength = Collator.PRIMARY } }
+
+    val combined = remember(groups, privateContacts, collator) {
+        (groups + privateContacts).sortedWith { a, b ->
+            collator.compare(viewModel.getDisplayName(a), viewModel.getDisplayName(b))
+        }
+    }
+
+    val sections = remember(combined) {
+        combined.groupBy { contact ->
+            val name = viewModel.getDisplayName(contact).trim()
+            val firstChar = name.firstOrNull()?.toString()?.uppercase(Locale.getDefault())
+            firstChar?.takeIf { it.length == 1 && it[0].isLetter() } ?: "#"
+        }.toSortedMap()
+    }
 
     // 加载指示器
     if (isLoading && groups.isEmpty() && privateContacts.isEmpty()) {
@@ -1585,41 +1678,19 @@ fun ContactsList(
         LazyColumn(
             modifier = Modifier.fillMaxSize()
         ) {
-            // Groups 分组
-            if (groups.isNotEmpty()) {
-                item {
-                    SectionHeader(title = "GROUPS (${groups.size})")
+            sections.forEach { (header, contactsInSection) ->
+                item(key = "header_$header") {
+                    SectionHeader(title = header)
                 }
                 items(
-                    items = groups,
+                    items = contactsInSection,
                     key = { it.contactId }
                 ) { contact ->
                     ContactListItem(
                         contact = contact,
                         viewModel = viewModel,
-                        onClick = { onContactClick(contact) }
-                    )
-                    HorizontalDivider(
-                        modifier = Modifier.padding(start = 72.dp),
-                        thickness = 0.5.dp,
-                        color = dividerColor
-                    )
-                }
-            }
-
-            // Contacts 分组
-            if (privateContacts.isNotEmpty()) {
-                item {
-                    SectionHeader(title = "CONTACTS (${privateContacts.size})")
-                }
-                items(
-                    items = privateContacts,
-                    key = { it.contactId }
-                ) { contact ->
-                    ContactListItem(
-                        contact = contact,
-                        viewModel = viewModel,
-                        onClick = { onContactClick(contact) }
+                        onClick = { onContactClick(contact) },
+                        onAvatarClick = onAvatarClick
                     )
                     HorizontalDivider(
                         modifier = Modifier.padding(start = 72.dp),
@@ -1662,7 +1733,8 @@ fun SectionHeader(title: String) {
 fun ContactListItem(
     contact: Contact,
     viewModel: ContactsViewModel,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onAvatarClick: (String) -> Unit = {}
 ) {
     // 监听 conversationCache 的变化，确保 GROUP 信息加载后界面会更新
     val conversationCache by viewModel.conversationCache.collectAsStateWithLifecycle()
@@ -1690,14 +1762,17 @@ fun ContactListItem(
         verticalAlignment = Alignment.CenterVertically
     ) {
         // 头像
+        val avatarModifier = Modifier
+            .size(52.dp)
+            .clip(CircleShape)
+            .clickable { if (contact.contactId.isNotBlank()) onAvatarClick(contact.contactId) }
+
         if (avatarUrl.isNotBlank()) {
             Log.d("ContactListItem", "Loading image for $displayName: $avatarUrl")
             AsyncImage(
                 model = avatarUrl,
                 contentDescription = "$displayName avatar",
-                modifier = Modifier
-                    .size(52.dp)
-                    .clip(CircleShape),
+                modifier = avatarModifier,
                 contentScale = ContentScale.Crop,
                 onError = { error ->
                     Log.e("ContactListItem", "Failed to load image for $displayName: ${error.result.throwable}")
@@ -1710,10 +1785,7 @@ fun ContactListItem(
             // 没有头像URL时显示首字母
             Log.d("ContactListItem", "No avatarUrl for $displayName, showing initials")
             Box(
-                modifier = Modifier
-                    .size(52.dp)
-                    .clip(CircleShape)
-                    .background(if (contact.isGroup()) Color(0xFFFF9800) else PrimaryBlue),
+                modifier = avatarModifier.background(if (contact.isGroup()) Color(0xFFFF9800) else PrimaryBlue),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
