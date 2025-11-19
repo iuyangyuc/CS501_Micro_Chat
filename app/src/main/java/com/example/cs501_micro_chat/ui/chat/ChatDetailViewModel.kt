@@ -22,6 +22,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.cs501_micro_chat.data.model.Message
 import com.example.cs501_micro_chat.data.model.MessageType
 import com.example.cs501_micro_chat.data.repository.ChatRepository
+import com.example.cs501_micro_chat.data.repository.StorageRepository
 import com.google.firebase.auth.FirebaseAuth
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -30,9 +31,16 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+data class MediaUploadState(
+    val isUploading: Boolean = false,
+    val uploadingType: MessageType? = null,
+    val lastUploadedUrl: String? = null
+)
+
 @HiltViewModel
 class ChatDetailViewModel @Inject constructor(
     private val chatRepository: ChatRepository,
+    private val storageRepository: StorageRepository,
     private val auth: FirebaseAuth
 ) : ViewModel() {
 
@@ -47,6 +55,9 @@ class ChatDetailViewModel @Inject constructor(
 
     private val _currentUserId = MutableStateFlow(auth.currentUser?.uid ?: "")
     val currentUserId: StateFlow<String> = _currentUserId.asStateFlow()
+
+    private val _mediaUploadState = MutableStateFlow(MediaUploadState())
+    val mediaUploadState: StateFlow<MediaUploadState> = _mediaUploadState.asStateFlow()
 
     // 用户信息缓存：userId -> User
     private val userCache = mutableMapOf<String, com.example.cs501_micro_chat.data.model.User>()
@@ -163,6 +174,138 @@ class ChatDetailViewModel @Inject constructor(
     }
 
     /**
+     * 上传图片到 Firebase Storage 并发送图片消息
+     */
+    fun uploadImageMessage(
+        conversationId: String,
+        imageBytes: ByteArray,
+        mimeType: String = "image/jpeg",
+        extension: String? = null
+    ) {
+        val userId = auth.currentUser?.uid ?: run {
+            _error.value = "用户未登录"
+            return
+        }
+
+        viewModelScope.launch {
+            _mediaUploadState.value = _mediaUploadState.value.copy(
+                isUploading = true,
+                uploadingType = MessageType.IMAGE
+            )
+
+            val uploadResult = storageRepository.uploadImage(
+                bytes = imageBytes,
+                conversationId = conversationId,
+                ownerId = userId,
+                mimeType = mimeType,
+                extension = extension
+            )
+
+            if (uploadResult.isFailure) {
+                val message = uploadResult.exceptionOrNull()?.message ?: "未知错误"
+                _error.value = "上传图片失败: $message"
+                _mediaUploadState.value = _mediaUploadState.value.copy(
+                    isUploading = false,
+                    uploadingType = null
+                )
+                return@launch
+            }
+
+            val media = uploadResult.getOrThrow()
+            val sendResult = chatRepository.sendMessage(
+                conversationId = conversationId,
+                content = "图片",
+                type = MessageType.IMAGE,
+                mediaUrl = media.downloadUrl
+            )
+
+            if (sendResult.isFailure) {
+                val message = sendResult.exceptionOrNull()?.message ?: "未知错误"
+                _error.value = "发送图片消息失败: $message"
+                storageRepository.deleteByPath(media.storagePath)
+                _mediaUploadState.value = _mediaUploadState.value.copy(
+                    isUploading = false,
+                    uploadingType = null
+                )
+                return@launch
+            }
+
+            _mediaUploadState.value = _mediaUploadState.value.copy(
+                isUploading = false,
+                uploadingType = null,
+                lastUploadedUrl = media.downloadUrl
+            )
+        }
+    }
+
+    /**
+     * 上传 mp3 语音并发送语音消息
+     */
+    fun uploadVoiceMessage(
+        conversationId: String,
+        audioBytes: ByteArray,
+        durationMillis: Long,
+        mimeType: String = "audio/mpeg",
+        extension: String? = null
+    ) {
+        val userId = auth.currentUser?.uid ?: run {
+            _error.value = "用户未登录"
+            return
+        }
+
+        viewModelScope.launch {
+            _mediaUploadState.value = _mediaUploadState.value.copy(
+                isUploading = true,
+                uploadingType = MessageType.VOICE
+            )
+
+            val uploadResult = storageRepository.uploadVoiceMessage(
+                bytes = audioBytes,
+                conversationId = conversationId,
+                ownerId = userId,
+                mimeType = mimeType,
+                extension = extension
+            )
+
+            if (uploadResult.isFailure) {
+                val message = uploadResult.exceptionOrNull()?.message ?: "未知错误"
+                _error.value = "上传语音失败: $message"
+                _mediaUploadState.value = _mediaUploadState.value.copy(
+                    isUploading = false,
+                    uploadingType = null
+                )
+                return@launch
+            }
+
+            val media = uploadResult.getOrThrow()
+            val seconds = (durationMillis / 1000).coerceAtLeast(1)
+            val sendResult = chatRepository.sendMessage(
+                conversationId = conversationId,
+                content = "语音消息 (${seconds}s)",
+                type = MessageType.VOICE,
+                mediaUrl = media.downloadUrl
+            )
+
+            if (sendResult.isFailure) {
+                val message = sendResult.exceptionOrNull()?.message ?: "未知错误"
+                _error.value = "发送语音消息失败: $message"
+                storageRepository.deleteByPath(media.storagePath)
+                _mediaUploadState.value = _mediaUploadState.value.copy(
+                    isUploading = false,
+                    uploadingType = null
+                )
+                return@launch
+            }
+
+            _mediaUploadState.value = _mediaUploadState.value.copy(
+                isUploading = false,
+                uploadingType = null,
+                lastUploadedUrl = media.downloadUrl
+            )
+        }
+    }
+
+    /**
      * 标记所有消息为已读
      * Mark all messages as read
      */
@@ -194,5 +337,15 @@ class ChatDetailViewModel @Inject constructor(
     fun clearError() {
         _error.value = null
     }
-}
 
+    /**
+     * 重置媒体上传提示状态
+     */
+    fun clearMediaUploadState() {
+        _mediaUploadState.value = MediaUploadState(
+            isUploading = false,
+            uploadingType = null,
+            lastUploadedUrl = null
+        )
+    }
+}
