@@ -9,7 +9,14 @@ import io.github.cdimascio.dotenv.Dotenv;
 import spark.Request;
 import spark.Response;
 
+import javax.servlet.MultipartConfigElement;
+import javax.servlet.ServletException;
+import javax.servlet.http.Part;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStreamWriter;
+import java.io.PrintWriter;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -17,6 +24,7 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Base64;
+import java.util.Locale;
 
 import static spark.Spark.get;
 import static spark.Spark.port;
@@ -27,6 +35,9 @@ public final class TranslationServer {
     private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(10))
             .build();
+    private static final String MULTIPART_ATTRIBUTE = "org.eclipse.jetty.multipartConfig";
+    private static final MultipartConfigElement MULTIPART_CONFIG =
+            new MultipartConfigElement(System.getProperty("java.io.tmpdir", "/tmp"));
 
     private TranslationServer() {
     }
@@ -52,6 +63,7 @@ public final class TranslationServer {
 
         post("/translate", (req, res) -> handleTranslate(req, res, config));
         post("/tts", (req, res) -> handleTextToSpeech(req, res, config));
+        post("/transcribe", (req, res) -> handleTranscribe(req, res, config));
 
         System.out.printf("[translation-backend-java] Listening on port %d (model: %s)%n", config.port, config.model);
     }
@@ -184,6 +196,96 @@ public final class TranslationServer {
         }
     }
 
+    private static String handleTranscribe(Request req, Response res, ServerConfig config) {
+        res.type("application/json");
+
+        if (config.apiKey == null || config.apiKey.isBlank()) {
+            res.status(500);
+            return jsonError("OPENAI_API_KEY is not configured on the server");
+        }
+
+        if (!isMultipart(req)) {
+            res.status(400);
+            return jsonError("/transcribe expects multipart/form-data with a file field named 'file'");
+        }
+
+        byte[] audioBytes;
+        String filename;
+        String mimeType;
+        String prompt;
+        String language;
+        Double temperature = null;
+
+        try {
+            req.raw().setAttribute(MULTIPART_ATTRIBUTE, MULTIPART_CONFIG);
+            Part filePart = req.raw().getPart("file");
+            if (filePart == null || filePart.getSize() == 0L) {
+                res.status(400);
+                return jsonError("file is required and must contain audio data (e.g., voice_example.mp3)");
+            }
+            filename = nonBlankOrDefault(filePart.getSubmittedFileName(), "voice_example.mp3");
+            mimeType = nonBlankOrDefault(filePart.getContentType(), "audio/mpeg");
+            try (InputStream inputStream = filePart.getInputStream()) {
+                audioBytes = inputStream.readAllBytes();
+            }
+            filePart.delete();
+
+            prompt = trimToNull(req.raw().getParameter("prompt"));
+            language = trimToNull(req.raw().getParameter("language"));
+            String temperatureValue = trimToNull(req.raw().getParameter("temperature"));
+            String mimeOverride = trimToNull(req.raw().getParameter("mimeType"));
+            String filenameOverride = trimToNull(req.raw().getParameter("filename"));
+            if (mimeOverride != null) {
+                mimeType = mimeOverride;
+            }
+            if (filenameOverride != null) {
+                filename = filenameOverride;
+            }
+            if (temperatureValue != null) {
+                try {
+                    temperature = Double.parseDouble(temperatureValue);
+                } catch (NumberFormatException ex) {
+                    res.status(400);
+                    return jsonError("temperature must be numeric if provided");
+                }
+            }
+        } catch (IOException | ServletException e) {
+            res.status(400);
+            return jsonError("Failed to read uploaded audio: " + e.getMessage());
+        } finally {
+            req.raw().removeAttribute(MULTIPART_ATTRIBUTE);
+        }
+
+        try {
+            ObjectNode transcription = callOpenAITranscribe(config, audioBytes, filename, mimeType, prompt, language, temperature);
+            String transcriptText = transcription.path("text").asText("");
+            if (transcriptText.isBlank()) {
+                res.status(502);
+                return jsonError("Transcription response did not contain text");
+            }
+
+            ObjectNode responseBody = MAPPER.createObjectNode();
+            responseBody.put("text", transcriptText);
+            responseBody.put("model", transcription.path("model").asText(config.transcribeModel()));
+            if (language != null && !language.isBlank()) {
+                responseBody.put("language", language);
+            }
+            if (transcription.has("segments")) {
+                responseBody.set("segments", transcription.get("segments"));
+            }
+            if (transcription.has("duration")) {
+                responseBody.set("duration", transcription.get("duration"));
+            }
+
+            res.status(200);
+            return responseBody.toString();
+        } catch (IOException | InterruptedException e) {
+            System.err.println("[translation-backend-java] transcribe error: " + e.getMessage());
+            res.status(502);
+            return jsonError("Transcription failed: " + e.getMessage());
+        }
+    }
+
     private static ObjectNode callOpenAI(ServerConfig config,
                                          String text,
                                          String sourceLanguage,
@@ -252,6 +354,65 @@ public final class TranslationServer {
         return response.body();
     }
 
+    private static boolean isMultipart(Request req) {
+        String contentType = req.contentType();
+        return contentType != null && contentType.toLowerCase(Locale.ROOT).contains("multipart/form-data");
+    }
+
+    private static ObjectNode callOpenAITranscribe(ServerConfig config,
+                                                   byte[] audioBytes,
+                                                   String filename,
+                                                   String mimeType,
+                                                   String prompt,
+                                                   String language,
+                                                   Double temperature) throws IOException, InterruptedException {
+        String boundary = "----OpenAIMultipartBoundary" + System.currentTimeMillis();
+        ByteArrayOutputStream bodyStream = new ByteArrayOutputStream();
+        PrintWriter writer = new PrintWriter(new OutputStreamWriter(bodyStream, StandardCharsets.UTF_8), true);
+
+        addMultipartField(writer, boundary, "model", config.transcribeModel());
+        if (prompt != null && !prompt.isBlank()) {
+            addMultipartField(writer, boundary, "prompt", prompt);
+        }
+        if (language != null && !language.isBlank()) {
+            addMultipartField(writer, boundary, "language", language);
+        }
+        if (temperature != null) {
+            addMultipartField(writer, boundary, "temperature", temperature.toString());
+        }
+
+        writer.append("--").append(boundary).append("\r\n");
+        writer.append("Content-Disposition: form-data; name=\"file\"; filename=\"").append(filename).append("\"\r\n");
+        writer.append("Content-Type: ").append(mimeType).append("\r\n\r\n");
+        writer.flush();
+        bodyStream.write(audioBytes);
+        bodyStream.write("\r\n".getBytes(StandardCharsets.UTF_8));
+        writer.append("--").append(boundary).append("--\r\n");
+        writer.close();
+
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create("https://api.openai.com/v1/audio/transcriptions"))
+                .timeout(Duration.ofSeconds(60))
+                .header("Authorization", "Bearer " + config.apiKey)
+                .header("Content-Type", "multipart/form-data; boundary=" + boundary)
+                .POST(HttpRequest.BodyPublishers.ofByteArray(bodyStream.toByteArray()))
+                .build();
+
+        HttpResponse<String> response = HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+        if (response.statusCode() >= 400) {
+            throw new IOException("OpenAI transcription API error (status " + response.statusCode() + "): " + response.body());
+        }
+
+        return (ObjectNode) MAPPER.readTree(response.body());
+    }
+
+    private static void addMultipartField(PrintWriter writer, String boundary, String name, String value) {
+        writer.append("--").append(boundary).append("\r\n");
+        writer.append("Content-Disposition: form-data; name=\"").append(name).append("\"\r\n\r\n");
+        writer.append(value).append("\r\n");
+        writer.flush();
+    }
+
     private static String extractTranslation(JsonNode completion) throws JsonProcessingException {
         JsonNode choices = completion.get("choices");
         if (choices == null || !choices.isArray() || choices.isEmpty()) {
@@ -292,6 +453,21 @@ public final class TranslationServer {
         return builder.toString();
     }
 
+    private static String trimToNull(String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    private static String nonBlankOrDefault(String value, String defaultValue) {
+        if (value == null || value.isBlank()) {
+            return defaultValue;
+        }
+        return value;
+    }
+
     private static String textValue(JsonNode node, String field) {
         JsonNode value = node.get(field);
         if (value == null || value.isNull()) {
@@ -309,11 +485,12 @@ public final class TranslationServer {
         return error.toString();
     }
 
-    private record ServerConfig(String apiKey, String model, int port, Double temperature, String ttsModel) {
+    private record ServerConfig(String apiKey, String model, int port, Double temperature, String ttsModel, String transcribeModel) {
         private static ServerConfig from(Dotenv dotenv) {
             String apiKey = firstNonBlank(System.getenv("OPENAI_API_KEY"), dotenv.get("OPENAI_API_KEY", ""));
             String model = firstNonBlank(System.getenv("OPENAI_TRANSLATION_MODEL"), dotenv.get("OPENAI_TRANSLATION_MODEL", "gpt-4o-mini"));
             String ttsModel = firstNonBlank(System.getenv("OPENAI_TTS_MODEL"), dotenv.get("OPENAI_TTS_MODEL", "gpt-4o-mini-tts"));
+            String transcribeModel = firstNonBlank(System.getenv("OPENAI_TRANSCRIBE_MODEL"), dotenv.get("OPENAI_TRANSCRIBE_MODEL", "gpt-4o-mini-transcribe"));
             String portValue = firstNonBlank(System.getenv("PORT"), dotenv.get("PORT", "4002"));
             String temperatureValue = firstNonBlank(System.getenv("OPENAI_TEMPERATURE"), dotenv.get("OPENAI_TEMPERATURE", ""));
             int port = 4002;
@@ -330,7 +507,7 @@ public final class TranslationServer {
                     System.err.println("[translation-backend-java] Invalid OPENAI_TEMPERATURE value, ignoring and using model default");
                 }
             }
-            return new ServerConfig(apiKey, model, port, temperature, ttsModel);
+            return new ServerConfig(apiKey, model, port, temperature, ttsModel, transcribeModel);
         }
 
         private static String firstNonBlank(String first, String second) {
