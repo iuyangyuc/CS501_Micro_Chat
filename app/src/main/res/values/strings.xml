@@ -159,4 +159,15 @@
     <string name="user_profile_deleting_contact">Removing...</string>
     <string name="user_profile_unknown_user">Unknown user</string>
     <string name="user_profile_not_provided">Not provided</string>
+    <string name="user_profile_search_history">Search chat history</string>
+    <string name="user_profile_clear_history">Clear chat history</string>
+    <string name="group_profile_name_label">Group name</string>
+    <string name="group_profile_save_name">Save name</string>
+    <string name="group_profile_members_title">Members</string>
+    <string name="group_profile_pin_chat">Pin chat</string>
+    <string name="group_profile_unpin_chat">Unpin chat</string>
+    <string name="group_profile_leave">Leave group</string>
+    <string name="group_profile_leaving">Leaving...</string>
+    <string name="group_profile_no_members">No members</string>
+    <string name="group_profile_title_with_count">Group (%1$d)</string>
 </resources>

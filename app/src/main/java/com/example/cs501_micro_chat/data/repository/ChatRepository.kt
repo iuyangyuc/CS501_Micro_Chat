@@ -64,6 +64,13 @@ class ChatRepository @Inject constructor(
     }
 
     /**
+     * 更新会话信息
+     */
+    suspend fun updateConversation(conversation: Conversation): Result<Unit> {
+        return firebaseDataSource.updateConversation(conversation)
+    }
+
+    /**
      * 删除会话
      */
     suspend fun deleteConversation(conversationId: String): Result<Unit> {
@@ -299,5 +306,4 @@ class ChatRepository @Inject constructor(
         return firebaseDataSource.getUsers(userIds)
     }
 }
-
 

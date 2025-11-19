@@ -157,4 +157,15 @@
     <string name="user_profile_deleting_contact">Удаление...</string>
     <string name="user_profile_unknown_user">Неизвестный пользователь</string>
     <string name="user_profile_not_provided">Не указано</string>
+    <string name="user_profile_search_history">Поиск в истории чата</string>
+    <string name="user_profile_clear_history">Очистить историю чата</string>
+    <string name="group_profile_name_label">Название группы</string>
+    <string name="group_profile_save_name">Сохранить название</string>
+    <string name="group_profile_members_title">Участники</string>
+    <string name="group_profile_pin_chat">Закрепить чат</string>
+    <string name="group_profile_unpin_chat">Открепить чат</string>
+    <string name="group_profile_leave">Выйти из группы</string>
+    <string name="group_profile_leaving">Выход...</string>
+    <string name="group_profile_no_members">Нет участников</string>
+    <string name="group_profile_title_with_count">Группа (%1$d)</string>
 </resources>

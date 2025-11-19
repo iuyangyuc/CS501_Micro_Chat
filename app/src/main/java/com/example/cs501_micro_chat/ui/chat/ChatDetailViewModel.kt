@@ -51,6 +51,12 @@ class ChatDetailViewModel @Inject constructor(
     private val _otherUserId = MutableStateFlow("")
     val otherUserId: StateFlow<String> = _otherUserId.asStateFlow()
 
+    private val _conversationType = MutableStateFlow(com.example.cs501_micro_chat.data.model.ConversationType.PRIVATE)
+    val conversationType: StateFlow<com.example.cs501_micro_chat.data.model.ConversationType> = _conversationType.asStateFlow()
+
+    private val _conversationId = MutableStateFlow("")
+    val conversationId: StateFlow<String> = _conversationId.asStateFlow()
+
     // 用户信息缓存：userId -> User
     private val userCache = mutableMapOf<String, com.example.cs501_micro_chat.data.model.User>()
 
@@ -67,6 +73,7 @@ class ChatDetailViewModel @Inject constructor(
         }
 
         currentConversationId = conversationId
+        _conversationId.value = conversationId
         _isLoading.value = true
         _error.value = null
 
@@ -98,6 +105,8 @@ class ChatDetailViewModel @Inject constructor(
     private suspend fun loadConversationMeta(conversationId: String) {
         chatRepository.getConversation(conversationId).onSuccess { conversation ->
             val convo = conversation ?: return@onSuccess
+            _conversationId.value = convo.id
+            _conversationType.value = convo.type
             if (convo.type == com.example.cs501_micro_chat.data.model.ConversationType.PRIVATE) {
                 val currentId = _currentUserId.value
                 val other = convo.participants.firstOrNull { it != currentId }.orEmpty()

@@ -157,4 +157,15 @@
     <string name="user_profile_deleting_contact">Eliminando...</string>
     <string name="user_profile_unknown_user">Usuario desconocido</string>
     <string name="user_profile_not_provided">No proporcionado</string>
+    <string name="user_profile_search_history">Buscar historial de chat</string>
+    <string name="user_profile_clear_history">Borrar historial de chat</string>
+    <string name="group_profile_name_label">Nombre del grupo</string>
+    <string name="group_profile_save_name">Guardar nombre</string>
+    <string name="group_profile_members_title">Miembros</string>
+    <string name="group_profile_pin_chat">Fijar chat</string>
+    <string name="group_profile_unpin_chat">Desfijar chat</string>
+    <string name="group_profile_leave">Salir del grupo</string>
+    <string name="group_profile_leaving">Saliendo...</string>
+    <string name="group_profile_no_members">Sin miembros</string>
+    <string name="group_profile_title_with_count">Grupo (%1$d)</string>
 </resources>

@@ -12,12 +12,16 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.outlined.Clear
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -54,6 +58,7 @@ fun UserProfileScreen(
     onBack: () -> Unit,
     onStartChat: (conversationId: String, name: String, avatarUrl: String) -> Unit,
     onDeleted: () -> Unit,
+    onSearchHistory: (conversationId: String) -> Unit = {},
     viewModel: UserProfileViewModel = hiltViewModel()
 ) {
     LaunchedEffect(userId) {
@@ -69,6 +74,7 @@ fun UserProfileScreen(
                 is UserProfileEvent.OpenChat -> onStartChat(event.conversationId, event.displayName, event.avatarUrl)
                 UserProfileEvent.Deleted -> onDeleted()
                 is UserProfileEvent.ShowError -> snackbarHostState.showSnackbar(event.message)
+                is UserProfileEvent.SearchHistory -> onSearchHistory(event.conversationId)
             }
         }
     }
@@ -80,7 +86,8 @@ fun UserProfileScreen(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(paddingValues),
+                .padding(paddingValues)
+                .verticalScroll(rememberScrollState()),
             contentAlignment = Alignment.Center
         ) {
             if (state.isLoading) {
@@ -89,7 +96,9 @@ fun UserProfileScreen(
                 ProfileContent(
                     state = state,
                     onStartChat = viewModel::startChat,
-                    onDeleteContact = viewModel::deleteContact
+                    onDeleteContact = viewModel::deleteContact,
+                    onSearchHistory = viewModel::searchHistory,
+                    onClearHistory = viewModel::clearHistory
                 )
             }
         }
@@ -100,7 +109,9 @@ fun UserProfileScreen(
 private fun ProfileContent(
     state: UserProfileUiState,
     onStartChat: () -> Unit,
-    onDeleteContact: () -> Unit
+    onDeleteContact: () -> Unit,
+    onSearchHistory: () -> Unit,
+    onClearHistory: () -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -186,6 +197,25 @@ private fun ProfileContent(
                 )
             }
             Button(
+                onClick = onSearchHistory,
+                modifier = Modifier.fillMaxWidth(),
+                enabled = state.conversationId.isNotBlank()
+            ) {
+                Icon(imageVector = Icons.Default.Search, contentDescription = null)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(text = stringResource(R.string.user_profile_search_history))
+            }
+            Button(
+                onClick = onClearHistory,
+                modifier = Modifier.fillMaxWidth(),
+                enabled = state.conversationId.isNotBlank(),
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+            ) {
+                Icon(imageVector = Icons.Outlined.Clear, contentDescription = null)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(text = stringResource(R.string.user_profile_clear_history))
+            }
+            Button(
                 onClick = onDeleteContact,
                 modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF4444)),
@@ -218,10 +248,10 @@ private fun InfoRow(value: String) {
             tint = MaterialTheme.colorScheme.onSurfaceVariant
         )
         Column {
-            Text(
-                text = if (value.isBlank()) stringResource(R.string.user_profile_not_provided) else value,
-                color = MaterialTheme.colorScheme.onSurface
-            )
+                Text(
+                    text = if (value.isBlank()) stringResource(R.string.user_profile_not_provided) else value,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
         }
     }
-}

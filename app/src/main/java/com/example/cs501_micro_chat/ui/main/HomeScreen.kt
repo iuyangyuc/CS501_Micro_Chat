@@ -31,6 +31,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Chat
@@ -74,12 +76,14 @@ import coil.compose.AsyncImage
 import com.example.cs501_micro_chat.R
 import com.example.cs501_micro_chat.data.model.Conversation
 import com.example.cs501_micro_chat.data.model.Contact
+import com.example.cs501_micro_chat.ui.profile.GroupProfileScreen
 import com.example.cs501_micro_chat.ui.profile.UserProfileScreen
 import com.example.cs501_micro_chat.ui.settings.AboutScreen
 import com.example.cs501_micro_chat.ui.settings.PrivacySettingsScreen
 import com.example.cs501_micro_chat.ui.settings.ProfileEditScreen
 import com.example.cs501_micro_chat.ui.settings.SettingsScreen
 import com.example.cs501_micro_chat.ui.chat.ChatDetailViewModel
+import com.example.cs501_micro_chat.data.model.ConversationType
 import com.example.cs501_micro_chat.ui.theme.ThemeOption
 import com.example.cs501_micro_chat.ui.theme.ThemeViewModel
 import java.text.Collator
@@ -102,6 +106,7 @@ private const val PRIVACY_SETTINGS_ROUTE = "privacy_settings"
 private const val ABOUT_ROUTE = "about"
 private const val PROFILE_EDIT_ROUTE = "profile_edit"
 private const val USER_PROFILE_ROUTE = "user_profile"
+private const val GROUP_PROFILE_ROUTE = "group_profile"
 private const val PROFILE_UPDATED_KEY = "profile_updated"
 
 
@@ -165,7 +170,8 @@ fun HomeScreen(
                 it == PRIVACY_SETTINGS_ROUTE ||
                 it == ABOUT_ROUTE ||
                 it == PROFILE_EDIT_ROUTE ||
-                it.startsWith(USER_PROFILE_ROUTE)
+                it.startsWith(USER_PROFILE_ROUTE) ||
+                it.startsWith(GROUP_PROFILE_ROUTE)
     } == true
     val backgroundColor = MaterialTheme.colorScheme.background
     val surfaceColor = MaterialTheme.colorScheme.surface
@@ -201,6 +207,8 @@ fun HomeScreen(
                     route?.startsWith("chat_detail") == true -> {
                         val chatDetailViewModel: ChatDetailViewModel = hiltViewModel(navBackStackEntry!!)
                         val otherUserId by chatDetailViewModel.otherUserId.collectAsStateWithLifecycle()
+                        val conversationType by chatDetailViewModel.conversationType.collectAsStateWithLifecycle()
+                        val convoId by chatDetailViewModel.conversationId.collectAsStateWithLifecycle()
                         ChatDetailTopBar(
                             conversationName = navBackStackEntry?.arguments?.getString("conversationName")?.let {
                                 URLDecoder.decode(it, StandardCharsets.UTF_8.toString())
@@ -210,8 +218,16 @@ fun HomeScreen(
                             } ?: "",
                             onBack = { navController.popBackStack() },
                             onProfileClick = {
-                                if (otherUserId.isNotBlank()) {
-                                    navController.navigate("$USER_PROFILE_ROUTE/$otherUserId")
+                                when (conversationType) {
+                                    ConversationType.PRIVATE -> if (otherUserId.isNotBlank()) {
+                                        navController.navigate("$USER_PROFILE_ROUTE/$otherUserId")
+                                    }
+
+                                    ConversationType.GROUP -> if (convoId.isNotBlank()) {
+                                        navController.navigate("$GROUP_PROFILE_ROUTE/$convoId")
+                                    }
+
+                                    else -> {}
                                 }
                             }
                         )
@@ -230,11 +246,20 @@ fun HomeScreen(
                     }
 
                     route == PROFILE_EDIT_ROUTE -> {
-                        ProfileHeaderTopBar()
+                        ProfileHeaderTopBar(onBack = { navController.popBackStack() })
                     }
 
                     route?.startsWith(USER_PROFILE_ROUTE) == true -> {
                         ProfileHeaderTopBar(onBack = { navController.popBackStack() })
+                    }
+
+                    route?.startsWith(GROUP_PROFILE_ROUTE) == true -> {
+                        val groupProfileViewModel: com.example.cs501_micro_chat.ui.profile.GroupProfileViewModel = hiltViewModel(navBackStackEntry!!)
+                        val groupState by groupProfileViewModel.uiState.collectAsStateWithLifecycle()
+                        GroupHeaderTopBar(
+                            memberCount = groupState.members.size,
+                            onBack = { navController.popBackStack() }
+                        )
                     }
 
                     else -> {
@@ -273,31 +298,34 @@ fun HomeScreen(
                     )
                 }
 
-                composable(HomeDestination.Contacts.route) {
+                composable(HomeDestination.Contacts.route) { backStackEntry ->
                     val contactsViewModel: ContactsViewModel = hiltViewModel()
+                    val refreshFlow = remember(backStackEntry) {
+                        backStackEntry.savedStateHandle.getStateFlow("contacts_refresh", false)
+                    }
+                    val refreshRequested by refreshFlow.collectAsStateWithLifecycle()
+
+                    LaunchedEffect(refreshRequested) {
+                        if (refreshRequested) {
+                            contactsViewModel.refresh()
+                            backStackEntry.savedStateHandle["contacts_refresh"] = false
+                        }
+                    }
                     ContactsScreen(
                         viewModel = contactsViewModel,
                         onContactClick = { contact ->
-                            // 获取 conversationId
-                            val conversationId = contact.conversationId
-
-                            if (conversationId.isNotBlank()) {
-                                // 获取显示名称和头像
-                                val displayName = contactsViewModel.getDisplayName(contact)
-                                val avatarUrl = contactsViewModel.getAvatarUrl(contact)
-
-                                // URL 编码
-                                val encodedName = URLEncoder.encode(displayName, StandardCharsets.UTF_8.toString())
-                                val encodedAvatar = URLEncoder.encode(avatarUrl, StandardCharsets.UTF_8.toString())
-
-                                // 导航到对话详情页面
-                                navController.navigate(
-                                    "chat_detail/$conversationId/$encodedName/$encodedAvatar"
-                                )
+                            if (contact.isGroup() && contact.conversationId.isNotBlank()) {
+                                navController.navigate("$GROUP_PROFILE_ROUTE/${contact.conversationId}")
+                            } else if (!contact.isGroup() && contact.contactId.isNotBlank()) {
+                                navController.navigate("$USER_PROFILE_ROUTE/${contact.contactId}")
                             }
-                            },
-                        onAvatarClick = { userId ->
-                            navController.navigate("$USER_PROFILE_ROUTE/$userId")
+                        },
+                        onAvatarClick = { contact ->
+                            if (contact.isGroup() && contact.conversationId.isNotBlank()) {
+                                navController.navigate("$GROUP_PROFILE_ROUTE/${contact.conversationId}")
+                            } else if (!contact.isGroup() && contact.contactId.isNotBlank()) {
+                                navController.navigate("$USER_PROFILE_ROUTE/${contact.contactId}")
+                            }
                         }
                     )
                 }
@@ -389,6 +417,34 @@ fun HomeScreen(
                 }
 
                 composable(
+                    route = "$GROUP_PROFILE_ROUTE/{conversationId}",
+                    arguments = listOf(navArgument("conversationId") { type = NavType.StringType })
+                ) { backStackEntry ->
+                    val conversationId = backStackEntry.arguments?.getString("conversationId") ?: return@composable
+                    GroupProfileScreen(
+                        conversationId = conversationId,
+                        onBack = { navController.popBackStack() },
+                        onStartChat = { convoId, name, avatar ->
+                            val encodedName = URLEncoder.encode(name, StandardCharsets.UTF_8.toString())
+                            val encodedAvatar = URLEncoder.encode(avatar, StandardCharsets.UTF_8.toString())
+                            navController.navigate("chat_detail/$convoId/$encodedName/$encodedAvatar") {
+                                popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                                launchSingleTop = true
+                                restoreState = true
+                            }
+                        },
+                        onLeftGroup = { navController.popBackStack() },
+                        onOpenSearch = { /* TODO: hook up search history */ },
+                        onMemberClick = { userId ->
+                            navController.navigate("$USER_PROFILE_ROUTE/$userId")
+                        },
+                        onRefreshContacts = {
+                            navController.previousBackStackEntry?.savedStateHandle?.set("contacts_refresh", true)
+                        }
+                    )
+                }
+
+                composable(
                     route = "$USER_PROFILE_ROUTE/{userId}",
                     arguments = listOf(navArgument("userId") { type = NavType.StringType })
                 ) { backStackEntry ->
@@ -405,6 +461,7 @@ fun HomeScreen(
                                 restoreState = true
                             }
                         },
+                        onSearchHistory = { /* TODO: open chat history search */ },
                         onDeleted = { navController.popBackStack() }
                     )
                 }
@@ -592,6 +649,34 @@ fun ProfileHeaderTopBar(onBack: (() -> Unit)? = null) {
 
         Text(
             text = stringResource(R.string.profile_header_title),
+            color = Color.White,
+            fontSize = 18.sp,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.align(Alignment.Center)
+        )
+    }
+}
+
+@Composable
+fun GroupHeaderTopBar(memberCount: Int, onBack: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(56.dp)
+    ) {
+        IconButton(
+            onClick = onBack,
+            modifier = Modifier.align(Alignment.CenterStart)
+        ) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                contentDescription = stringResource(R.string.content_description_back),
+                tint = Color.White
+            )
+        }
+
+        Text(
+            text = stringResource(R.string.group_profile_title_with_count, memberCount),
             color = Color.White,
             fontSize = 18.sp,
             fontWeight = FontWeight.SemiBold,
@@ -1366,7 +1451,7 @@ fun ConversationsList(
 fun ContactsScreen(
     viewModel: ContactsViewModel = hiltViewModel(),
     onContactClick: (Contact) -> Unit = {},
-    onAvatarClick: (String) -> Unit = {}
+    onAvatarClick: (Contact) -> Unit = {}
 ) {
     val groups by viewModel.groups.collectAsStateWithLifecycle()
     val privateContacts by viewModel.privateContacts.collectAsStateWithLifecycle()
@@ -1532,7 +1617,7 @@ fun SearchResultsList(
     isSearching: Boolean,
     viewModel: ContactsViewModel,
     onContactClick: (Contact) -> Unit,
-    onAvatarClick: (String) -> Unit
+    onAvatarClick: (Contact) -> Unit
 ) {
     val dividerColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
 
@@ -1616,7 +1701,7 @@ fun ContactsList(
     isLoading: Boolean,
     viewModel: ContactsViewModel,
     onContactClick: (Contact) -> Unit,
-    onAvatarClick: (String) -> Unit
+    onAvatarClick: (Contact) -> Unit
 ) {
     val dividerColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
     val collator = remember { Collator.getInstance(Locale.getDefault()).apply { strength = Collator.PRIMARY } }
@@ -1734,7 +1819,7 @@ fun ContactListItem(
     contact: Contact,
     viewModel: ContactsViewModel,
     onClick: () -> Unit,
-    onAvatarClick: (String) -> Unit = {}
+    onAvatarClick: (Contact) -> Unit = {}
 ) {
     // 监听 conversationCache 的变化，确保 GROUP 信息加载后界面会更新
     val conversationCache by viewModel.conversationCache.collectAsStateWithLifecycle()
@@ -1765,7 +1850,7 @@ fun ContactListItem(
         val avatarModifier = Modifier
             .size(52.dp)
             .clip(CircleShape)
-            .clickable { if (contact.contactId.isNotBlank()) onAvatarClick(contact.contactId) }
+            .clickable { onAvatarClick(contact) }
 
         if (avatarUrl.isNotBlank()) {
             Log.d("ContactListItem", "Loading image for $displayName: $avatarUrl")
@@ -1881,10 +1966,13 @@ fun ProfileScreen(
     } else {
         stringResource(R.string.profile_placeholder_email)
     }
+    val scrollState = rememberScrollState()
+
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(backgroundColor)
+            .verticalScroll(scrollState)
     ) {
         // 用户信息卡片
         val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f

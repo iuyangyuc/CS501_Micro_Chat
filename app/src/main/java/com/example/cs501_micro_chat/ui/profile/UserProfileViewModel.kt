@@ -91,6 +91,25 @@ class UserProfileViewModel @Inject constructor(
             _uiState.update { it.copy(isDeleting = false) }
         }
     }
+
+    fun searchHistory() {
+        val convoId = _uiState.value.conversationId
+        if (convoId.isBlank()) {
+            viewModelScope.launch {
+                _events.send(UserProfileEvent.ShowError("No conversation to search"))
+            }
+        } else {
+            viewModelScope.launch {
+                _events.send(UserProfileEvent.SearchHistory(convoId))
+            }
+        }
+    }
+
+    fun clearHistory() {
+        viewModelScope.launch {
+            _events.send(UserProfileEvent.ShowError("Clear chat history is not implemented yet"))
+        }
+    }
 }
 
 data class UserProfileUiState(
@@ -102,11 +121,13 @@ data class UserProfileUiState(
     val isLoading: Boolean = false,
     val isChatting: Boolean = false,
     val isDeleting: Boolean = false,
-    val errorMessage: String? = null
+    val errorMessage: String? = null,
+    val conversationId: String = ""
 )
 
 sealed interface UserProfileEvent {
     data class OpenChat(val conversationId: String, val displayName: String, val avatarUrl: String) : UserProfileEvent
     data object Deleted : UserProfileEvent
+    data class SearchHistory(val conversationId: String) : UserProfileEvent
     data class ShowError(val message: String) : UserProfileEvent
 }
