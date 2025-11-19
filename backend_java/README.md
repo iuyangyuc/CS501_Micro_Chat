@@ -22,6 +22,7 @@ OPENAI_API_KEY=sk-your-key       # required
 PORT=4002                        # optional, defaults to 4002
 OPENAI_TRANSLATION_MODEL=gpt-4o-mini  # optional override
 OPENAI_TTS_MODEL=gpt-4o-mini-tts      # optional override for /tts endpoint
+OPENAI_TRANSCRIBE_MODEL=gpt-4o-mini-transcribe  # optional override for /transcribe endpoint
 OPENAI_TEMPERATURE=                   # optional; leave blank to use model default
 ```
 
@@ -39,6 +40,7 @@ The server listens on `PORT` and exposes:
 - `GET /health` – readiness endpoint with model + API-key status
 - `POST /translate` – performs the translation with OpenAI
 - `POST /tts` – converts text to speech using the GPT-4o mini TTS endpoint; returns base64-encoded audio
+- `POST /transcribe` – converts an uploaded voice clip (e.g., `voice_example.mp3`) to text using GPT-4o Transcribe
 
 ## Example request
 
@@ -93,6 +95,28 @@ Response (audio truncated here):
 ```
 
 Decode `audioBase64` to save/play (`base64 --decode > clip.mp3`). Include an optional `speed` in the request to slow down or speed up playback.
+
+## Voice-to-text example
+
+*An example clip is committed at `backend_java/example_voice/voice_example.mp3` for quick testing.*
+
+```bash
+curl -X POST http://localhost:4002/transcribe \
+  -F file=@backend_java/example_voice/voice_example.mp3 \
+  -F language=en \
+  -F prompt="transcribe speaker's voice"
+```
+
+Response:
+
+```json
+{
+  "text": "Hey there, great to meet you!",
+  "model": "gpt-4o-mini-transcribe"
+}
+```
+
+The `/transcribe` endpoint requires `multipart/form-data` with a `file` field that contains the MP3/MP4 clip (no base64 wrapping). Optional `language`, `prompt`, `temperature`, `filename`, or `mimeType` form fields are forwarded to GPT-4o Transcribe for finer control.
 
 ## Docker
 
