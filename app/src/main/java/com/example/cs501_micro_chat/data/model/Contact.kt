@@ -6,17 +6,20 @@
  *
  * Firebase 路径: /users/{userId}/contacts/{contactId}
  *
- * @property userId 当前用户 ID
- * @property contactId 联系人用户 ID 或群组 ID
- * @property contactName 联系人名称或群组名称
- * @property contactAvatarUrl 联系人头像 URL 或群组头像 URL
- * @property type 类型：PRIVATE（个人联系人）或 GROUP（群组）
- * @property alias 备注名
- * @property tags 标签列表
- * @property isFavorite 是否为特别关注
- * @property isBlocked 是否已屏蔽
- * @property addedAt 添加时间戳
- * @property conversationId 对应的会话 ID
+ * 字段说明 / Field Descriptions:
+ * - userId: 当前用户 ID
+ * - contactId: 联系人用户 ID 或群组 ID
+ * - contactName: 联系人名称或群组名称
+ * - contactAvatarUrl: 联系人头像 URL 或群组头像 URL
+ * - type: 类型（PRIVATE 或 GROUP）
+ * - alias: 备注名
+ * - tags: 标签列表
+ * - isFavorite: 是否为特别关注
+ * - isBlocked: 是否已屏蔽
+ * - isNew: 是否为待确认的好友请求（接收者端：true = 等待确认）
+ * - isPending: 是否为已发送但等待对方接受的请求（发送者端：true = 等待接受）
+ * - addedAt: 添加时间戳
+ * - conversationId: 对应的会话 ID
  */
 package com.example.cs501_micro_chat.data.model
 
@@ -30,6 +33,8 @@ data class Contact(
     val tags: List<String> = emptyList(),
     val isFavorite: Boolean = false,
     val isBlocked: Boolean = false,
+    val isNew: Boolean = false, // 是否为待确认的好友请求（true 表示等待确认，false 表示已确认）
+    val isPending: Boolean = false, // 是否为已发送但等待对方接受的请求（发送者端标记）
     val addedAt: Long = System.currentTimeMillis(),
     val conversationId: String = ""
 ) {
@@ -44,6 +49,8 @@ data class Contact(
         "tags" to tags,
         "isFavorite" to isFavorite,
         "isBlocked" to isBlocked,
+        "isNew" to isNew,
+        "isPending" to isPending,
         "addedAt" to addedAt,
         "conversationId" to conversationId
     )

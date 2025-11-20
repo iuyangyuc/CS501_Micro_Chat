@@ -224,7 +224,137 @@ class ChatRepository @Inject constructor(
     // ==================== 联系人相关 Contact Operations ====================
 
     /**
-     * 添加联系人
+     * 发送好友请求
+     * 1. 在目标用户的 contacts 中添加当前用户，设置 isNew = true（待确认）
+     * 2. 在当前用户的 contacts 中添加目标用户，设置 isPending = true（已发送，等待接受）
+     */
+    suspend fun sendFriendRequest(targetUserId: String, alias: String = ""): Result<Unit> {
+        val userId = currentUserId ?: return Result.failure(Exception("User not logged in"))
+
+        try {
+            // 获取当前用户信息
+            val currentUserResult = firebaseDataSource.getUser(userId)
+            val currentUser = currentUserResult.getOrNull()
+                ?: return Result.failure(Exception("Current user not found"))
+
+            // 获取目标用户信息
+            val targetUserResult = firebaseDataSource.getUser(targetUserId)
+            val targetUser = targetUserResult.getOrNull()
+                ?: return Result.failure(Exception("Target user not found"))
+
+            // 在目标用户的 contacts 中创建一个待确认的联系人（当前用户）
+            val receiverContact = Contact(
+                userId = targetUserId, // 目标用户的ID
+                contactId = userId, // 当前用户的ID
+                contactName = currentUser.username,
+                contactAvatarUrl = currentUser.avatarUrl,
+                alias = "",
+                type = "PRIVATE",
+                isNew = true, // 标记为待确认（接收者看到的）
+                isPending = false,
+                conversationId = "" // 暂时不设置 conversationId
+            )
+            firebaseDataSource.addContact(receiverContact).getOrThrow()
+
+            // 在当前用户的 contacts 中创建一个已发送的联系人（目标用户）
+            val senderContact = Contact(
+                userId = userId, // 当前用户的ID
+                contactId = targetUserId, // 目标用户的ID
+                contactName = targetUser.username,
+                contactAvatarUrl = targetUser.avatarUrl,
+                alias = alias,
+                type = "PRIVATE",
+                isNew = false,
+                isPending = true, // 标记为已发送等待接受（发送者看到的）
+                conversationId = "" // 暂时不设置 conversationId
+            )
+            firebaseDataSource.addContact(senderContact).getOrThrow()
+
+            return Result.success(Unit)
+        } catch (e: Exception) {
+            return Result.failure(e)
+        }
+    }
+
+    /**
+     * 接受好友请求
+     * 1. 创建私聊会话
+     * 2. 将当前用户 contacts 中的 isNew 设置为 false，添加 conversationId
+     * 3. 将请求者 contacts 中的 isPending 设置为 false，添加 conversationId
+     */
+    suspend fun acceptFriendRequest(requesterId: String): Result<Unit> {
+        val userId = currentUserId ?: return Result.failure(Exception("User not logged in"))
+
+        try {
+            // 获取请求者信息
+            val requesterResult = firebaseDataSource.getUser(requesterId)
+            val requester = requesterResult.getOrNull()
+                ?: return Result.failure(Exception("Requester not found"))
+
+            // 获取当前用户信息
+            val currentUserResult = firebaseDataSource.getUser(userId)
+            val currentUser = currentUserResult.getOrNull()
+                ?: return Result.failure(Exception("Current user not found"))
+
+            // 直接创建新的私聊会话，不使用 createOrGetPrivateConversation
+            // 因为后者会自动创建 contacts 并覆盖我们的状态
+            val conversationId = firebaseDataSource.generateConversationId()
+            val conversation = Conversation(
+                id = conversationId,
+                type = ConversationType.PRIVATE,
+                name = requester.username,
+                avatarUrl = requester.avatarUrl,
+                participants = listOf(userId, requesterId),
+                createdBy = userId,
+                unreadCounts = mapOf(userId to 0, requesterId to 0)
+            )
+
+            // 保存会话到 Firebase
+            firebaseDataSource.createConversation(conversation).getOrThrow()
+
+            // 更新当前用户的 contact（将 isNew 设置为 false，添加 conversationId）
+            val myContact = Contact(
+                userId = userId,
+                contactId = requesterId,
+                contactName = requester.username,
+                contactAvatarUrl = requester.avatarUrl,
+                type = "PRIVATE",
+                isNew = false, // 从 true 变为 false
+                isPending = false,
+                conversationId = conversationId
+            )
+            firebaseDataSource.addContact(myContact).getOrThrow()
+
+            // 更新请求者的 contact（将 isPending 设置为 false，添加 conversationId）
+            val theirContact = Contact(
+                userId = requesterId,
+                contactId = userId,
+                contactName = currentUser.username,
+                contactAvatarUrl = currentUser.avatarUrl,
+                type = "PRIVATE",
+                isNew = false,
+                isPending = false, // 从 true 变为 false
+                conversationId = conversationId
+            )
+            firebaseDataSource.addContact(theirContact).getOrThrow()
+
+            return Result.success(Unit)
+        } catch (e: Exception) {
+            return Result.failure(e)
+        }
+    }
+
+    /**
+     * 拒绝好友请求
+     * 删除当前用户 contacts 中的该联系人
+     */
+    suspend fun rejectFriendRequest(requesterId: String): Result<Unit> {
+        val userId = currentUserId ?: return Result.failure(Exception("User not logged in"))
+        return firebaseDataSource.removeContact(userId, requesterId)
+    }
+
+    /**
+     * 添加联系人（旧版本，保留兼容性）
      */
     suspend fun addContact(contactId: String, alias: String = ""): Result<Unit> {
         val userId = currentUserId ?: return Result.failure(Exception("User not logged in"))

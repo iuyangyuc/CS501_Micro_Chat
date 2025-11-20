@@ -122,23 +122,47 @@ class FirebaseDataSource @Inject constructor(
     }
 
     /**
-     * 搜索用户（通过用户名或邮箱）
+     * 搜索用户（通过用户名、用户 ID 或邮箱）
      */
     suspend fun searchUsers(query: String): Result<List<User>> = runCatching {
+        val results = mutableListOf<User>()
+
+        // 1. 通过 ID 精确搜索
+        try {
+            val byId = usersCollection
+                .document(query)
+                .get()
+                .await()
+            byId.toObject(User::class.java)?.let { user ->
+                results.add(user.copy(id = byId.id))
+            }
+        } catch (e: Exception) {
+            Log.d(TAG, "User ID search failed: ${e.message}")
+        }
+
+        // 2. 通过用户名前缀搜索
         val byUsername = usersCollection
             .whereGreaterThanOrEqualTo("username", query)
             .whereLessThanOrEqualTo("username", query + "\uf8ff")
             .get()
             .await()
-            .toObjects(User::class.java)
+            .documents
+            .mapNotNull { doc ->
+                doc.toObject(User::class.java)?.copy(id = doc.id)
+            }
 
+        // 3. 通过邮箱精确搜索
         val byEmail = usersCollection
             .whereEqualTo("email", query)
             .get()
             .await()
-            .toObjects(User::class.java)
+            .documents
+            .mapNotNull { doc ->
+                doc.toObject(User::class.java)?.copy(id = doc.id)
+            }
 
-        (byUsername + byEmail).distinctBy { it.id }
+        // 合并结果并去重
+        (results + byUsername + byEmail).distinctBy { it.id }
     }
 
     // ==================== 联系人相关 Contact Operations ====================
@@ -186,23 +210,77 @@ class FirebaseDataSource @Inject constructor(
                 }
 
                 // 获取联系人基础信息
-                val contacts = snapshot?.toObjects(Contact::class.java) ?: emptyList()
+                val contacts = snapshot?.documents?.mapNotNull { doc ->
+                    // 打印原始 Firebase 数据用于调试
+                    Log.d(TAG, "📄 Firebase Contact Document ${doc.id}:")
+                    Log.d(TAG, "  - Raw data: ${doc.data}")
+                    Log.d(TAG, "  - isNew: ${doc.get("isNew")} (${doc.get("isNew")?.javaClass?.simpleName})")
+                    Log.d(TAG, "  - isPending: ${doc.get("isPending")} (${doc.get("isPending")?.javaClass?.simpleName})")
+
+                    // 手动构造 Contact 对象，确保 isPending 字段被正确读取
+                    try {
+                        val data = doc.data
+                        if (data != null) {
+                            val contact = Contact(
+                                userId = data["userId"] as? String ?: "",
+                                contactId = data["contactId"] as? String ?: doc.id,
+                                contactName = data["contactName"] as? String ?: "",
+                                contactAvatarUrl = data["contactAvatarUrl"] as? String ?: "",
+                                type = data["type"] as? String ?: "PRIVATE",
+                                alias = data["alias"] as? String ?: "",
+                                tags = (data["tags"] as? List<*>)?.mapNotNull { it as? String } ?: emptyList(),
+                                isFavorite = data["isFavorite"] as? Boolean ?: false,
+                                isBlocked = data["isBlocked"] as? Boolean ?: false,
+                                isNew = data["isNew"] as? Boolean ?: false,
+                                isPending = data["isPending"] as? Boolean ?: false,
+                                addedAt = (data["addedAt"] as? Long) ?: System.currentTimeMillis(),
+                                conversationId = data["conversationId"] as? String ?: ""
+                            )
+
+                            Log.d(TAG, "  → Manually constructed Contact: isNew=${contact.isNew}, isPending=${contact.isPending}, conversationId=${contact.conversationId}")
+
+                            // 检查是否缺少字段
+                            if (!data.containsKey("isPending")) {
+                                Log.w(TAG, "  ⚠️ Contact ${contact.contactId} missing 'isPending' field in Firebase document (old data)")
+                                if (contact.conversationId.isEmpty() && !contact.isNew) {
+                                    Log.w(TAG, "  ⚠️ Possible old pending request, please update manually in Firebase")
+                                }
+                            }
+
+                            contact
+                        } else {
+                            Log.e(TAG, "  → Document data is null")
+                            null
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "  → Error constructing Contact: ${e.message}", e)
+                        null
+                    }
+                } ?: emptyList()
 
                 // 异步补充每个联系人的详细信息（如果缺失）
                 scope.launch {
                     try {
+                        Log.d(TAG, "🔧 Starting contact enrichment for ${contacts.size} contacts")
                         val enrichedContacts = contacts.map { contact ->
+                            Log.d(TAG, "  📝 Before enrichment - ${contact.contactId}: isNew=${contact.isNew}, isPending=${contact.isPending}")
+
                             // 如果 contactName 或 contactAvatarUrl 为空，从对应用户获取
-                            if (contact.type == "PRIVATE" && (contact.contactName.isEmpty() || contact.contactAvatarUrl.isEmpty())) {
+                            val result = if (contact.type == "PRIVATE" && (contact.contactName.isEmpty() || contact.contactAvatarUrl.isEmpty())) {
                                 val user = getUser(contact.contactId).getOrNull()
-                                contact.copy(
+                                val enriched = contact.copy(
                                     contactName = if (contact.contactName.isEmpty()) user?.username ?: "" else contact.contactName,
                                     contactAvatarUrl = if (contact.contactAvatarUrl.isEmpty()) user?.avatarUrl ?: "" else contact.contactAvatarUrl
                                 )
+                                Log.d(TAG, "  ✏️ After enrichment - ${contact.contactId}: isNew=${enriched.isNew}, isPending=${enriched.isPending}")
+                                enriched
                             } else {
+                                Log.d(TAG, "  ⏭️ No enrichment needed - ${contact.contactId}")
                                 contact
                             }
+                            result
                         }
+                        Log.d(TAG, "🔧 Enrichment complete, sending ${enrichedContacts.size} contacts")
                         trySend(enrichedContacts)
                     } catch (e: Exception) {
                         Log.e(TAG, "Error enriching contacts", e)
@@ -224,6 +302,11 @@ class FirebaseDataSource @Inject constructor(
             .delete()
             .await()
     }
+
+    /**
+     * 移除联系人（别名，与 deleteContact 相同）
+     */
+    suspend fun removeContact(userId: String, contactId: String): Result<Unit> = deleteContact(userId, contactId)
 
     /**
      * 更新联系人备注
@@ -361,18 +444,35 @@ class FirebaseDataSource @Inject constructor(
         // 1. 获取用户的所有联系人（包括个人和群组）
         val contacts = getContacts(userId).getOrNull() ?: emptyList()
 
-        // 2. 提取所有 conversationId（过滤掉空的）
+        // 2. 过滤出已确认的联系人
+        // 只保留：isNew = false && isPending = false 的联系人和群组
+        val confirmedContacts = contacts.filter { contact ->
+            // 群组直接显示
+            if (contact.type == "GROUP") {
+                true
+            } else {
+                // 个人联系人：必须是已确认的好友（isNew = false && isPending = false）
+                // isNew = false, isPending = true: 已发送请求，等待对方接受 → 不显示
+                // isNew = true, isPending = false: 收到请求，等待我接受 → 不显示
+                // isNew = false, isPending = false: 已确认的好友 → 显示
+                !contact.isNew && !contact.isPending
+            }
+        }
+
+        Log.d(TAG, "getUserConversations: Total contacts: ${contacts.size}, Confirmed: ${confirmedContacts.size}, Pending: ${contacts.size - confirmedContacts.size}")
+
+        // 3. 提取所有 conversationId（过滤掉空的）
         // 无论是个人联系人还是群组，都有 conversationId 字段
-        val conversationIds = contacts.mapNotNull { it.conversationId.takeIf { id -> id.isNotEmpty() } }
+        val conversationIds = confirmedContacts.mapNotNull { it.conversationId.takeIf { id -> id.isNotEmpty() } }
 
-        Log.d(TAG, "getUserConversations: Found ${conversationIds.size} conversation IDs (including groups)")
+        Log.d(TAG, "getUserConversations: Found ${conversationIds.size} conversation IDs from confirmed contacts (including groups)")
 
-        // 3. 如果没有会话，直接返回空列表
+        // 4. 如果没有会话，直接返回空列表
         if (conversationIds.isEmpty()) {
             return@runCatching emptyList()
         }
 
-        // 4. 批量获取会话信息
+        // 5. 批量获取会话信息
         // Firebase 的 whereIn 限制为 10 个元素，需要分批查询
         val conversations = mutableListOf<Conversation>()
         conversationIds.chunked(10).forEach { chunk ->
@@ -389,7 +489,7 @@ class FirebaseDataSource @Inject constructor(
 
         Log.d(TAG, "getUserConversations: Retrieved ${conversations.size} conversations from Firestore")
 
-        // 5. 按最后消息时间排序
+        // 6. 按最后消息时间排序
         conversations.sortedByDescending { it.lastMessageTime }
     }
 
@@ -418,13 +518,27 @@ class FirebaseDataSource @Inject constructor(
 
                 val contacts = contactsSnapshot?.toObjects(Contact::class.java) ?: emptyList()
 
+                // 过滤出已确认的联系人
+                // 只保留：isNew = false && isPending = false 的联系人和群组
+                val confirmedContacts = contacts.filter { contact ->
+                    // 群组直接显示
+                    if (contact.type == "GROUP") {
+                        true
+                    } else {
+                        // 个人联系人：必须是已确认的好友（isNew = false && isPending = false）
+                        !contact.isNew && !contact.isPending
+                    }
+                }
+
+                Log.d(TAG, "observeUserConversations: Total contacts: ${contacts.size}, Confirmed: ${confirmedContacts.size}, Pending: ${contacts.size - confirmedContacts.size}")
+
                 // 提取所有 conversationId（无论是个人还是群组）
-                val conversationIds = contacts.mapNotNull {
+                val conversationIds = confirmedContacts.mapNotNull {
                     it.conversationId.takeIf { id -> id.isNotEmpty() }
                 }
 
-                Log.d(TAG, "observeUserConversations: Found ${conversationIds.size} conversation IDs from contacts (including groups)")
-                Log.d(TAG, "observeUserConversations: Contacts breakdown - ${contacts.count { it.type == "GROUP" }} groups, ${contacts.count { it.type == "PRIVATE" }} private")
+                Log.d(TAG, "observeUserConversations: Found ${conversationIds.size} conversation IDs from confirmed contacts (including groups)")
+                Log.d(TAG, "observeUserConversations: Contacts breakdown - ${confirmedContacts.count { it.type == "GROUP" }} groups, ${confirmedContacts.count { it.type == "PRIVATE" }} private")
 
                 if (conversationIds.isEmpty()) {
                     trySend(emptyList())
@@ -477,6 +591,23 @@ class FirebaseDataSource @Inject constructor(
 
         // 手动映射并设置 id
         doc.toObject(Conversation::class.java)?.copy(id = doc.id)
+    }
+
+    /**
+     * 生成新的会话 ID
+     */
+    fun generateConversationId(): String {
+        return conversationsCollection.document().id
+    }
+
+    /**
+     * 创建会话（不自动创建 contacts）
+     */
+    suspend fun createConversation(conversation: Conversation): Result<Unit> = runCatching {
+        conversationsCollection
+            .document(conversation.id)
+            .set(conversation.toMap())
+            .await()
     }
 
     /**

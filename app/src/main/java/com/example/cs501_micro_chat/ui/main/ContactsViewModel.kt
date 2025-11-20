@@ -98,14 +98,42 @@ class ContactsViewModel @Inject constructor(
 
                 flow.collect { allContacts ->
                     Log.d(TAG, "Received ${allContacts.size} contacts")
-                    _contacts.value = allContacts
+
+                    // 过滤出已确认的联系人
+                    // 规则：
+                    // - GROUP: 直接显示
+                    // - PRIVATE 且 isNew = false, isPending = false: 已确认好友，显示
+                    // - PRIVATE 且 isNew = false, isPending = true: 已发送请求等待接受，不显示
+                    // - PRIVATE 且 isNew = true, isPending = false: 收到请求等待确认，不显示（在顶部请求区域显示）
+                    val confirmedContacts = allContacts.filter { contact ->
+                        val shouldShow = if (contact.type == "GROUP") {
+                            Log.d(TAG, "✅ Contact ${contact.contactId} (GROUP): SHOW")
+                            true // 群组直接显示
+                        } else {
+                            // 个人联系人：只显示已确认的好友
+                            val result = !contact.isNew && !contact.isPending
+                            val reason = when {
+                                contact.isNew && contact.isPending -> "isNew=true & isPending=true (异常状态)"
+                                contact.isNew -> "isNew=true (收到的请求，等待确认)"
+                                contact.isPending -> "isPending=true (已发送的请求，等待接受)"
+                                else -> "已确认好友"
+                            }
+                            Log.d(TAG, "${if (result) "✅" else "❌"} Contact ${contact.contactId} (${contact.contactName}): isNew=${contact.isNew}, isPending=${contact.isPending} → $reason → ${if (result) "SHOW" else "HIDE"}")
+                            result
+                        }
+                        shouldShow
+                    }
+
+                    Log.d(TAG, "Confirmed contacts: ${confirmedContacts.size} (filtered out ${allContacts.size - confirmedContacts.size} pending/new)")
+
+                    _contacts.value = confirmedContacts
                     _isLoading.value = false
 
                     // 为 GROUP 类型的联系人加载 Conversation 信息
-                    loadConversationsForGroups(allContacts)
+                    loadConversationsForGroups(confirmedContacts)
 
                     // 分类并排序
-                    val (groups, privateContacts) = allContacts.partition { it.isGroup() }
+                    val (groups, privateContacts) = confirmedContacts.partition { it.isGroup() }
 
                     // 按显示名称的字典序排序
                     _groups.value = groups.sortedBy { it.getDisplayName().lowercase() }

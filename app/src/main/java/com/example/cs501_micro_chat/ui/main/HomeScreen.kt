@@ -24,6 +24,7 @@ package com.example.cs501_micro_chat.ui.main
 import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.ui.draw.shadow
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -40,6 +41,7 @@ import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -55,6 +57,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -88,7 +92,6 @@ import com.example.cs501_micro_chat.ui.theme.ThemeOption
 import com.example.cs501_micro_chat.ui.theme.ThemeViewModel
 import java.text.Collator
 import java.util.Locale
-import kotlinx.coroutines.launch
 
 // Figma Design Colors (still used for branding)
 private val PrimaryBlue = Color(0xFF3296FA)
@@ -175,6 +178,9 @@ fun HomeScreen(
     } == true
     val backgroundColor = MaterialTheme.colorScheme.background
     val surfaceColor = MaterialTheme.colorScheme.surface
+
+    // 创建共享的 HomeViewModel（用于添加好友等全局功能）
+    val sharedHomeViewModel: HomeViewModel = hiltViewModel()
 
     // ========== 固定布局：顶栏 + 内容 + 底栏 ==========
     Column(
@@ -264,7 +270,8 @@ fun HomeScreen(
 
                     else -> {
                         HomeTopBar(
-                            currentRoute = route
+                            currentRoute = route,
+                            homeViewModel = sharedHomeViewModel
                         )
                     }
                 }
@@ -518,10 +525,13 @@ fun HomeScreen(
  */
 @Composable
 fun HomeTopBar(
-    currentRoute: String?
+    currentRoute: String?,
+    homeViewModel: HomeViewModel
 ) {
     // 控制下拉菜单的显示状态
     var showAddMenu by remember { mutableStateOf(false) }
+    // 控制添加好友弹窗的显示状态
+    var showAddFriendDialog by remember { mutableStateOf(false) }
 
     Row(
         modifier = Modifier
@@ -566,31 +576,33 @@ fun HomeTopBar(
                         text = {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.Start
+                                horizontalArrangement = Arrangement.Start,
+                                modifier = Modifier.padding(vertical = 4.dp)
                             ) {
                                 Icon(
                                     imageVector = Icons.Filled.PersonAdd,
                                     contentDescription = "Add Contact",
-                                    tint = primaryTextColor(),
-                                    modifier = Modifier.size(20.dp)
+                                    tint = Color(0xFF1F2937), // 深灰色，确保可见
+                                    modifier = Modifier.size(22.dp)
                                 )
                                 Spacer(modifier = Modifier.width(12.dp))
                                 Text(
                                     text = "New Contact",
-                                    color = primaryTextColor(),
-                                    fontSize = 15.sp
+                                    color = Color(0xFF1F2937), // 深灰色，确保可见
+                                    fontSize = 16.sp,
+                                    fontWeight = androidx.compose.ui.text.font.FontWeight.Medium
                                 )
                             }
                         },
                         onClick = {
                             showAddMenu = false
-                            // TODO: 实现新增联系人功能
+                            showAddFriendDialog = true
                         }
                     )
 
                     HorizontalDivider(
                         thickness = 0.5.dp,
-                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
+                        color = Color(0xFFE5E7EB)
                     )
 
                     // 新增群组选项
@@ -598,19 +610,21 @@ fun HomeTopBar(
                         text = {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.Start
+                                horizontalArrangement = Arrangement.Start,
+                                modifier = Modifier.padding(vertical = 4.dp)
                             ) {
                                 Icon(
                                     imageVector = Icons.Filled.GroupAdd,
                                     contentDescription = "Create Group",
-                                    tint = primaryTextColor(),
-                                    modifier = Modifier.size(20.dp)
+                                    tint = Color(0xFF1F2937), // 深灰色，确保可见
+                                    modifier = Modifier.size(22.dp)
                                 )
                                 Spacer(modifier = Modifier.width(12.dp))
                                 Text(
                                     text = "New Group",
-                                    color = primaryTextColor(),
-                                    fontSize = 15.sp
+                                    color = Color(0xFF1F2937), // 深灰色，确保可见
+                                    fontSize = 16.sp,
+                                    fontWeight = androidx.compose.ui.text.font.FontWeight.Medium
                                 )
                             }
                         },
@@ -624,6 +638,17 @@ fun HomeTopBar(
         } else {
             Spacer(modifier = Modifier.width(48.dp))
         }
+    }
+
+    // 添加好友搜索弹窗
+    if (showAddFriendDialog) {
+        AddFriendDialog(
+            homeViewModel = homeViewModel,
+            onDismiss = {
+                showAddFriendDialog = false
+                homeViewModel.clearAddFriendSearch()
+            }
+        )
     }
 }
 
@@ -1450,6 +1475,7 @@ fun ConversationsList(
 @Composable
 fun ContactsScreen(
     viewModel: ContactsViewModel = hiltViewModel(),
+    homeViewModel: HomeViewModel = hiltViewModel(),
     onContactClick: (Contact) -> Unit = {},
     onAvatarClick: (Contact) -> Unit = {}
 ) {
@@ -1461,6 +1487,9 @@ fun ContactsScreen(
     val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
     val searchResults by viewModel.searchResults.collectAsStateWithLifecycle()
     val isSearching by viewModel.isSearching.collectAsStateWithLifecycle()
+
+    // 待确认的好友请求
+    val pendingFriendRequests by homeViewModel.pendingFriendRequests.collectAsStateWithLifecycle()
 
     val backgroundColor = MaterialTheme.colorScheme.background
     val surfaceColor = MaterialTheme.colorScheme.surface
@@ -1597,8 +1626,10 @@ fun ContactsScreen(
                 ContactsList(
                     groups = groups,
                     privateContacts = privateContacts,
+                    pendingFriendRequests = pendingFriendRequests,
                     isLoading = isLoading,
                     viewModel = viewModel,
+                    homeViewModel = homeViewModel,
                     onContactClick = onContactClick,
                     onAvatarClick = onAvatarClick
                 )
@@ -1698,8 +1729,10 @@ fun SearchResultsList(
 fun ContactsList(
     groups: List<Contact>,
     privateContacts: List<Contact>,
+    pendingFriendRequests: List<Contact>,
     isLoading: Boolean,
     viewModel: ContactsViewModel,
+    homeViewModel: HomeViewModel,
     onContactClick: (Contact) -> Unit,
     onAvatarClick: (Contact) -> Unit
 ) {
@@ -1730,7 +1763,7 @@ fun ContactsList(
         }
     }
     // 空状态
-    else if (groups.isEmpty() && privateContacts.isEmpty()) {
+    else if (groups.isEmpty() && privateContacts.isEmpty() && pendingFriendRequests.isEmpty()) {
         Box(
             modifier = Modifier.fillMaxSize(),
             contentAlignment = Alignment.Center
@@ -1763,6 +1796,29 @@ fun ContactsList(
         LazyColumn(
             modifier = Modifier.fillMaxSize()
         ) {
+            // 待确认的好友请求（置顶）
+            if (pendingFriendRequests.isNotEmpty()) {
+                item(key = "pending_requests_header") {
+                    SectionHeader(title = "FRIEND REQUESTS (${pendingFriendRequests.size})")
+                }
+                items(
+                    items = pendingFriendRequests,
+                    key = { "pending_${it.contactId}" }
+                ) { contact ->
+                    PendingFriendRequestItem(
+                        contact = contact,
+                        onAccept = { homeViewModel.acceptFriendRequest(contact.contactId) },
+                        onReject = { homeViewModel.rejectFriendRequest(contact.contactId) }
+                    )
+                    HorizontalDivider(
+                        modifier = Modifier.padding(start = 72.dp),
+                        thickness = 0.5.dp,
+                        color = dividerColor
+                    )
+                }
+            }
+
+            // 正常联系人列表（按字母分组）
             sections.forEach { (header, contactsInSection) ->
                 item(key = "header_$header") {
                     SectionHeader(title = header)
@@ -1807,6 +1863,110 @@ fun SectionHeader(title: String) {
             fontSize = 13.sp,
             fontWeight = FontWeight.Medium
         )
+    }
+}
+
+/**
+ * 待确认的好友请求列表项
+ * Pending friend request item with accept/reject buttons
+ */
+@Composable
+fun PendingFriendRequestItem(
+    contact: Contact,
+    onAccept: () -> Unit,
+    onReject: () -> Unit
+) {
+    val surfaceColor = MaterialTheme.colorScheme.surface
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(surfaceColor)
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // 头像
+        val avatarModifier = Modifier
+            .size(52.dp)
+            .clip(CircleShape)
+
+        if (contact.contactAvatarUrl.isNotBlank()) {
+            AsyncImage(
+                model = contact.contactAvatarUrl,
+                contentDescription = "${contact.contactName} avatar",
+                modifier = avatarModifier,
+                contentScale = ContentScale.Crop
+            )
+        } else {
+            Box(
+                modifier = avatarModifier.background(PrimaryBlue),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = contact.contactName.firstOrNull()?.uppercase() ?: "?",
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = Color.White
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.width(12.dp))
+
+        // 联系人信息
+        Column(
+            modifier = Modifier.weight(1f)
+        ) {
+            Text(
+                text = contact.contactName,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Medium,
+                color = primaryTextColor()
+            )
+            Text(
+                text = "Wants to be your friend",
+                fontSize = 13.sp,
+                color = secondaryTextColor()
+            )
+        }
+
+        Spacer(modifier = Modifier.width(8.dp))
+
+        // Accept 按钮
+        Button(
+            onClick = onAccept,
+            colors = ButtonDefaults.buttonColors(
+                containerColor = PrimaryBlue
+            ),
+            shape = RoundedCornerShape(6.dp),
+            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+            modifier = Modifier.height(36.dp)
+        ) {
+            Text(
+                text = "Accept",
+                fontSize = 13.sp,
+                color = Color.White
+            )
+        }
+
+        Spacer(modifier = Modifier.width(8.dp))
+
+        // Reject 按钮
+        OutlinedButton(
+            onClick = onReject,
+            colors = ButtonDefaults.outlinedButtonColors(
+                contentColor = Color(0xFF6B7280)
+            ),
+            border = BorderStroke(1.dp, Color(0xFFD1D5DB)),
+            shape = RoundedCornerShape(6.dp),
+            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+            modifier = Modifier.height(36.dp)
+        ) {
+            Text(
+                text = "Reject",
+                fontSize = 13.sp
+            )
+        }
     }
 }
 
@@ -2237,3 +2397,402 @@ fun SettingItem(
         )
     }
 }
+
+/**
+ * 添加好友弹窗
+ * Add Friend Dialog
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun AddFriendDialog(
+    homeViewModel: HomeViewModel,
+    onDismiss: () -> Unit
+) {
+    val searchQuery by homeViewModel.addFriendSearchQuery.collectAsStateWithLifecycle()
+    val searchResults by homeViewModel.addFriendSearchResults.collectAsStateWithLifecycle()
+    val isSearching by homeViewModel.isAddFriendSearching.collectAsStateWithLifecycle()
+
+    // 观察 allContacts 的变化，确保联系人状态更新时 UI 会重新组合
+    val allContacts by homeViewModel.allContacts.collectAsStateWithLifecycle()
+
+    // 当对话框打开时，强制刷新联系人列表以确保数据最新
+    LaunchedEffect(Unit) {
+        Log.d("AddFriendDialog", "Dialog opened, refreshing contacts...")
+        homeViewModel.refreshContacts()
+    }
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(
+            dismissOnBackPress = true,
+            dismissOnClickOutside = true,
+            usePlatformDefaultWidth = false
+        )
+    ) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth(0.9f)
+                .fillMaxHeight(0.7f),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = Color.White
+            ),
+            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+        ) {
+            Column(
+                modifier = Modifier.fillMaxSize()
+            ) {
+                // 顶部标题栏
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Add Friend",
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF1F2937)
+                    )
+                    IconButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Close,
+                            contentDescription = "Close",
+                            tint = Color(0xFF6B7280)
+                        )
+                    }
+                }
+
+                HorizontalDivider(
+                    thickness = 1.dp,
+                    color = Color(0xFFE5E7EB)
+                )
+
+                // 搜索栏
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = { homeViewModel.searchUsersForAddFriend(it) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    placeholder = {
+                        Text(
+                            text = "Search by User ID or Username",
+                            color = Color(0xFF9CA3AF)
+                        )
+                    },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Filled.Search,
+                            contentDescription = "Search",
+                            tint = Color(0xFF6B7280)
+                        )
+                    },
+                    trailingIcon = {
+                        if (searchQuery.isNotEmpty()) {
+                            IconButton(
+                                onClick = { homeViewModel.clearAddFriendSearch() }
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.Clear,
+                                    contentDescription = "Clear",
+                                    tint = Color(0xFF6B7280)
+                                )
+                            }
+                        }
+                    },
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = PrimaryBlue,
+                        unfocusedBorderColor = Color(0xFFE5E7EB),
+                        cursorColor = PrimaryBlue,
+                        focusedTextColor = Color(0xFF1F2937),
+                        unfocusedTextColor = Color(0xFF1F2937)
+                    ),
+                    shape = RoundedCornerShape(12.dp)
+                )
+
+                // 搜索结果区域
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f)
+                ) {
+                    when {
+                        // 加载中状态
+                        isSearching -> {
+                            Box(
+                                modifier = Modifier.fillMaxSize(),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                CircularProgressIndicator(
+                                    color = PrimaryBlue,
+                                    modifier = Modifier.size(40.dp)
+                                )
+                            }
+                        }
+                        // 空搜索状态
+                        searchQuery.isEmpty() -> {
+                            Box(
+                                modifier = Modifier.fillMaxSize(),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Filled.PersonSearch,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(64.dp),
+                                        tint = Color(0xFF9CA3AF)
+                                    )
+                                    Text(
+                                        text = "Search for friends",
+                                        color = Color(0xFF6B7280),
+                                        fontSize = 16.sp
+                                    )
+                                    Text(
+                                        text = "Enter User ID or Username",
+                                        color = Color(0xFF9CA3AF),
+                                        fontSize = 14.sp
+                                    )
+                                }
+                            }
+                        }
+                        // 无结果状态
+                        searchResults.isEmpty() -> {
+                            Box(
+                                modifier = Modifier.fillMaxSize(),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Filled.SearchOff,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(64.dp),
+                                        tint = Color(0xFF9CA3AF)
+                                    )
+                                    Text(
+                                        text = "No users found",
+                                        color = Color(0xFF6B7280),
+                                        fontSize = 16.sp,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                    Text(
+                                        text = "Try a different search term",
+                                        color = Color(0xFF9CA3AF),
+                                        fontSize = 14.sp
+                                    )
+                                }
+                            }
+                        }
+                        // 显示搜索结果
+                        else -> {
+                            LazyColumn(
+                                modifier = Modifier.fillMaxSize(),
+                                contentPadding = PaddingValues(vertical = 8.dp)
+                            ) {
+                                items(
+                                    items = searchResults,
+                                    key = { it.id }
+                                ) { user ->
+                                    // 观察 allContacts 的变化，确保联系人状态更新时按钮会更新
+                                    // allContacts 是 State，当它变化时会触发重新组合
+                                    val contactStatus = remember(allContacts, user.id) {
+                                        homeViewModel.getContactStatus(user.id)
+                                    }
+
+                                    UserSearchResultItem(
+                                        user = user,
+                                        contactStatus = contactStatus,
+                                        onAddClick = {
+                                            // 发送好友请求
+                                            Log.d("AddFriendDialog", "Send friend request to: ${user.username} (${user.id})")
+                                            homeViewModel.sendFriendRequest(user.id)
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * 用户搜索结果项
+ * User Search Result Item
+ */
+@Composable
+fun UserSearchResultItem(
+    user: com.example.cs501_micro_chat.data.model.User,
+    contactStatus: String?, // "added", "pending", "new", or null
+    onAddClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // 用户头像
+        if (user.avatarUrl.isNotBlank()) {
+            AsyncImage(
+                model = user.avatarUrl,
+                contentDescription = "${user.username} avatar",
+                modifier = Modifier
+                    .size(48.dp)
+                    .clip(CircleShape),
+                contentScale = ContentScale.Crop
+            )
+        } else {
+            Box(
+                modifier = Modifier
+                    .size(48.dp)
+                    .clip(CircleShape)
+                    .background(PrimaryBlue),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = user.username.firstOrNull()?.uppercase() ?: "?",
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = Color.White
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.width(12.dp))
+
+        // 用户信息
+        Column(
+            modifier = Modifier.weight(1f)
+        ) {
+            Text(
+                text = user.username,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Medium,
+                color = Color(0xFF1F2937)
+            )
+            Text(
+                text = "ID: ${user.id}",
+                fontSize = 12.sp,
+                color = Color(0xFF6B7280)
+            )
+        }
+
+        Spacer(modifier = Modifier.width(8.dp))
+
+        // 根据联系人状态显示不同的按钮
+        when (contactStatus) {
+            "added" -> {
+                // 已经是好友 - 显示灰色的 "Added" 按钮，不可点击
+                Button(
+                    onClick = { /* 不可点击 */ },
+                    enabled = false,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFFE5E7EB),
+                        disabledContainerColor = Color(0xFFE5E7EB)
+                    ),
+                    shape = RoundedCornerShape(8.dp),
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Check,
+                        contentDescription = "Added",
+                        modifier = Modifier.size(18.dp),
+                        tint = Color(0xFF6B7280)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "Added",
+                        fontSize = 14.sp,
+                        color = Color(0xFF6B7280)
+                    )
+                }
+            }
+            "pending" -> {
+                // 已发送请求等待接受 - 显示灰色的 "Sended" 按钮，不可点击
+                Button(
+                    onClick = { /* 不可点击 */ },
+                    enabled = false,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFFE5E7EB),
+                        disabledContainerColor = Color(0xFFE5E7EB)
+                    ),
+                    shape = RoundedCornerShape(8.dp),
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Schedule,
+                        contentDescription = "Sended",
+                        modifier = Modifier.size(18.dp),
+                        tint = Color(0xFF6B7280)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "Sended",
+                        fontSize = 14.sp,
+                        color = Color(0xFF6B7280)
+                    )
+                }
+            }
+            "new" -> {
+                // 收到对方的好友请求 - 显示提示文字
+                Button(
+                    onClick = { /* 不可点击 */ },
+                    enabled = false,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFFE5E7EB),
+                        disabledContainerColor = Color(0xFFE5E7EB)
+                    ),
+                    shape = RoundedCornerShape(8.dp),
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+                ) {
+                    Text(
+                        text = "Pending",
+                        fontSize = 14.sp,
+                        color = Color(0xFF6B7280)
+                    )
+                }
+            }
+            else -> {
+                // 未添加状态 - 显示蓝色的 "Add" 按钮，可点击
+                Button(
+                    onClick = onAddClick,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = PrimaryBlue
+                    ),
+                    shape = RoundedCornerShape(8.dp),
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.PersonAdd,
+                        contentDescription = "Add",
+                        modifier = Modifier.size(18.dp),
+                        tint = Color.White
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "Add",
+                        fontSize = 14.sp,
+                        color = Color.White
+                    )
+                }
+            }
+        }
+    }
+}
+
+

@@ -36,6 +36,7 @@ firestore/
 │               ├── tags: List<String>        # 标签列表
 │               ├── isFavorite: Boolean       # 是否特别关注
 │               ├── isBlocked: Boolean        # 是否屏蔽
+│               ├── isNew: Boolean            # 是否为待确认的好友请求 (true=待确认, false=已确认)
 │               ├── addedAt: Long             # 添加时间
 │               └── conversationId: String    # 对应会话ID
 │
