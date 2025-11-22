@@ -151,5 +151,3 @@ app/src/main/java/com/example/cs501_micro_chat/
 - `FIREBASE_QUICK_REFERENCE.md` – Short reminders for common tasks.
 - `DEPENDENCIES_SETUP.md` – Required libraries and Gradle settings.
 - `FIREBASE_IMPLEMENTATION_SUMMARY.md` – Notes on implementation decisions.
-
-**Happy Coding! 🚀**

@@ -42,12 +42,14 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
+import com.example.cs501_micro_chat.R
 import com.example.cs501_micro_chat.data.model.Message
 import com.example.cs501_micro_chat.data.model.MessageType
 import java.text.SimpleDateFormat
@@ -56,10 +58,20 @@ import java.util.*
 // Figma Design Colors
 private val PrimaryBlue = Color(0xFF3296FA)
 private val LightBlue = Color(0xFF66B3FF)
-private val BackgroundGray = Color(0xFFF9FAFB)
-private val InputBarGray = Color(0xFFF3F4F6)
-private val TextPrimary = Color(0xFF111827)
-private val TextSecondary = Color(0xFF6B7280)
+@Composable
+private fun chatBackgroundColor() = MaterialTheme.colorScheme.background
+
+@Composable
+private fun chatSurfaceColor() = MaterialTheme.colorScheme.surface
+
+@Composable
+private fun chatInputBackground() = MaterialTheme.colorScheme.surfaceVariant
+
+@Composable
+private fun chatPrimaryTextColor() = MaterialTheme.colorScheme.onSurface
+
+@Composable
+private fun chatSecondaryTextColor() = MaterialTheme.colorScheme.onSurfaceVariant
 
 /**
  * 对话详情主界面
@@ -93,6 +105,9 @@ fun ChatDetailScreen(
     var inputText by remember { mutableStateOf("") }
     var showAttachmentMenu by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
+    val backgroundColor = chatBackgroundColor()
+    val surfaceColor = chatSurfaceColor()
+    val inputBackground = chatInputBackground()
 
     // 自动滚动到最新消息
     LaunchedEffect(messages.size) {
@@ -126,7 +141,7 @@ fun ChatDetailScreen(
                         IconButton(onClick = onBack) {
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = "Back",
+                                contentDescription = stringResource(R.string.content_description_back),
                                 tint = Color.White
                             )
                         }
@@ -135,18 +150,18 @@ fun ChatDetailScreen(
                         if (conversationAvatar.isNotBlank()) {
                             AsyncImage(
                                 model = conversationAvatar,
-                                contentDescription = "$conversationName avatar",
+                                contentDescription = stringResource(R.string.content_description_avatar, conversationName),
                                 modifier = Modifier
                                     .size(36.dp)
                                     .clip(CircleShape),
                                 contentScale = ContentScale.Crop
                             )
                         } else {
-                            Box(
-                                modifier = Modifier
-                                    .size(36.dp)
-                                    .clip(CircleShape)
-                                    .background(Color.White.copy(alpha = 0.3f)),
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Text(
@@ -172,7 +187,7 @@ fun ChatDetailScreen(
                         IconButton(onClick = { /* TODO: 显示更多菜单 */ }) {
                             Icon(
                                 imageVector = Icons.Default.MoreVert,
-                                contentDescription = "More",
+                                contentDescription = stringResource(R.string.content_description_more),
                                 tint = Color.White
                             )
                         }
@@ -182,10 +197,10 @@ fun ChatDetailScreen(
         },
         bottomBar = {
             // 输入栏
-            Surface(
-                color = Color.White,
-                shadowElevation = 8.dp
-            ) {
+        Surface(
+            color = surfaceColor,
+            shadowElevation = 8.dp
+        ) {
                 Column {
                     // 附件菜单
                     if (showAttachmentMenu) {
@@ -213,8 +228,8 @@ fun ChatDetailScreen(
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Mic,
-                                contentDescription = "Voice",
-                                tint = TextSecondary
+                                contentDescription = stringResource(R.string.content_description_voice),
+                                tint = chatSecondaryTextColor()
                             )
                         }
 
@@ -222,8 +237,8 @@ fun ChatDetailScreen(
                         Row(
                             modifier = Modifier
                                 .weight(1f)
-                                .clip(RoundedCornerShape(20.dp))
-                                .background(InputBarGray)
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(inputBackground)
                                 .padding(horizontal = 12.dp, vertical = 8.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
@@ -233,8 +248,8 @@ fun ChatDetailScreen(
                                 modifier = Modifier.weight(1f),
                                 placeholder = {
                                     Text(
-                                        text = "Type a message...",
-                                        color = TextSecondary,
+                                        text = stringResource(R.string.chat_input_placeholder),
+                                        color = chatSecondaryTextColor(),
                                         fontSize = 14.sp
                                     )
                                 },
@@ -254,8 +269,8 @@ fun ChatDetailScreen(
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.EmojiEmotions,
-                                    contentDescription = "Emoji",
-                                    tint = TextSecondary,
+                                    contentDescription = stringResource(R.string.content_description_emoji),
+                                    tint = chatSecondaryTextColor(),
                                     modifier = Modifier.size(20.dp)
                                 )
                             }
@@ -280,7 +295,7 @@ fun ChatDetailScreen(
                             ) {
                                 Icon(
                                     imageVector = Icons.AutoMirrored.Filled.Send,
-                                    contentDescription = "Send",
+                                    contentDescription = stringResource(R.string.content_description_send),
                                     tint = Color.White,
                                     modifier = Modifier.size(20.dp)
                                 )
@@ -293,8 +308,12 @@ fun ChatDetailScreen(
                             ) {
                                 Icon(
                                     imageVector = if (showAttachmentMenu) Icons.Default.Close else Icons.Default.Add,
-                                    contentDescription = if (showAttachmentMenu) "Close" else "Attachment",
-                                    tint = if (showAttachmentMenu) PrimaryBlue else TextSecondary
+                                    contentDescription = if (showAttachmentMenu) {
+                                        stringResource(R.string.content_description_close)
+                                    } else {
+                                        stringResource(R.string.content_description_attachment)
+                                    },
+                                    tint = if (showAttachmentMenu) PrimaryBlue else chatSecondaryTextColor()
                                 )
                             }
                         }
@@ -307,7 +326,7 @@ fun ChatDetailScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .background(BackgroundGray)
+                .background(backgroundColor)
         ) {
             // 错误提示
             error?.let { errorMessage ->
@@ -355,17 +374,17 @@ fun ChatDetailScreen(
                     Icon(
                         imageVector = Icons.Default.ChatBubbleOutline,
                         contentDescription = null,
-                        tint = TextSecondary,
+                        tint = chatSecondaryTextColor(),
                         modifier = Modifier.size(64.dp)
                     )
                     Text(
-                        text = "暂无消息",
-                        color = TextSecondary,
+                        text = stringResource(R.string.chat_placeholder_no_messages),
+                        color = chatSecondaryTextColor(),
                         fontSize = 16.sp
                     )
                     Text(
-                        text = "发送第一条消息开始聊天吧！",
-                        color = TextSecondary,
+                        text = stringResource(R.string.chat_detail_empty_subtitle),
+                        color = chatSecondaryTextColor(),
                         fontSize = 14.sp
                     )
                 }
@@ -407,7 +426,8 @@ fun ChatDetailScreen(
 @Composable
 internal fun MessageBubble(
     message: Message,
-    isSelf: Boolean
+    isSelf: Boolean,
+    onAvatarClick: (String) -> Unit = {}
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -415,21 +435,21 @@ internal fun MessageBubble(
     ) {
         if (!isSelf) {
             // 对方头像
+            val avatarModifier = Modifier
+                .size(40.dp)
+                .clip(CircleShape)
+                .clickable { if (message.senderId.isNotBlank()) onAvatarClick(message.senderId) }
+
             if (message.senderAvatarUrl.isNotBlank()) {
                 AsyncImage(
                     model = message.senderAvatarUrl,
-                    contentDescription = "${message.senderName} avatar",
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(CircleShape),
+                    contentDescription = stringResource(R.string.content_description_avatar, message.senderName),
+                    modifier = avatarModifier,
                     contentScale = ContentScale.Crop
                 )
             } else {
                 Box(
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(CircleShape)
-                        .background(PrimaryBlue),
+                    modifier = avatarModifier.background(PrimaryBlue),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
@@ -455,14 +475,14 @@ internal fun MessageBubble(
                     bottomStart = 12.dp,
                     bottomEnd = 12.dp
                 ),
-                color = if (isSelf) PrimaryBlue else Color.White,
+                color = if (isSelf) PrimaryBlue else chatSurfaceColor(),
                 shadowElevation = if (isSelf) 0.dp else 1.dp
             ) {
                 when (message.type) {
                     MessageType.TEXT -> {
                         Text(
                             text = message.content,
-                            color = if (isSelf) Color.White else TextPrimary,
+                            color = if (isSelf) Color.White else chatPrimaryTextColor(),
                             fontSize = 15.sp,
                             modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
                         )
@@ -470,16 +490,16 @@ internal fun MessageBubble(
                     MessageType.IMAGE -> {
                         // TODO: 显示图片消息
                         Text(
-                            text = "[图片]",
-                            color = if (isSelf) Color.White else TextPrimary,
+                            text = stringResource(R.string.chat_media_image_label),
+                            color = if (isSelf) Color.White else chatPrimaryTextColor(),
                             fontSize = 15.sp,
                             modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
                         )
                     }
                     else -> {
                         Text(
-                            text = "[${message.type.name}]",
-                            color = if (isSelf) Color.White else TextPrimary,
+                            text = stringResource(R.string.chat_media_unknown_label, message.type.name),
+                            color = if (isSelf) Color.White else chatPrimaryTextColor(),
                             fontSize = 15.sp,
                             modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
                         )
@@ -492,7 +512,7 @@ internal fun MessageBubble(
             // 时间戳
             Text(
                 text = formatMessageTime(message.timestamp),
-                color = TextSecondary,
+                color = chatSecondaryTextColor(),
                 fontSize = 11.sp
             )
         }
@@ -503,7 +523,7 @@ internal fun MessageBubble(
             if (message.senderAvatarUrl.isNotBlank()) {
                 AsyncImage(
                     model = message.senderAvatarUrl,
-                    contentDescription = "My avatar",
+                    contentDescription = stringResource(R.string.content_description_my_avatar),
                     modifier = Modifier
                         .size(40.dp)
                         .clip(CircleShape),
@@ -541,7 +561,7 @@ private fun AttachmentMenu(
     onVoiceClick: () -> Unit
 ) {
     Surface(
-        color = InputBarGray
+        color = chatInputBackground()
     ) {
         Row(
             modifier = Modifier
@@ -551,7 +571,7 @@ private fun AttachmentMenu(
         ) {
             AttachmentMenuItem(
                 icon = Icons.Default.Image,
-                label = "Photo",
+                label = stringResource(R.string.attachment_option_photo),
                 onClick = {
                     onImageClick()
                     onDismiss()
@@ -559,7 +579,7 @@ private fun AttachmentMenu(
             )
             AttachmentMenuItem(
                 icon = Icons.Default.CameraAlt,
-                label = "Camera",
+                label = stringResource(R.string.attachment_option_camera),
                 onClick = {
                     onCameraClick()
                     onDismiss()
@@ -567,7 +587,7 @@ private fun AttachmentMenu(
             )
             AttachmentMenuItem(
                 icon = Icons.AutoMirrored.Filled.InsertDriveFile,
-                label = "File",
+                label = stringResource(R.string.attachment_option_file),
                 onClick = {
                     onFileClick()
                     onDismiss()
@@ -575,7 +595,7 @@ private fun AttachmentMenu(
             )
             AttachmentMenuItem(
                 icon = Icons.Default.Mic,
-                label = "Voice",
+                label = stringResource(R.string.attachment_option_voice),
                 onClick = {
                     onVoiceClick()
                     onDismiss()
@@ -614,7 +634,7 @@ private fun AttachmentMenuItem(
                 Icon(
                     imageVector = icon,
                     contentDescription = label,
-                    tint = TextPrimary,
+                    tint = chatPrimaryTextColor(),
                     modifier = Modifier.size(24.dp)
                 )
             }
@@ -622,7 +642,7 @@ private fun AttachmentMenuItem(
         Spacer(modifier = Modifier.height(4.dp))
         Text(
             text = label,
-            color = TextPrimary,
+            color = chatPrimaryTextColor(),
             fontSize = 12.sp
         )
     }
@@ -636,4 +656,3 @@ private fun formatMessageTime(timestamp: Long): String {
     val sdf = SimpleDateFormat("HH:mm", Locale.getDefault())
     return sdf.format(Date(timestamp))
 }
-

@@ -56,6 +56,14 @@ class ChatDetailViewModel @Inject constructor(
     private val _currentUserId = MutableStateFlow(auth.currentUser?.uid ?: "")
     val currentUserId: StateFlow<String> = _currentUserId.asStateFlow()
 
+    private val _otherUserId = MutableStateFlow("")
+    val otherUserId: StateFlow<String> = _otherUserId.asStateFlow()
+
+    private val _conversationType = MutableStateFlow(com.example.cs501_micro_chat.data.model.ConversationType.PRIVATE)
+    val conversationType: StateFlow<com.example.cs501_micro_chat.data.model.ConversationType> = _conversationType.asStateFlow()
+
+    private val _conversationId = MutableStateFlow("")
+    val conversationId: StateFlow<String> = _conversationId.asStateFlow()
     private val _mediaUploadState = MutableStateFlow(MediaUploadState())
     val mediaUploadState: StateFlow<MediaUploadState> = _mediaUploadState.asStateFlow()
 
@@ -75,10 +83,12 @@ class ChatDetailViewModel @Inject constructor(
         }
 
         currentConversationId = conversationId
+        _conversationId.value = conversationId
         _isLoading.value = true
         _error.value = null
 
         viewModelScope.launch {
+            loadConversationMeta(conversationId)
             try {
                 // 实时监听消息变化
                 chatRepository.observeMessages(conversationId).collect { messageList ->
@@ -99,6 +109,23 @@ class ChatDetailViewModel @Inject constructor(
                 _error.value = "加载消息失败: ${e.message}"
                 _isLoading.value = false
             }
+        }
+    }
+
+    private suspend fun loadConversationMeta(conversationId: String) {
+        chatRepository.getConversation(conversationId).onSuccess { conversation ->
+            val convo = conversation ?: return@onSuccess
+            _conversationId.value = convo.id
+            _conversationType.value = convo.type
+            if (convo.type == com.example.cs501_micro_chat.data.model.ConversationType.PRIVATE) {
+                val currentId = _currentUserId.value
+                val other = convo.participants.firstOrNull { it != currentId }.orEmpty()
+                _otherUserId.value = other
+            } else {
+                _otherUserId.value = ""
+            }
+        }.onFailure { error ->
+            Log.e("ChatDetailViewModel", "Failed to load conversation meta", error)
         }
     }
 

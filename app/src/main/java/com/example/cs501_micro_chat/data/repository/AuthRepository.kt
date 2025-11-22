@@ -2,6 +2,7 @@ package com.example.cs501_micro_chat.data.repository
 
 import android.util.Log
 import com.google.firebase.auth.AuthResult
+import com.google.firebase.auth.EmailAuthProvider
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.GoogleAuthProvider
 import com.google.firebase.auth.ktx.auth
@@ -16,6 +17,7 @@ interface AuthRepository {
     suspend fun createUser(email: String, password: String)
     suspend fun signInWithEmail(email: String, password: String)
     suspend fun signInWithGoogle(idToken: String)
+    suspend fun changePassword(currentPassword: String, newPassword: String)
 }
 
 class FirebaseAuthRepository(
@@ -53,6 +55,17 @@ class FirebaseAuthRepository(
         val credential = GoogleAuthProvider.getCredential(idToken, null)
         val authResult = auth.signInWithCredential(credential).await()
         persistUser(authResult)
+    }
+
+    override suspend fun changePassword(currentPassword: String, newPassword: String) {
+        val user = auth.currentUser
+            ?: throw IllegalStateException("User is not logged in.")
+        val email = user.email
+            ?: throw IllegalStateException("User email is unavailable. Please reauthenticate and try again.")
+
+        val credential = EmailAuthProvider.getCredential(email, currentPassword)
+        user.reauthenticate(credential).await()
+        user.updatePassword(newPassword).await()
     }
 
     private suspend fun persistUser(

@@ -48,10 +48,43 @@ class HomeViewModel @Inject constructor(
     private val _userCache = MutableStateFlow<Map<String, com.example.cs501_micro_chat.data.model.User>>(emptyMap())
     val userCache: StateFlow<Map<String, com.example.cs501_micro_chat.data.model.User>> = _userCache.asStateFlow()
 
+    // 搜索相关状态
+    private val _searchQuery = MutableStateFlow("")
+    val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
+
+    private val _searchResults = MutableStateFlow<List<Conversation>>(emptyList())
+    val searchResults: StateFlow<List<Conversation>> = _searchResults.asStateFlow()
+
+    private val _isSearching = MutableStateFlow(false)
+    val isSearching: StateFlow<Boolean> = _isSearching.asStateFlow()
+
+    // 添加好友搜索相关状态
+    private val _addFriendSearchQuery = MutableStateFlow("")
+    val addFriendSearchQuery: StateFlow<String> = _addFriendSearchQuery.asStateFlow()
+
+    private val _addFriendSearchResults = MutableStateFlow<List<com.example.cs501_micro_chat.data.model.User>>(emptyList())
+    val addFriendSearchResults: StateFlow<List<com.example.cs501_micro_chat.data.model.User>> = _addFriendSearchResults.asStateFlow()
+
+    private val _isAddFriendSearching = MutableStateFlow(false)
+    val isAddFriendSearching: StateFlow<Boolean> = _isAddFriendSearching.asStateFlow()
+
+    // 已有联系人的 ID 集合（用于判断用户是否已添加）
+    private val _existingContactIds = MutableStateFlow<Set<String>>(emptySet())
+    val existingContactIds: StateFlow<Set<String>> = _existingContactIds.asStateFlow()
+
+    // 所有联系人的完整信息（用于判断详细状态）
+    private val _allContacts = MutableStateFlow<List<com.example.cs501_micro_chat.data.model.Contact>>(emptyList())
+    val allContacts: StateFlow<List<com.example.cs501_micro_chat.data.model.Contact>> = _allContacts.asStateFlow()
+
+    // 待确认的好友请求列表（isNew = true 的联系人）
+    private val _pendingFriendRequests = MutableStateFlow<List<com.example.cs501_micro_chat.data.model.Contact>>(emptyList())
+    val pendingFriendRequests: StateFlow<List<com.example.cs501_micro_chat.data.model.Contact>> = _pendingFriendRequests.asStateFlow()
+
     private val TAG = "HomeViewModel"
 
     init {
         loadConversations()
+        loadExistingContacts()
     }
 
     /**
@@ -241,5 +274,312 @@ class HomeViewModel @Inject constructor(
     fun clearError() {
         _error.value = null
     }
-}
 
+    /**
+     * 更新搜索关键词
+     */
+    fun updateSearchQuery(query: String) {
+        _searchQuery.value = query
+        if (query.isBlank()) {
+            _searchResults.value = emptyList()
+            _isSearching.value = false
+        } else {
+            searchConversations(query)
+        }
+    }
+
+    /**
+     * 搜索对话
+     * 在当前用户的所有对话中搜索，支持搜索对话名称和最后一条消息
+     */
+    private fun searchConversations(query: String) {
+        _isSearching.value = true
+
+        val normalizedQuery = query.lowercase().trim()
+
+        // 在所有对话中搜索
+        val results = _conversations.value.filter { conversation ->
+            // 获取显示名称
+            val displayName = getDisplayName(conversation)
+
+            // 搜索条件：对话名称 或 最后一条消息内容
+            displayName.lowercase().contains(normalizedQuery) ||
+            conversation.lastMessage.lowercase().contains(normalizedQuery)
+        }
+
+        // 按相关性排序：完全匹配 > 开头匹配 > 包含匹配
+        val sortedResults = results.sortedWith(compareBy(
+            { conversation ->
+                val displayName = getDisplayName(conversation).lowercase()
+                when {
+                    displayName == normalizedQuery -> 0
+                    displayName.startsWith(normalizedQuery) -> 1
+                    else -> 2
+                }
+            },
+            // 二级排序：按时间倒序
+            { -it.lastMessageTime }
+        ))
+
+        _searchResults.value = sortedResults
+        _isSearching.value = false
+
+        Log.d(TAG, "Search for '$query' found ${sortedResults.size} results")
+    }
+
+    /**
+     * 清空搜索
+     */
+    fun clearSearch() {
+        _searchQuery.value = ""
+        _searchResults.value = emptyList()
+        _isSearching.value = false
+    }
+
+    /**
+     * 搜索全局用户（用于添加好友）
+     */
+    fun searchUsersForAddFriend(query: String) {
+        _addFriendSearchQuery.value = query
+
+        if (query.isBlank()) {
+            _addFriendSearchResults.value = emptyList()
+            _isAddFriendSearching.value = false
+            return
+        }
+
+        viewModelScope.launch {
+            _isAddFriendSearching.value = true
+            try {
+                val result = chatRepository.searchUsers(query)
+                result.onSuccess { users ->
+                    // 过滤掉当前用户自己
+                    val currentUserId = auth.currentUser?.uid
+                    val filteredUsers = users.filter { it.id != currentUserId }
+
+                    _addFriendSearchResults.value = filteredUsers
+                    Log.d(TAG, "Global user search for '$query' found ${filteredUsers.size} results")
+                }.onFailure { error ->
+                    Log.e(TAG, "Failed to search users", error)
+                    _error.value = "搜索失败: ${error.message}"
+                    _addFriendSearchResults.value = emptyList()
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error searching users", e)
+                _error.value = "搜索失败: ${e.message}"
+                _addFriendSearchResults.value = emptyList()
+            } finally {
+                _isAddFriendSearching.value = false
+            }
+        }
+    }
+
+    /**
+     * 加载已有联系人列表（用于判断用户是否已添加）
+     * 同时加载待确认的好友请求和已发送的好友请求
+     */
+    private fun loadExistingContacts() {
+        val userId = auth.currentUser?.uid
+        if (userId == null) {
+            Log.e(TAG, "User not logged in, cannot load contacts")
+            return
+        }
+
+        viewModelScope.launch {
+            try {
+                // 监听联系人列表变化
+                val flow = chatRepository.observeContacts()
+                if (flow == null) {
+                    Log.e(TAG, "Cannot observe contacts")
+                    return@launch
+                }
+
+                flow.collect { contacts ->
+                    // 存储所有联系人信息
+                    _allContacts.value = contacts
+
+                    Log.d(TAG, "📱 Contacts updated from Firebase:")
+                    contacts.forEach { contact ->
+                        Log.d(TAG, "  - ${contact.contactId} (${contact.contactName}): isNew=${contact.isNew}, isPending=${contact.isPending}, conversationId=${contact.conversationId}")
+                    }
+
+                    // 提取所有联系人的 ID（包括 PRIVATE 和 GROUP）
+                    // 包括：已确认的好友、待确认的请求、已发送的请求
+                    val contactIds = contacts.map { it.contactId }.toSet()
+                    _existingContactIds.value = contactIds
+                    Log.d(TAG, "Loaded ${contactIds.size} existing contact IDs: $contactIds")
+
+                    // 提取待确认的好友请求（别人发给我的，isNew = true）
+                    val pendingRequests = contacts.filter { it.isNew && it.type == "PRIVATE" }
+                    _pendingFriendRequests.value = pendingRequests
+                    Log.d(TAG, "Loaded ${pendingRequests.size} pending friend requests")
+
+                    // 统计已发送的请求数量（我发给别人的，isPending = true）
+                    val sentRequests = contacts.filter { it.isPending && it.type == "PRIVATE" }
+                    Log.d(TAG, "Loaded ${sentRequests.size} sent friend requests")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error loading existing contacts", e)
+            }
+        }
+    }
+
+    /**
+     * 检查用户是否已经是联系人
+     */
+    fun isUserAlreadyAdded(userId: String): Boolean {
+        return _existingContactIds.value.contains(userId)
+    }
+
+    /**
+     * 获取用户的联系人状态
+     * @return "added" - 已添加为好友, "pending" - 已发送请求等待接受, "new" - 收到对方请求, null - 不是联系人
+     */
+    fun getContactStatus(userId: String): String? {
+        val contact = _allContacts.value.find { it.contactId == userId }
+
+        val status = when {
+            contact == null -> null
+            contact.isPending -> "pending" // 已发送请求，等待对方接受
+            contact.isNew -> "new" // 收到对方的请求
+            else -> "added" // 已经是好友
+        }
+
+        Log.d(TAG, "==================== getContactStatus DEBUG ====================")
+        Log.d(TAG, "🔍 Checking status for userId: $userId")
+        Log.d(TAG, "📊 Total contacts in _allContacts: ${_allContacts.value.size}")
+        if (_allContacts.value.isNotEmpty()) {
+            Log.d(TAG, "📋 All contacts:")
+            _allContacts.value.forEach { c ->
+                Log.d(TAG, "  - ${c.contactId} (${c.contactName}): isNew=${c.isNew}, isPending=${c.isPending}, conversationId='${c.conversationId}'")
+            }
+        } else {
+            Log.d(TAG, "⚠️ _allContacts is EMPTY!")
+        }
+
+        if (contact != null) {
+            Log.d(TAG, "✅ Found contact for $userId:")
+            Log.d(TAG, "  - contactId: ${contact.contactId}")
+            Log.d(TAG, "  - contactName: ${contact.contactName}")
+            Log.d(TAG, "  - isNew: ${contact.isNew}")
+            Log.d(TAG, "  - isPending: ${contact.isPending}")
+            Log.d(TAG, "  - conversationId: '${contact.conversationId}'")
+            Log.d(TAG, "  - type: ${contact.type}")
+        } else {
+            Log.d(TAG, "❌ No contact found for $userId")
+        }
+
+        Log.d(TAG, "📍 Final status for $userId: $status")
+        Log.d(TAG, "===============================================================")
+
+        return status
+    }
+
+    /**
+     * 清空添加好友搜索
+     */
+    fun clearAddFriendSearch() {
+        _addFriendSearchQuery.value = ""
+        _addFriendSearchResults.value = emptyList()
+        _isAddFriendSearching.value = false
+    }
+
+    /**
+     * 手动刷新联系人列表（用于调试或确保数据最新）
+     */
+    fun refreshContacts() {
+        Log.d(TAG, "🔄 Manually refreshing contacts from Firebase...")
+        viewModelScope.launch {
+            try {
+                val userId = auth.currentUser?.uid
+                if (userId == null) {
+                    Log.e(TAG, "Cannot refresh: User not logged in")
+                    return@launch
+                }
+
+                // 直接从 Firebase 获取最新的联系人列表
+                val result = chatRepository.getContacts()
+                result.onSuccess { contacts ->
+                    Log.d(TAG, "✅ Refreshed contacts: ${contacts.size} total")
+                    _allContacts.value = contacts
+                    _existingContactIds.value = contacts.map { it.contactId }.toSet()
+
+                    contacts.forEach { contact ->
+                        Log.d(TAG, "  - ${contact.contactId}: isNew=${contact.isNew}, isPending=${contact.isPending}")
+                    }
+                }.onFailure { error ->
+                    Log.e(TAG, "❌ Failed to refresh contacts: ${error.message}", error)
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "❌ Exception during refresh: ${e.message}", e)
+            }
+        }
+    }
+
+    /**
+     * 发送好友请求
+     */
+    fun sendFriendRequest(targetUserId: String) {
+        viewModelScope.launch {
+            try {
+                Log.d(TAG, "Sending friend request to user: $targetUserId")
+                val result = chatRepository.sendFriendRequest(targetUserId)
+                result.onSuccess {
+                    Log.d(TAG, "Friend request sent successfully")
+                    // 清空搜索结果
+                    clearAddFriendSearch()
+                }.onFailure { error ->
+                    Log.e(TAG, "Failed to send friend request", error)
+                    _error.value = "发送好友请求失败: ${error.message}"
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error sending friend request", e)
+                _error.value = "发送好友请求失败: ${e.message}"
+            }
+        }
+    }
+
+    /**
+     * 接受好友请求
+     */
+    fun acceptFriendRequest(requesterId: String) {
+        viewModelScope.launch {
+            try {
+                Log.d(TAG, "Accepting friend request from user: $requesterId")
+                val result = chatRepository.acceptFriendRequest(requesterId)
+                result.onSuccess {
+                    Log.d(TAG, "Friend request accepted successfully")
+                    // 重新加载对话列表
+                    loadConversations()
+                }.onFailure { error ->
+                    Log.e(TAG, "Failed to accept friend request", error)
+                    _error.value = "接受好友请求失败: ${error.message}"
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error accepting friend request", e)
+                _error.value = "接受好友请求失败: ${e.message}"
+            }
+        }
+    }
+
+    /**
+     * 拒绝好友请求
+     */
+    fun rejectFriendRequest(requesterId: String) {
+        viewModelScope.launch {
+            try {
+                Log.d(TAG, "Rejecting friend request from user: $requesterId")
+                val result = chatRepository.rejectFriendRequest(requesterId)
+                result.onSuccess {
+                    Log.d(TAG, "Friend request rejected successfully")
+                }.onFailure { error ->
+                    Log.e(TAG, "Failed to reject friend request", error)
+                    _error.value = "拒绝好友请求失败: ${error.message}"
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error rejecting friend request", e)
+                _error.value = "拒绝好友请求失败: ${e.message}"
+            }
+        }
+    }
+}

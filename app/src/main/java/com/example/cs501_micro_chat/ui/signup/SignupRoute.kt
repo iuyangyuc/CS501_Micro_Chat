@@ -10,10 +10,9 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.cs501_micro_chat.R
-import com.example.cs501_micro_chat.ui.auth.LanguageOption
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInClient
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
@@ -21,10 +20,9 @@ import com.google.android.gms.common.api.ApiException
 
 @Composable
 fun SignupRoute(
-    initialLanguage: LanguageOption,
     onNavigateToLogin: () -> Unit,
     onSignupSuccess: () -> Unit,
-    viewModel: SignupViewModel = viewModel()
+    viewModel: SignupViewModel = hiltViewModel()
 ) {
     val tag = SIGNUP_ROUTE_TAG
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -64,10 +62,6 @@ fun SignupRoute(
                 }
             }
         }
-    }
-
-    LaunchedEffect(initialLanguage) {
-        viewModel.initializeLanguage(initialLanguage)
     }
 
     LaunchedEffect(Unit) {

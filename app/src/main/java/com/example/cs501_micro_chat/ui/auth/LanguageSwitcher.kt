@@ -28,8 +28,7 @@ fun LanguageSwitcher(
 ) {
     var expanded by remember { mutableStateOf(false) }
     val context = LocalContext.current
-    val labelContext = remember(selectedLanguage, context) { context.localized(selectedLanguage) }
-    val selectedLabel = labelContext.getString(selectedLanguage.labelRes)
+    val selectedLabel = selectedLanguage.displayName
 
     Box(modifier = modifier) {
         Text(
@@ -46,7 +45,7 @@ fun LanguageSwitcher(
             onDismissRequest = { expanded = false }
         ) {
             LanguageOption.values().forEach { option ->
-                val optionLabel = context.localized(option).getString(option.labelRes)
+                val optionLabel = option.displayName
                 DropdownMenuItem(
                     text = {
                         Text(
