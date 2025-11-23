@@ -106,6 +106,7 @@
     <string name="attachment_option_camera">Camera</string>
     <string name="attachment_option_file">File</string>
     <string name="attachment_option_voice">Voice</string>
+    <string name="action_sheet_file">File</string>
     <string name="action_sheet_photos">Photos</string>
     <string name="action_sheet_video">Video</string>
     <string name="action_sheet_voice">Voice</string>
