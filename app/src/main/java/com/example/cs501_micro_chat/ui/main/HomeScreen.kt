@@ -1046,8 +1046,8 @@ fun ChatDetailContent(
                     modifier = Modifier.size(40.dp)
                 ) {
                     Icon(
-                        imageVector = Icons.Default.Mic,
-                        contentDescription = stringResource(R.string.content_description_voice),
+                        imageVector = Icons.Default.Add,
+                        contentDescription = stringResource(R.string.content_description_attachment),
                         tint = secondaryTextColor()
                     )
                 }
@@ -1083,7 +1083,8 @@ fun ChatDetailContent(
 
                 Spacer(modifier = Modifier.width(4.dp))
 
-                if (inputText.trim().isNotEmpty()) {
+                val hasMessage = inputText.trim().isNotEmpty()
+                if (hasMessage) {
                     IconButton(
                         onClick = {
                             if (inputText.isNotBlank()) {
@@ -1105,12 +1106,13 @@ fun ChatDetailContent(
                     }
                 } else {
                     IconButton(
-                        onClick = { /* TODO */ },
+                        onClick = {},
+                        enabled = false,
                         modifier = Modifier.size(40.dp)
                     ) {
                         Icon(
-                            imageVector = Icons.Default.Add,
-                            contentDescription = stringResource(R.string.content_description_attachment),
+                            imageVector = Icons.AutoMirrored.Filled.Send,
+                            contentDescription = stringResource(R.string.content_description_send),
                             tint = secondaryTextColor()
                         )
                     }
