@@ -39,10 +39,12 @@ class FirebaseProfileRepository @Inject constructor(
             .document(userId)
             .get()
             .await()
-        val displayName = snapshot.getString("username") ?: auth.currentUser?.displayName.orEmpty()
+        val email = snapshot.getString("email") ?: auth.currentUser?.email.orEmpty()
+        val emailPrefix = email.substringBefore("@")
+        val displayName = (snapshot.getString("username") ?: auth.currentUser?.displayName.orEmpty())
+            .ifBlank { emailPrefix }
         val bio = snapshot.getString("statusMessage") ?: ""
         val avatarUrl = snapshot.getString("avatarUrl") ?: auth.currentUser?.photoUrl?.toString().orEmpty()
-        val email = snapshot.getString("email") ?: auth.currentUser?.email.orEmpty()
         UserProfile(
             displayName = displayName,
             bio = bio,
