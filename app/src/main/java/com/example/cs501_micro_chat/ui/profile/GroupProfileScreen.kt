@@ -25,7 +25,6 @@ import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Group
-import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.StarOutline
 import androidx.compose.material.icons.outlined.Clear
@@ -37,14 +36,19 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Snackbar
+import androidx.compose.material3.SnackbarData
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.Switch
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -53,6 +57,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -78,6 +83,8 @@ fun GroupProfileScreen(
 
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
+    val context = LocalContext.current
+    var snackbarStyle by remember { mutableStateOf(GroupSnackbarStyle.INFO) }
 
     LaunchedEffect(Unit) {
         viewModel.events.collect { event ->
@@ -85,7 +92,20 @@ fun GroupProfileScreen(
                 is GroupProfileEvent.OpenChat -> onStartChat(event.conversationId, event.name, event.avatarUrl)
                 GroupProfileEvent.LeftGroup -> onLeftGroup()
                 is GroupProfileEvent.SearchHistory -> onOpenSearch(event.conversationId)
-                is GroupProfileEvent.ShowMessage -> snackbarHostState.showSnackbar(event.message)
+                is GroupProfileEvent.ShowMessage -> {
+                    snackbarStyle = GroupSnackbarStyle.ERROR
+                    snackbarHostState.showSnackbar(event.message)
+                }
+                is GroupProfileEvent.PinStatusChanged -> {
+                    snackbarStyle = GroupSnackbarStyle.SUCCESS
+                    snackbarHostState.showSnackbar(
+                        if (event.isPinned) {
+                            context.getString(R.string.group_profile_pin_enabled)
+                        } else {
+                            context.getString(R.string.group_profile_pin_disabled)
+                        }
+                    )
+                }
                 is GroupProfileEvent.Renamed -> onRefreshContacts()
             }
         }
@@ -93,7 +113,11 @@ fun GroupProfileScreen(
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
-        snackbarHost = { SnackbarHost(snackbarHostState) }
+        snackbarHost = {
+            SnackbarHost(snackbarHostState) { data ->
+                GroupColoredSnackbar(data = data, style = snackbarStyle)
+            }
+        }
     ) { paddingValues ->
         Box(
             modifier = Modifier
@@ -215,6 +239,19 @@ private fun GroupProfileContent(
             }
         }
 
+        PinSettingRow(
+            title = stringResource(R.string.group_profile_pin_title),
+            description = when {
+                !state.canPin -> stringResource(R.string.group_profile_pin_unavailable)
+                state.isPinned -> stringResource(R.string.group_profile_pin_on_description)
+                else -> stringResource(R.string.group_profile_pin_off_description)
+            },
+            isPinned = state.isPinned,
+            enabled = state.canPin,
+            isLoading = state.isPinUpdating,
+            onToggle = onTogglePinned
+        )
+
         Surface(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(16.dp),
@@ -235,11 +272,6 @@ private fun GroupProfileContent(
                     icon = Icons.Filled.Search,
                     label = stringResource(R.string.user_profile_search_history),
                     onClick = onSearchHistory
-                )
-                ActionButton(
-                    icon = Icons.Filled.PushPin,
-                    label = if (state.isPinned) stringResource(R.string.group_profile_unpin_chat) else stringResource(R.string.group_profile_pin_chat),
-                    onClick = onTogglePinned
                 )
                 ActionButton(
                     icon = Icons.Outlined.Clear,
@@ -325,6 +357,83 @@ private fun FlowMembers(
             }
         }
     }
+}
+
+@Composable
+private fun PinSettingRow(
+    title: String,
+    description: String,
+    isPinned: Boolean,
+    enabled: Boolean,
+    isLoading: Boolean,
+    onToggle: () -> Unit
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        tonalElevation = 1.dp
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = title,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = description,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 13.sp
+                )
+            }
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Switch(
+                    checked = isPinned,
+                    enabled = enabled && !isLoading,
+                    onCheckedChange = {
+                        if (enabled && !isLoading) {
+                            onToggle()
+                        }
+                    }
+                )
+                if (isLoading) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        strokeWidth = 2.dp
+                    )
+                }
+            }
+        }
+    }
+}
+
+private enum class GroupSnackbarStyle { INFO, SUCCESS, ERROR }
+
+@Composable
+private fun GroupColoredSnackbar(
+    data: SnackbarData,
+    style: GroupSnackbarStyle
+) {
+    val (containerColor, contentColor) = when (style) {
+        GroupSnackbarStyle.SUCCESS -> Color(0xFFD1FAE5) to Color(0xFF065F46)
+        GroupSnackbarStyle.ERROR -> Color(0xFFFEE2E2) to Color(0xFF991B1B)
+        GroupSnackbarStyle.INFO -> MaterialTheme.colorScheme.surfaceVariant to MaterialTheme.colorScheme.onSurfaceVariant
+    }
+    Snackbar(
+        snackbarData = data,
+        containerColor = containerColor,
+        contentColor = contentColor
+    )
 }
 
 @Composable

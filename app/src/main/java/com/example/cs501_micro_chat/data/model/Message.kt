@@ -31,7 +31,8 @@ data class Message(
     val mediaUrl: String = "",
     val timestamp: Long = System.currentTimeMillis(),
     val readBy: List<String> = emptyList(),
-    val isDeleted: Boolean = false
+    val isDeleted: Boolean = false,
+    val status: MessageStatus = MessageStatus.SENT
 ) {
     // 转换为 Firebase Map 格式
     fun toMap(): Map<String, Any> = mapOf(
@@ -45,7 +46,8 @@ data class Message(
         "mediaUrl" to mediaUrl,
         "timestamp" to timestamp,
         "readBy" to readBy,
-        "isDeleted" to isDeleted
+        "isDeleted" to isDeleted,
+        "status" to status.name
     )
 }
 
@@ -56,4 +58,9 @@ enum class MessageType {
     VIDEO,     // 视频消息
     FILE,      // 文件消息
     SYSTEM     // 系统消息（如：xxx 加入群聊）
+}
+
+enum class MessageStatus {
+    SENT,
+    FAILED
 }

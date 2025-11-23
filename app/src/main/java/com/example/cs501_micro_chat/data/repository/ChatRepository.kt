@@ -90,6 +90,8 @@ class ChatRepository @Inject constructor(
     ): Result<Message> {
         val userId = currentUserId ?: return Result.failure(Exception("User not logged in"))
 
+        val isBlocked = firebaseDataSource.isConversationParticipantBlocked(conversationId, userId).getOrElse { false }
+
         // 获取当前用户信息
         val userResult = firebaseDataSource.getUser(userId)
         val user = userResult.getOrNull() ?: return Result.failure(Exception("Failed to get user info"))
@@ -103,7 +105,8 @@ class ChatRepository @Inject constructor(
             type = type,
             mediaUrl = mediaUrl,
             timestamp = System.currentTimeMillis(),
-            readBy = listOf(userId) // 发送者默认已读
+            readBy = listOf(userId),
+            status = if (isBlocked) MessageStatus.FAILED else MessageStatus.SENT
         )
 
         return firebaseDataSource.sendMessage(message)
@@ -390,6 +393,14 @@ class ChatRepository @Inject constructor(
     }
 
     /**
+     * 获取单个联系人
+     */
+    suspend fun getContact(contactId: String): Result<Contact?> {
+        val userId = currentUserId ?: return Result.failure(Exception("User not logged in"))
+        return firebaseDataSource.getContact(userId, contactId)
+    }
+
+    /**
      * 监听联系人列表
      */
     fun observeContacts(): Flow<List<Contact>>? {
@@ -402,7 +413,17 @@ class ChatRepository @Inject constructor(
      */
     suspend fun deleteContact(contactId: String): Result<Unit> {
         val userId = currentUserId ?: return Result.failure(Exception("User not logged in"))
-        return firebaseDataSource.deleteContact(userId, contactId)
+        val contact = firebaseDataSource.getContact(userId, contactId).getOrNull()
+        val conversationId = contact?.conversationId
+        val deleteResult = firebaseDataSource.deleteContact(userId, contactId)
+        deleteResult.onSuccess {
+            if (!conversationId.isNullOrBlank()) {
+                firebaseDataSource.setPinnedConversation(userId, conversationId, false)
+                firebaseDataSource.setConversationParticipantBlocked(conversationId, contactId, true)
+                firebaseDataSource.setConversationParticipantBlocked(conversationId, userId, false)
+            }
+        }
+        return deleteResult
     }
 
     /**
@@ -411,6 +432,38 @@ class ChatRepository @Inject constructor(
     suspend fun updateContactAlias(contactId: String, alias: String): Result<Unit> {
         val userId = currentUserId ?: return Result.failure(Exception("User not logged in"))
         return firebaseDataSource.updateContactAlias(userId, contactId, alias)
+    }
+
+    /**
+     * 监听置顶会话
+     */
+    fun observePinnedConversations(): Flow<Set<String>>? {
+        val userId = currentUserId ?: return null
+        return firebaseDataSource.observePinnedConversations(userId)
+    }
+
+    /**
+     * 设置置顶状态
+     */
+    suspend fun setPinnedConversation(conversationId: String, pinned: Boolean): Result<Unit> {
+        val userId = currentUserId ?: return Result.failure(Exception("User not logged in"))
+        return firebaseDataSource.setPinnedConversation(userId, conversationId, pinned)
+    }
+
+    /**
+     * 检查会话是否置顶
+     */
+    suspend fun isConversationPinned(conversationId: String): Result<Boolean> {
+        val userId = currentUserId ?: return Result.failure(Exception("User not logged in"))
+        return firebaseDataSource.isConversationPinned(userId, conversationId)
+    }
+
+    /**
+     * 更新联系人置顶状态（用于同步联系人列表中的星标）
+     */
+    suspend fun updateContactFavorite(contactId: String, isFavorite: Boolean): Result<Unit> {
+        val userId = currentUserId ?: return Result.failure(Exception("User not logged in"))
+        return firebaseDataSource.updateContactFavorite(userId, contactId, isFavorite)
     }
 
     /**
@@ -435,5 +488,5 @@ class ChatRepository @Inject constructor(
     suspend fun getUsers(userIds: List<String>): Result<Map<String, User>> {
         return firebaseDataSource.getUsers(userIds)
     }
-}
 
+}

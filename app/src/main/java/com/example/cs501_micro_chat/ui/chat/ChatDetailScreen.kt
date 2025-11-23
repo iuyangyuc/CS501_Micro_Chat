@@ -51,6 +51,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.example.cs501_micro_chat.R
 import com.example.cs501_micro_chat.data.model.Message
+import com.example.cs501_micro_chat.data.model.MessageStatus
 import com.example.cs501_micro_chat.data.model.MessageType
 import java.text.SimpleDateFormat
 import java.util.*
@@ -101,6 +102,7 @@ fun ChatDetailScreen(
     val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
     val error by viewModel.error.collectAsStateWithLifecycle()
     val currentUserId by viewModel.currentUserId.collectAsStateWithLifecycle()
+    val isBlocked by viewModel.isConversationBlocked.collectAsStateWithLifecycle()
 
     var inputText by remember { mutableStateOf("") }
     var showAttachmentMenu by remember { mutableStateOf(false) }
@@ -391,31 +393,57 @@ fun ChatDetailScreen(
             }
             // 消息列表
             else {
-                LazyColumn(
-                    state = listState,
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                Column(
+                    modifier = Modifier.fillMaxSize()
                 ) {
-                    items(
-                        items = messages,
-                        key = { message ->
-                            // 使用消息ID，如果为空则使用时间戳+发送者ID组合
-                            if (message.id.isNotBlank()) {
-                                message.id
-                            } else {
-                                "${message.timestamp}_${message.senderId}_${message.content.hashCode()}"
+                    if (isBlocked) {
+                        RemovalBanner()
+                    }
+                    LazyColumn(
+                        state = listState,
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth(),
+                        contentPadding = PaddingValues(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(
+                            items = messages,
+                            key = { message ->
+                                if (message.id.isNotBlank()) {
+                                    message.id
+                                } else {
+                                    "${message.timestamp}_${message.senderId}_${message.content.hashCode()}"
+                                }
                             }
+                        ) { message ->
+                            MessageBubble(
+                                message = message,
+                                isSelf = message.senderId == currentUserId
+                            )
                         }
-                    ) { message ->
-                        MessageBubble(
-                            message = message,
-                            isSelf = message.senderId == currentUserId
-                        )
                     }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun RemovalBanner() {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        color = Color(0xFFFFE4E6),
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Text(
+            text = stringResource(R.string.chat_removed_notice),
+            color = Color(0xFFB91C1C),
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+            fontSize = 14.sp
+        )
     }
 }
 
@@ -507,9 +535,33 @@ internal fun MessageBubble(
                 }
             }
 
+            if (isSelf && message.status == MessageStatus.FAILED) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.ErrorOutline,
+                        contentDescription = null,
+                        tint = Color(0xFFDC2626),
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Text(
+                        text = stringResource(R.string.chat_message_failed),
+                        color = Color(0xFFDC2626),
+                        fontSize = 12.sp
+                    )
+                }
+                Text(
+                    text = stringResource(R.string.chat_message_failed_removed),
+                    color = Color(0xFFDC2626),
+                    fontSize = 11.sp
+                )
+            }
+
             Spacer(modifier = Modifier.height(2.dp))
 
-            // 时间戳
             Text(
                 text = formatMessageTime(message.timestamp),
                 color = chatSecondaryTextColor(),

@@ -17,6 +17,7 @@ package com.example.cs501_micro_chat.ui.main
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.cs501_micro_chat.data.model.Contact
 import com.example.cs501_micro_chat.data.model.Conversation
 import com.example.cs501_micro_chat.data.repository.ChatRepository
 import com.google.firebase.auth.FirebaseAuth
@@ -73,18 +74,23 @@ class HomeViewModel @Inject constructor(
     val existingContactIds: StateFlow<Set<String>> = _existingContactIds.asStateFlow()
 
     // 所有联系人的完整信息（用于判断详细状态）
-    private val _allContacts = MutableStateFlow<List<com.example.cs501_micro_chat.data.model.Contact>>(emptyList())
-    val allContacts: StateFlow<List<com.example.cs501_micro_chat.data.model.Contact>> = _allContacts.asStateFlow()
+    private val _allContacts = MutableStateFlow<List<Contact>>(emptyList())
+    val allContacts: StateFlow<List<Contact>> = _allContacts.asStateFlow()
 
     // 待确认的好友请求列表（isNew = true 的联系人）
-    private val _pendingFriendRequests = MutableStateFlow<List<com.example.cs501_micro_chat.data.model.Contact>>(emptyList())
-    val pendingFriendRequests: StateFlow<List<com.example.cs501_micro_chat.data.model.Contact>> = _pendingFriendRequests.asStateFlow()
+    private val _pendingFriendRequests = MutableStateFlow<List<Contact>>(emptyList())
+    val pendingFriendRequests: StateFlow<List<Contact>> = _pendingFriendRequests.asStateFlow()
+
+    // 置顶会话 ID 集合
+    private val _pinnedConversationIds = MutableStateFlow<Set<String>>(emptySet())
+    val pinnedConversationIds: StateFlow<Set<String>> = _pinnedConversationIds.asStateFlow()
 
     private val TAG = "HomeViewModel"
 
     init {
         loadConversations()
         loadExistingContacts()
+        observePinnedConversations()
     }
 
     /**
@@ -115,8 +121,7 @@ class HomeViewModel @Inject constructor(
 
                 flow.collect { conversations ->
                     Log.d(TAG, "Received ${conversations.size} conversations")
-                    // 数据已经在 FirebaseDataSource 中按时间排序了
-                    _conversations.value = conversations
+                    _conversations.value = applyPinnedSorting(conversations)
                     _isLoading.value = false
 
                     // 加载会话中所有参与者的用户信息
@@ -234,6 +239,12 @@ class HomeViewModel @Inject constructor(
 
         // 对于私聊，从缓存中获取对方用户的真实用户名
         val otherUserId = getOtherUserId(conversation)
+        if (otherUserId != null) {
+            val contactAlias = _allContacts.value.firstOrNull { it.contactId == otherUserId }?.getDisplayName()
+            if (!contactAlias.isNullOrBlank()) {
+                return contactAlias
+            }
+        }
         if (otherUserId != null) {
             val otherUser = _userCache.value[otherUserId]
             if (otherUser != null) {
@@ -516,6 +527,18 @@ class HomeViewModel @Inject constructor(
         }
     }
 
+    private fun observePinnedConversations() {
+        val flow = chatRepository.observePinnedConversations() ?: return
+        viewModelScope.launch {
+            flow.collect { pinned ->
+                _pinnedConversationIds.value = pinned
+                if (_conversations.value.isNotEmpty()) {
+                    _conversations.value = applyPinnedSorting(_conversations.value)
+                }
+            }
+        }
+    }
+
     /**
      * 发送好友请求
      */
@@ -581,5 +604,17 @@ class HomeViewModel @Inject constructor(
                 _error.value = "拒绝好友请求失败: ${e.message}"
             }
         }
+    }
+
+    private fun applyPinnedSorting(conversations: List<Conversation>): List<Conversation> {
+        if (conversations.isEmpty()) return conversations
+        val pinnedConversationIds = _pinnedConversationIds.value
+        if (pinnedConversationIds.isEmpty()) {
+            return conversations.sortedByDescending { it.lastMessageTime }
+        }
+        return conversations.sortedWith(
+            compareByDescending<Conversation> { pinnedConversationIds.contains(it.id) }
+                .thenByDescending { it.lastMessageTime }
+        )
     }
 }

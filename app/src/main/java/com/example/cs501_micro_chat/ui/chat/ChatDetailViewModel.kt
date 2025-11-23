@@ -20,6 +20,7 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.cs501_micro_chat.data.model.Message
+import com.example.cs501_micro_chat.data.model.MessageStatus
 import com.example.cs501_micro_chat.data.model.MessageType
 import com.example.cs501_micro_chat.data.repository.ChatRepository
 import com.google.firebase.auth.FirebaseAuth
@@ -57,6 +58,9 @@ class ChatDetailViewModel @Inject constructor(
     private val _conversationId = MutableStateFlow("")
     val conversationId: StateFlow<String> = _conversationId.asStateFlow()
 
+    private val _isConversationBlocked = MutableStateFlow(false)
+    val isConversationBlocked: StateFlow<Boolean> = _isConversationBlocked.asStateFlow()
+
     // 用户信息缓存：userId -> User
     private val userCache = mutableMapOf<String, com.example.cs501_micro_chat.data.model.User>()
 
@@ -76,6 +80,7 @@ class ChatDetailViewModel @Inject constructor(
         _conversationId.value = conversationId
         _isLoading.value = true
         _error.value = null
+        _isConversationBlocked.value = false
 
         viewModelScope.launch {
             loadConversationMeta(conversationId)
@@ -114,6 +119,8 @@ class ChatDetailViewModel @Inject constructor(
             } else {
                 _otherUserId.value = ""
             }
+            val blocked = convo.blockedParticipants[_currentUserId.value] == true
+            _isConversationBlocked.value = blocked
         }.onFailure { error ->
             Log.e("ChatDetailViewModel", "Failed to load conversation meta", error)
         }
@@ -176,9 +183,10 @@ class ChatDetailViewModel @Inject constructor(
                     conversationId = conversationId,
                     content = content,
                     type = MessageType.TEXT
-                ).onSuccess {
-                    Log.d("ChatDetailViewModel", "Message sent successfully")
-                    // 消息会通过 observeMessages 自动更新到列表
+                ).onSuccess { sent ->
+                    if (sent.status == MessageStatus.FAILED) {
+                        _isConversationBlocked.value = true
+                    }
                 }.onFailure { error ->
                     Log.e("ChatDetailViewModel", "Error sending message", error)
                     _error.value = "发送消息失败: ${error.message}"
@@ -198,7 +206,7 @@ class ChatDetailViewModel @Inject constructor(
         val userId = auth.currentUser?.uid ?: return
 
         viewModelScope.launch {
-            _messages.value.forEach { message ->
+            for (message in _messages.value) {
                 if (!message.readBy.contains(userId) && message.senderId != userId) {
                     chatRepository.markMessageAsRead(conversationId, message.id)
                         .onFailure { error ->

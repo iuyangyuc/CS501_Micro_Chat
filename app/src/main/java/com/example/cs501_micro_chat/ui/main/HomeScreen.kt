@@ -2072,10 +2072,11 @@ fun ContactListItem(
                 }
             }
 
-            // 显示备注或标签（如果有）
+            // 显示原始姓名（如果设置了备注）
             if (contact.alias.isNotBlank()) {
+                val originalName = contact.contactName.ifBlank { stringResource(R.string.contacts_original_name_unknown) }
                 Text(
-                    text = "备注: ${contact.alias}",
+                    text = stringResource(R.string.contacts_original_name_label, originalName),
                     fontSize = 13.sp,
                     color = secondaryTextColor(),
                     maxLines = 1,
@@ -2794,5 +2795,4 @@ fun UserSearchResultItem(
         }
     }
 }
-
 
