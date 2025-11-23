@@ -379,11 +379,30 @@ class ChatRepository @Inject constructor(
 
     /**
      * 拒绝好友请求
-     * 删除当前用户 contacts 中的该联系人
+     * 删除双方的 contact 记录，让双方回到互不相知的状态
      */
     suspend fun rejectFriendRequest(requesterId: String): Result<Unit> {
         val userId = currentUserId ?: return Result.failure(Exception("User not logged in"))
-        return firebaseDataSource.removeContact(userId, requesterId)
+
+        Log.d("ChatRepository", "🚫 Rejecting friend request from: $requesterId")
+
+        try {
+            // 删除接收者（当前用户）的 contact
+            Log.d("ChatRepository", "  🗑️ Removing contact from receiver: /users/$userId/contacts/$requesterId")
+            firebaseDataSource.removeContact(userId, requesterId).getOrThrow()
+            Log.d("ChatRepository", "  ✅ Receiver contact removed")
+
+            // 删除发送者的 contact
+            Log.d("ChatRepository", "  🗑️ Removing contact from sender: /users/$requesterId/contacts/$userId")
+            firebaseDataSource.removeContact(requesterId, userId).getOrThrow()
+            Log.d("ChatRepository", "  ✅ Sender contact removed")
+
+            Log.d("ChatRepository", "  🎉 Friend request rejected successfully, both contacts removed")
+            return Result.success(Unit)
+        } catch (e: Exception) {
+            Log.e("ChatRepository", "  ❌ Failed to reject friend request", e)
+            return Result.failure(e)
+        }
     }
 
     /**
