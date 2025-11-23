@@ -111,6 +111,7 @@ fun ChatDetailScreen(
     val error by viewModel.error.collectAsStateWithLifecycle()
     val currentUserId by viewModel.currentUserId.collectAsStateWithLifecycle()
     val translationStates by viewModel.translationStates.collectAsStateWithLifecycle()
+    val voiceTranscriptionStates by viewModel.voiceTranscriptionStates.collectAsStateWithLifecycle()
 
     var inputText by remember { mutableStateOf("") }
     var showAttachmentMenu by remember { mutableStateOf(false) }
@@ -446,9 +447,11 @@ fun ChatDetailScreen(
                             message = message,
                             isSelf = message.senderId == currentUserId,
                             translationState = translationStates[messageKey(message)],
+                            transcriptionState = voiceTranscriptionStates[messageKey(message)],
                             onAvatarClick = {},
                             onTranslateClick = { messageAwaitingTranslation = message },
-                            onPlayClick = { speakMessage(message.content) }
+                            onPlayClick = { speakMessage(message.content) },
+                            onTranscribeClick = { viewModel.transcribeVoiceMessage(it) }
                         )
                     }
                 }
@@ -521,11 +524,14 @@ internal fun MessageBubble(
     message: Message,
     isSelf: Boolean,
     translationState: TranslationResultState? = null,
+    transcriptionState: VoiceTranscriptionState? = null,
     onAvatarClick: (String) -> Unit = {},
     onTranslateClick: (Message) -> Unit = {},
-    onPlayClick: (Message) -> Unit = {}
+    onPlayClick: (Message) -> Unit = {},
+    onTranscribeClick: (Message) -> Unit = {}
 ) {
     val isTextMessage = message.type == MessageType.TEXT
+    val isVoiceMessage = message.type == MessageType.VOICE
     var showActionMenu by remember { mutableStateOf(false) }
 
     Row(
@@ -569,7 +575,7 @@ internal fun MessageBubble(
             // 消息内容
             Box {
                 Surface(
-                    modifier = if (isTextMessage) {
+                    modifier = if (isTextMessage || isVoiceMessage) {
                         Modifier.clickable { showActionMenu = true }
                     } else {
                         Modifier
@@ -669,10 +675,55 @@ internal fun MessageBubble(
                             }
                         }
                         MessageType.VOICE -> {
-                            VoiceMessageBubble(
-                                mediaUrl = message.mediaUrl,
-                                content = message.content
-                            )
+                            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                VoiceMessageBubble(
+                                    mediaUrl = message.mediaUrl,
+                                    content = message.content,
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                                )
+
+                                transcriptionState?.let { state ->
+                                    when {
+                                        state.isLoading -> {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                                modifier = Modifier.padding(horizontal = 12.dp)
+                                            ) {
+                                                CircularProgressIndicator(
+                                                    modifier = Modifier.size(14.dp),
+                                                    strokeWidth = 2.dp,
+                                                    color = if (isSelf) Color.White else PrimaryBlue
+                                                )
+                                                Text(
+                                                    text = stringResource(R.string.transcribe_status_loading),
+                                                    color = if (isSelf) Color.White else chatSecondaryTextColor(),
+                                                    fontSize = 13.sp
+                                                )
+                                            }
+                                        }
+
+                                        state.errorMessage != null -> {
+                                            Text(
+                                                text = state.errorMessage,
+                                                color = MaterialTheme.colorScheme.error,
+                                                fontSize = 13.sp,
+                                                modifier = Modifier.padding(horizontal = 12.dp)
+                                            )
+                                        }
+
+                                        state.text != null -> {
+                                            val label = stringResource(R.string.transcribe_result_label)
+                                            Text(
+                                                text = "$label ${state.text}",
+                                                color = if (isSelf) Color.White else chatSecondaryTextColor(),
+                                                fontSize = 13.sp,
+                                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
                         }
                         MessageType.VIDEO -> {
                             VideoMessageBubble(mediaUrl = message.mediaUrl)
@@ -688,37 +739,55 @@ internal fun MessageBubble(
                     }
                 }
 
-                if (isTextMessage) {
+                if (isTextMessage || isVoiceMessage) {
                     DropdownMenu(
                         expanded = showActionMenu,
                         onDismissRequest = { showActionMenu = false }
                     ) {
-                        DropdownMenuItem(
-                            text = { Text(text = stringResource(R.string.translate_menu_action)) },
-                            leadingIcon = {
-                                Icon(
-                                    imageVector = Icons.Default.Language,
-                                    contentDescription = null
-                                )
-                            },
-                            onClick = {
-                                showActionMenu = false
-                                onTranslateClick(message)
-                            }
-                        )
-                        DropdownMenuItem(
-                            text = { Text(text = stringResource(R.string.translate_menu_play)) },
-                            leadingIcon = {
-                                Icon(
-                                    imageVector = Icons.Default.VolumeUp,
-                                    contentDescription = null
-                                )
-                            },
-                            onClick = {
-                                showActionMenu = false
-                                onPlayClick(message)
-                            }
-                        )
+                        if (isTextMessage) {
+                            DropdownMenuItem(
+                                text = { Text(text = stringResource(R.string.translate_menu_action)) },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Default.Language,
+                                        contentDescription = null
+                                    )
+                                },
+                                onClick = {
+                                    showActionMenu = false
+                                    onTranslateClick(message)
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text(text = stringResource(R.string.translate_menu_play)) },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Default.VolumeUp,
+                                        contentDescription = null
+                                    )
+                                },
+                                onClick = {
+                                    showActionMenu = false
+                                    onPlayClick(message)
+                                }
+                            )
+                        }
+
+                        if (isVoiceMessage) {
+                            DropdownMenuItem(
+                                text = { Text(text = stringResource(R.string.transcribe_menu_action)) },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Default.Article,
+                                        contentDescription = null
+                                    )
+                                },
+                                onClick = {
+                                    showActionMenu = false
+                                    onTranscribeClick(message)
+                                }
+                            )
+                        }
                     }
                 }
             }
@@ -767,7 +836,8 @@ internal fun MessageBubble(
 @Composable
 private fun VoiceMessageBubble(
     mediaUrl: String,
-    content: String
+    content: String,
+    contentPadding: PaddingValues = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
 ) {
     var isPlaying by remember { mutableStateOf(false) }
     var player by remember { mutableStateOf<MediaPlayer?>(null) }
@@ -817,8 +887,7 @@ private fun VoiceMessageBubble(
     }
 
     Row(
-        modifier = Modifier
-            .padding(horizontal = 12.dp, vertical = 8.dp),
+        modifier = Modifier.padding(contentPadding),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {

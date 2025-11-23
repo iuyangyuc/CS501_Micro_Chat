@@ -23,6 +23,7 @@ import com.example.cs501_micro_chat.data.model.Message
 import com.example.cs501_micro_chat.data.model.MessageType
 import com.example.cs501_micro_chat.data.repository.ChatRepository
 import com.example.cs501_micro_chat.data.repository.StorageRepository
+import com.example.cs501_micro_chat.data.repository.TranscriptionRepository
 import com.example.cs501_micro_chat.data.repository.TranslationRepository
 import com.google.firebase.auth.FirebaseAuth
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -40,6 +41,12 @@ data class TranslationResultState(
     val errorMessage: String? = null
 )
 
+data class VoiceTranscriptionState(
+    val text: String? = null,
+    val isLoading: Boolean = false,
+    val errorMessage: String? = null
+)
+
 data class MediaUploadState(
     val isUploading: Boolean = false,
     val uploadingType: MessageType? = null,
@@ -50,6 +57,7 @@ data class MediaUploadState(
 class ChatDetailViewModel @Inject constructor(
     private val chatRepository: ChatRepository,
     private val storageRepository: StorageRepository,
+    private val transcriptionRepository: TranscriptionRepository,
     private val translationRepository: TranslationRepository,
     private val auth: FirebaseAuth
 ) : ViewModel() {
@@ -80,6 +88,9 @@ class ChatDetailViewModel @Inject constructor(
     private val _translationStates = MutableStateFlow<Map<String, TranslationResultState>>(emptyMap())
     val translationStates: StateFlow<Map<String, TranslationResultState>> = _translationStates.asStateFlow()
 
+    private val _voiceTranscriptionStates = MutableStateFlow<Map<String, VoiceTranscriptionState>>(emptyMap())
+    val voiceTranscriptionStates: StateFlow<Map<String, VoiceTranscriptionState>> = _voiceTranscriptionStates.asStateFlow()
+
     // 用户信息缓存：userId -> User
     private val userCache = mutableMapOf<String, com.example.cs501_micro_chat.data.model.User>()
 
@@ -100,6 +111,7 @@ class ChatDetailViewModel @Inject constructor(
         _isLoading.value = true
         _error.value = null
         _translationStates.value = emptyMap()
+        _voiceTranscriptionStates.value = emptyMap()
 
         viewModelScope.launch {
             loadConversationMeta(conversationId)
@@ -492,6 +504,30 @@ class ChatDetailViewModel @Inject constructor(
                     }
                 )
                 current + (key to nextState)
+            }
+        }
+    }
+
+    fun transcribeVoiceMessage(message: Message) {
+        if (message.type != MessageType.VOICE || message.mediaUrl.isBlank()) return
+        val key = messageKey(message)
+
+        _voiceTranscriptionStates.update { current ->
+            current + (key to VoiceTranscriptionState(isLoading = true))
+        }
+
+        viewModelScope.launch {
+            val result = transcriptionRepository.transcribe(message.mediaUrl)
+            _voiceTranscriptionStates.update { current ->
+                val next = result.fold(
+                    onSuccess = { text ->
+                        VoiceTranscriptionState(text = text, isLoading = false, errorMessage = null)
+                    },
+                    onFailure = { error ->
+                        VoiceTranscriptionState(text = null, isLoading = false, errorMessage = error.message ?: "Transcription failed")
+                    }
+                )
+                current + (key to next)
             }
         }
     }

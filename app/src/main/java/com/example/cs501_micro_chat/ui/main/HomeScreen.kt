@@ -911,6 +911,7 @@ fun ChatDetailContent(
     val messages by viewModel.messages.collectAsStateWithLifecycle()
     val currentUserId by viewModel.currentUserId.collectAsStateWithLifecycle()
     val translationStates by viewModel.translationStates.collectAsStateWithLifecycle()
+    val voiceTranscriptionStates by viewModel.voiceTranscriptionStates.collectAsStateWithLifecycle()
 
     var inputText by remember { mutableStateOf("") }
     var showActionSheet by remember { mutableStateOf(false) }
@@ -1284,9 +1285,11 @@ fun ChatDetailContent(
                             message = message,
                             isSelf = message.senderId == currentUserId,
                             translationState = translationStates[messageKey(message)],
+                            transcriptionState = voiceTranscriptionStates[messageKey(message)],
                             onAvatarClick = onAvatarClick,
                             onTranslateClick = { messageAwaitingTranslation = message },
-                            onPlayClick = { speakMessage(message.content) }
+                            onPlayClick = { speakMessage(message.content) },
+                            onTranscribeClick = { viewModel.transcribeVoiceMessage(it) }
                         )
                     }
                 }
