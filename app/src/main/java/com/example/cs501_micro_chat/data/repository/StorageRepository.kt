@@ -1,67 +1,134 @@
 package com.example.cs501_micro_chat.data.repository
 
-import android.net.Uri
+import com.example.cs501_micro_chat.data.model.MediaUploadResult
 import com.google.firebase.storage.FirebaseStorage
+import com.google.firebase.storage.ktx.storageMetadata
 import kotlinx.coroutines.tasks.await
+import java.util.Locale
+import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
  * StorageRepository
  *
- * 处理 Firebase Storage 操作
- * Handles Firebase Storage operations
- *
- * 主要功能:
- * - 上传和下载头像 / Upload and download avatars
- * - 检查头像是否存在 / Check if avatar exists
+ * Thin wrapper around Firebase Storage that exposes CDN friendly helpers for chat media.
+ * It handles path conventions, metadata, and download URL retrieval so the rest of the
+ * app can treat Firebase Storage like an origin CDN.
  */
-interface StorageRepository {
-    suspend fun getAvatarUrl(userId: String): Result<String?>
-    suspend fun uploadAvatar(userId: String, imageData: ByteArray): Result<String>
-    suspend fun deleteAvatar(userId: String): Result<Unit>
-}
-
 @Singleton
-class FirebaseStorageRepository @Inject constructor(
-    private val storage: FirebaseStorage
-) : StorageRepository {
+class StorageRepository @Inject constructor(
+    private val firebaseStorage: FirebaseStorage
+) {
+
+    private val cdnRootRef
+        get() = firebaseStorage.reference.child(CDN_ROOT_FOLDER)
 
     /**
-     * 获取用户头像 URL
-     * Get user avatar URL from Firebase Storage
-     *
-     * 如果 Storage 中没有头像，返回 null
-     * Returns null if no avatar exists in Storage
+     * Upload an image (jpeg/png/webp) and receive a signed CDN URL.
      */
-    override suspend fun getAvatarUrl(userId: String): Result<String?> = runCatching {
-        val reference = storage.reference.child("Avatars/$userId.jpg")
-        try {
-            reference.downloadUrl.await().toString()
-        } catch (e: Exception) {
-            // Avatar doesn't exist in storage, return null
-            null
+    suspend fun uploadImage(
+        bytes: ByteArray,
+        conversationId: String,
+        ownerId: String,
+        mimeType: String = "image/jpeg",
+        extension: String? = null
+    ): Result<MediaUploadResult> = uploadBinary(
+        bytes = bytes,
+        folder = IMAGES_FOLDER,
+        conversationId = conversationId,
+        ownerId = ownerId,
+        mimeType = mimeType,
+        extension = extension
+    )
+
+    /**
+     * Upload a voice note (mp3) that can later be streamed from the CDN URL.
+     */
+    suspend fun uploadVoiceMessage(
+        bytes: ByteArray,
+        conversationId: String,
+        ownerId: String,
+        mimeType: String = "audio/mpeg",
+        extension: String? = null
+    ): Result<MediaUploadResult> = uploadBinary(
+        bytes = bytes,
+        folder = AUDIO_FOLDER,
+        conversationId = conversationId,
+        ownerId = ownerId,
+        mimeType = mimeType,
+        extension = extension
+    )
+
+    /**
+     * Remove a file from Firebase Storage when a message is withdrawn.
+     */
+    suspend fun deleteByPath(storagePath: String): Result<Unit> = runCatching {
+        cdnRootRef.child(storagePath).delete().await()
+    }
+
+    /**
+     * Resolve a download URL again (useful if the client cached just the path).
+     */
+    suspend fun getDownloadUrl(storagePath: String): Result<String> = runCatching {
+        cdnRootRef.child(storagePath).downloadUrl.await().toString()
+    }
+
+    private suspend fun uploadBinary(
+        bytes: ByteArray,
+        folder: String,
+        conversationId: String,
+        ownerId: String,
+        mimeType: String,
+        extension: String?
+    ): Result<MediaUploadResult> = runCatching {
+        val sanitizedExtension = extension.orEmpty().removePrefix(".")
+            .ifBlank { fallbackExtensionForMime(mimeType) }
+            .lowercase(Locale.US)
+
+        val fileName = buildString {
+            append(ownerId)
+            append("_")
+            append(System.currentTimeMillis())
+            append("_")
+            append(UUID.randomUUID().toString().take(8))
+            append(".")
+            append(sanitizedExtension)
+        }
+        val storagePath = "$folder/$conversationId/$fileName"
+        val metadata = storageMetadata {
+            contentType = mimeType
+            cacheControl = "public,max-age=$CDN_CACHE_SECONDS"
+            setCustomMetadata("conversationId", conversationId)
+            setCustomMetadata("ownerId", ownerId)
+        }
+
+        val ref = cdnRootRef.child(storagePath)
+        val snapshot = ref.putBytes(bytes, metadata).await()
+        val downloadUrl = ref.downloadUrl.await().toString()
+
+        MediaUploadResult(
+            downloadUrl = downloadUrl,
+            storagePath = storagePath,
+            contentType = mimeType,
+            sizeBytes = snapshot.totalByteCount
+        )
+    }
+
+    private fun fallbackExtensionForMime(mimeType: String): String {
+        return when {
+            mimeType.contains("png", true) -> "png"
+            mimeType.contains("webp", true) -> "webp"
+            mimeType.contains("gif", true) -> "gif"
+            mimeType.contains("audio") -> "mp3"
+            else -> "jpg"
         }
     }
 
-    /**
-     * 上传用户头像到 Firebase Storage
-     * Upload user avatar to Firebase Storage
-     */
-    override suspend fun uploadAvatar(userId: String, imageData: ByteArray): Result<String> = runCatching {
-        val reference = storage.reference.child("Avatars/$userId.jpg")
-        reference.putBytes(imageData).await()
-        reference.downloadUrl.await().toString()
-    }
-
-    /**
-     * 删除用户头像
-     * Delete user avatar from Firebase Storage
-     */
-    override suspend fun deleteAvatar(userId: String): Result<Unit> = runCatching {
-        val reference = storage.reference.child("Avatars/$userId.jpg")
-        reference.delete().await()
+    companion object {
+        private const val CDN_ROOT_FOLDER = "cdn"
+        private const val IMAGES_FOLDER = "images"
+        private const val AUDIO_FOLDER = "audio"
+        private const val CDN_CACHE_SECONDS = 60L * 60L * 24L * 30L // 30 days
     }
 }
-
-
