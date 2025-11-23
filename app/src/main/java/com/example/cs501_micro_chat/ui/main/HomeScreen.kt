@@ -1013,6 +1013,45 @@ fun ChatDetailContent(
         }
     }
 
+    fun handlePickedFile(uri: Uri) {
+        coroutineScope.launch {
+            val (mimeType, extension) = resolveMimeType(uri, "application/octet-stream")
+            val bytes = withContext(Dispatchers.IO) {
+                contentResolver.openInputStream(uri)?.use { it.readBytes() }
+            } ?: return@launch
+
+            when {
+                mimeType.contains("pdf") -> {
+                    viewModel.uploadVoiceMessage(
+                        conversationId = conversationId,
+                        audioBytes = bytes,
+                        durationMillis = 1000L,
+                        mimeType = mimeType,
+                        extension = extension
+                    )
+                }
+                mimeType.contains("audio") || mimeType.contains("mp4") -> {
+                    viewModel.uploadVoiceMessage(
+                        conversationId = conversationId,
+                        audioBytes = bytes,
+                        durationMillis = 1000L,
+                        mimeType = mimeType,
+                        extension = extension
+                    )
+                }
+                else -> {
+                    viewModel.uploadVoiceMessage(
+                        conversationId = conversationId,
+                        audioBytes = bytes,
+                        durationMillis = 1000L,
+                        mimeType = mimeType,
+                        extension = extension
+                    )
+                }
+            }
+        }
+    }
+
     val audioPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { granted ->
@@ -1037,6 +1076,11 @@ fun ChatDetailContent(
         contract = ActivityResultContracts.PickVisualMedia()
     ) { uri ->
         uri?.let { handlePickedMedia(it, isVideo = true) }
+    }
+    val filePicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri ->
+        uri?.let { handlePickedFile(it) }
     }
 
     LaunchedEffect(messages.size) {
@@ -1069,6 +1113,13 @@ fun ChatDetailContent(
                         photoPicker.launch(
                             PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
                         )
+                    }
+                ),
+                SheetAction(
+                    icon = Icons.Filled.InsertDriveFile,
+                    label = stringResource(R.string.action_sheet_file),
+                    onClick = {
+                        filePicker.launch("*/*")
                     }
                 ),
                 SheetAction(
