@@ -31,7 +31,8 @@ data class Conversation(
     val unreadCounts: Map<String, Int> = emptyMap(), // userId -> unreadCount
     val createdAt: Long = System.currentTimeMillis(),
     val createdBy: String = "",
-    val isActive: Boolean = true
+    val isActive: Boolean = true,
+    val blockedParticipants: Map<String, Boolean> = emptyMap() // userId -> isBlocked
 ) {
     // 转换为 Firebase Map 格式
     fun toMap(): Map<String, Any> = mapOf(
@@ -45,7 +46,8 @@ data class Conversation(
         "unreadCounts" to unreadCounts,
         "createdAt" to createdAt,
         "createdBy" to createdBy,
-        "isActive" to isActive
+        "isActive" to isActive,
+        "blockedParticipants" to blockedParticipants
     )
 
     // 获取特定用户的未读消息数

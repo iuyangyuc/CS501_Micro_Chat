@@ -24,6 +24,7 @@ package com.example.cs501_micro_chat.data.remote
 import android.util.Log
 import com.example.cs501_micro_chat.data.model.*
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
 import kotlinx.coroutines.channels.awaitClose
@@ -223,6 +224,19 @@ class FirebaseDataSource @Inject constructor(
     }
 
     /**
+     * 获取单个联系人信息
+     */
+    suspend fun getContact(userId: String, contactId: String): Result<Contact?> = runCatching {
+        usersCollection
+            .document(userId)
+            .collection("contacts")
+            .document(contactId)
+            .get()
+            .await()
+            .toObject(Contact::class.java)
+    }
+
+    /**
      * 监听联系人列表变化
      * 自动补充 contactName 和 contactAvatarUrl（如果为空）
      */
@@ -348,6 +362,96 @@ class FirebaseDataSource @Inject constructor(
             .document(contactId)
             .update("alias", alias)
             .await()
+    }
+
+    /**
+     * 更新联系人置顶状态
+     */
+    suspend fun updateContactFavorite(userId: String, contactId: String, isFavorite: Boolean): Result<Unit> = runCatching {
+        usersCollection
+            .document(userId)
+            .collection("contacts")
+            .document(contactId)
+            .update("isFavorite", isFavorite)
+            .await()
+    }
+
+    /**
+     * 监听置顶会话
+     */
+    fun observePinnedConversations(userId: String): Flow<Set<String>> = callbackFlow {
+        val listener = usersCollection
+            .document(userId)
+            .collection("pinned_conversations")
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    close(error)
+                    return@addSnapshotListener
+                }
+                val pinned = snapshot?.documents?.mapNotNull { doc ->
+                    doc.getString("conversationId")
+                }?.toSet() ?: emptySet()
+                trySend(pinned)
+            }
+        awaitClose { listener.remove() }
+    }
+
+    /**
+     * 设置置顶状态
+     */
+    suspend fun setPinnedConversation(userId: String, conversationId: String, pinned: Boolean): Result<Unit> = runCatching {
+        val docRef = usersCollection
+            .document(userId)
+            .collection("pinned_conversations")
+            .document(conversationId)
+        if (pinned) {
+            docRef.set(
+                mapOf(
+                    "conversationId" to conversationId,
+                    "pinnedAt" to FieldValue.serverTimestamp()
+                )
+            ).await()
+        } else {
+            docRef.delete().await()
+        }
+    }
+
+    /**
+     * 检查会话是否置顶
+     */
+    suspend fun isConversationPinned(userId: String, conversationId: String): Result<Boolean> = runCatching {
+        usersCollection
+            .document(userId)
+            .collection("pinned_conversations")
+            .document(conversationId)
+            .get()
+            .await()
+            .exists()
+    }
+
+    /**
+     * 设置会话对某个用户的屏蔽状态
+     */
+    suspend fun setConversationParticipantBlocked(conversationId: String, participantId: String, blocked: Boolean): Result<Unit> = runCatching {
+        val field = "blockedParticipants.$participantId"
+        val docRef = conversationsCollection.document(conversationId)
+        if (blocked) {
+            docRef.update(field, true).await()
+        } else {
+            docRef.update(field, FieldValue.delete()).await()
+        }
+    }
+
+    /**
+     * 检查用户是否被屏蔽
+     */
+    suspend fun isConversationParticipantBlocked(conversationId: String, participantId: String): Result<Boolean> = runCatching {
+        val snapshot = conversationsCollection
+            .document(conversationId)
+            .get()
+            .await()
+        val blockedMap = snapshot.get("blockedParticipants") as? Map<*, *> ?: emptyMap<String, Boolean>()
+        blockedMap[participantId] == true
     }
 
     // ==================== 会话相关 Conversation Operations ====================

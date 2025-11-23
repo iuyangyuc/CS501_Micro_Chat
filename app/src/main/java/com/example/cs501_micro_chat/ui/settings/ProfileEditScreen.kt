@@ -7,6 +7,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -36,6 +37,9 @@ import com.example.cs501_micro_chat.ui.settings.composables.ImageCropDialog
 import java.io.File
 import kotlinx.coroutines.launch
 
+/**
+ * Profile edit screen for updating display name, bio, and avatar (gallery/camera + crop).
+ */
 @Composable
 fun ProfileEditScreen(
     onBack: () -> Unit,
@@ -264,10 +268,20 @@ private fun OutlinedTextButtonWithIcon(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     onClick: () -> Unit
 ) {
-    OutlinedButton(onClick = onClick) {
-        Icon(imageVector = icon, contentDescription = null)
+    OutlinedButton(
+        onClick = onClick,
+        colors = ButtonDefaults.outlinedButtonColors(
+            contentColor = MaterialTheme.colorScheme.onSurface
+        ),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurface
+        )
         Spacer(modifier = Modifier.size(8.dp))
-        Text(text = label)
+        Text(text = label, color = MaterialTheme.colorScheme.onSurface)
     }
 }
 
@@ -276,4 +290,3 @@ private fun createImageUri(context: android.content.Context): Uri {
     val authority = "${context.packageName}.fileprovider"
     return FileProvider.getUriForFile(context, authority, image)
 }
-

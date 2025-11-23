@@ -17,7 +17,9 @@ package com.example.cs501_micro_chat.ui.main
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.cs501_micro_chat.data.model.Contact
 import com.example.cs501_micro_chat.data.model.Conversation
+import com.example.cs501_micro_chat.data.model.User
 import com.example.cs501_micro_chat.data.repository.ChatRepository
 import com.google.firebase.auth.FirebaseAuth
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -73,18 +75,23 @@ class HomeViewModel @Inject constructor(
     val existingContactIds: StateFlow<Set<String>> = _existingContactIds.asStateFlow()
 
     // 所有联系人的完整信息（用于判断详细状态）
-    private val _allContacts = MutableStateFlow<List<com.example.cs501_micro_chat.data.model.Contact>>(emptyList())
-    val allContacts: StateFlow<List<com.example.cs501_micro_chat.data.model.Contact>> = _allContacts.asStateFlow()
+    private val _allContacts = MutableStateFlow<List<Contact>>(emptyList())
+    val allContacts: StateFlow<List<Contact>> = _allContacts.asStateFlow()
 
     // 待确认的好友请求列表（isNew = true 的联系人）
-    private val _pendingFriendRequests = MutableStateFlow<List<com.example.cs501_micro_chat.data.model.Contact>>(emptyList())
-    val pendingFriendRequests: StateFlow<List<com.example.cs501_micro_chat.data.model.Contact>> = _pendingFriendRequests.asStateFlow()
+    private val _pendingFriendRequests = MutableStateFlow<List<Contact>>(emptyList())
+    val pendingFriendRequests: StateFlow<List<Contact>> = _pendingFriendRequests.asStateFlow()
+
+    // 置顶会话 ID 集合
+    private val _pinnedConversationIds = MutableStateFlow<Set<String>>(emptySet())
+    val pinnedConversationIds: StateFlow<Set<String>> = _pinnedConversationIds.asStateFlow()
 
     private val TAG = "HomeViewModel"
 
     init {
         loadConversations()
         loadExistingContacts()
+        observePinnedConversations()
     }
 
     /**
@@ -115,8 +122,7 @@ class HomeViewModel @Inject constructor(
 
                 flow.collect { conversations ->
                     Log.d(TAG, "Received ${conversations.size} conversations")
-                    // 数据已经在 FirebaseDataSource 中按时间排序了
-                    _conversations.value = conversations
+                    _conversations.value = applyPinnedSorting(conversations)
                     _isLoading.value = false
 
                     // 加载会话中所有参与者的用户信息
@@ -234,6 +240,12 @@ class HomeViewModel @Inject constructor(
 
         // 对于私聊，从缓存中获取对方用户的真实用户名
         val otherUserId = getOtherUserId(conversation)
+        if (otherUserId != null) {
+            val contactAlias = _allContacts.value.firstOrNull { it.contactId == otherUserId }?.getDisplayName()
+            if (!contactAlias.isNullOrBlank()) {
+                return contactAlias
+            }
+        }
         if (otherUserId != null) {
             val otherUser = _userCache.value[otherUserId]
             if (otherUser != null) {
@@ -355,7 +367,15 @@ class HomeViewModel @Inject constructor(
                 result.onSuccess { users ->
                     // 过滤掉当前用户自己
                     val currentUserId = auth.currentUser?.uid
-                    val filteredUsers = users.filter { it.id != currentUserId }
+                    val filteredUsers = users
+                        .filter { it.id != currentUserId }
+                        .map { user ->
+                            if (user.username.isBlank() && user.email.isNotBlank()) {
+                                user.copy(username = user.email.substringBefore("@"))
+                            } else {
+                                user
+                            }
+                        }
 
                     _addFriendSearchResults.value = filteredUsers
                     Log.d(TAG, "Global user search for '$query' found ${filteredUsers.size} results")
@@ -516,16 +536,60 @@ class HomeViewModel @Inject constructor(
         }
     }
 
+    private fun observePinnedConversations() {
+        val flow = chatRepository.observePinnedConversations() ?: return
+        viewModelScope.launch {
+            flow.collect { pinned ->
+                _pinnedConversationIds.value = pinned
+                if (_conversations.value.isNotEmpty()) {
+                    _conversations.value = applyPinnedSorting(_conversations.value)
+                }
+            }
+        }
+    }
+
     /**
      * 发送好友请求
      */
-    fun sendFriendRequest(targetUserId: String) {
+    fun sendFriendRequest(targetUser: User) {
         viewModelScope.launch {
             try {
+                val targetUserId = targetUser.id
+                val currentUserId = auth.currentUser?.uid
+                if (currentUserId.isNullOrBlank()) {
+                    _error.value = "用户未登录"
+                    return@launch
+                }
+                if (targetUserId.isBlank()) {
+                    _error.value = "目标用户信息不完整，无法发送请求"
+                    return@launch
+                }
+
                 Log.d(TAG, "Sending friend request to user: $targetUserId")
                 val result = chatRepository.sendFriendRequest(targetUserId)
                 result.onSuccess {
                     Log.d(TAG, "Friend request sent successfully")
+                    // Optimistically mark as pending locally so UI reflects immediately
+                    val updatedContacts = _allContacts.value.toMutableList()
+                    val existingIndex = updatedContacts.indexOfFirst { it.contactId == targetUserId }
+                    val pendingContact = Contact(
+                        userId = currentUserId,
+                        contactId = targetUserId,
+                        contactName = targetUser.username.ifBlank { targetUser.email.substringBefore("@") },
+                        contactAvatarUrl = targetUser.avatarUrl,
+                        type = "PRIVATE",
+                        isNew = false,
+                        isPending = true,
+                        conversationId = ""
+                    )
+                    if (existingIndex >= 0) {
+                        updatedContacts[existingIndex] = pendingContact
+                    } else {
+                        updatedContacts.add(pendingContact)
+                    }
+                    _allContacts.value = updatedContacts
+                    _existingContactIds.value = _existingContactIds.value + targetUserId
+
                     // 清空搜索结果
                     clearAddFriendSearch()
                 }.onFailure { error ->
@@ -581,5 +645,17 @@ class HomeViewModel @Inject constructor(
                 _error.value = "拒绝好友请求失败: ${e.message}"
             }
         }
+    }
+
+    private fun applyPinnedSorting(conversations: List<Conversation>): List<Conversation> {
+        if (conversations.isEmpty()) return conversations
+        val pinnedConversationIds = _pinnedConversationIds.value
+        if (pinnedConversationIds.isEmpty()) {
+            return conversations.sortedByDescending { it.lastMessageTime }
+        }
+        return conversations.sortedWith(
+            compareByDescending<Conversation> { pinnedConversationIds.contains(it.id) }
+                .thenByDescending { it.lastMessageTime }
+        )
     }
 }

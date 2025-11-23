@@ -1,18 +1,4 @@
-/**
- * AvatarImage.kt
- *
- * 头像加载组件 - 使用 Coil 加载头像图片或显示首字母
- * Avatar Image Component - Loads avatar using Coil or shows initial letter
- *
- * 功能 / Features:
- * - 使用 avatarUrl 加载头像图片
- * - 如果没有 URL，显示用户名首字母
- * - 支持圆形和方形显示
- * - 使用 Coil 进行图片加载和缓存
- *
- * @author CS501 Team
- * @date 2025-01-22
- */
+/** Avatar image loader that uses Coil or falls back to the user's initial. */
 package com.example.cs501_micro_chat.ui.common
 
 import androidx.compose.foundation.background
@@ -30,10 +16,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 
-/**
- * 头像加载组件
- * Loads avatar image or shows user initial letter
- */
+/** Load avatar image or show user initial letter. */
 @Composable
 fun AvatarImage(
     avatarUrl: String,
@@ -71,5 +54,4 @@ fun AvatarImage(
         }
     }
 }
-
 

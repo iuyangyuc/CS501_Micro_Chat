@@ -72,10 +72,12 @@ class ProfileEditViewModel @Inject constructor(
             _uiState.update { it.copy(isLoading = true, errorMessage = null) }
             val result = repository.getProfile()
             result.onSuccess { profile ->
+                val fallbackName = profile.email.substringBefore("@")
+                val nameToUse = profile.displayName.ifBlank { fallbackName }
                 _uiState.update {
                     it.copy(
                         isLoading = false,
-                        displayName = profile.displayName,
+                        displayName = nameToUse,
                         bio = profile.bio,
                         avatarUrl = profile.avatarUrl,
                         newAvatarUri = null

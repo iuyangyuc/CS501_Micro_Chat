@@ -1,16 +1,10 @@
 /**
- * ImageCropDialog.kt
+ * Image crop dialog that lets users crop their avatar to a square.
  *
- * 图片裁剪对话框 - 允许用户裁剪头像为正方形
- * Image Crop Dialog - Allows users to crop avatar to square
- *
- * 功能 / Features:
- * - 正方形裁剪框 / Square crop frame
- * - 缩放和拖动图片 / Zoom and pan image
- * - 确认和取消按钮 / Confirm and cancel buttons
- *
- * @author CS501 Team
- * @date 2025-11-22
+ * Features:
+ * - Square crop frame
+ * - Zoom and pan image
+ * - Confirm and cancel actions
  */
 package com.example.cs501_micro_chat.ui.settings.composables
 
@@ -55,10 +49,7 @@ import java.io.FileOutputStream
 import kotlin.math.max
 import kotlin.math.min
 
-/**
- * 图片裁剪对话框
- * Image cropping dialog with zoom and pan support
- */
+/** Image cropping dialog with zoom and pan support */
 @Composable
 fun ImageCropDialog(
     imageUri: Uri,
@@ -206,10 +197,7 @@ fun ImageCropDialog(
     }
 }
 
-/**
- * 可缩放和平移的图片裁剪视图
- * Zoomable and pannable image crop view
- */
+/** Zoomable and pannable image crop view */
 @Composable
 private fun CropImageView(
     bitmap: Bitmap,
@@ -387,10 +375,7 @@ private fun CropImageView(
     }
 }
 
-/**
- * 执行实际的图片裁剪
- * Perform actual bitmap cropping
- */
+/** Perform actual bitmap cropping */
 private fun performCrop(
     bitmap: Bitmap,
     canvasSize: IntSize,
@@ -438,10 +423,7 @@ private fun performCrop(
     return Bitmap.createBitmap(bitmap, cropX, cropY, cropWidth, cropHeight)
 }
 
-/**
- * 保存裁剪后的图片
- * Save cropped image to cache directory
- */
+/** Save cropped image to cache directory */
 private fun saveCroppedImage(
     context: Context,
     bitmap: Bitmap,
@@ -459,4 +441,3 @@ private fun saveCroppedImage(
         onComplete(null)
     }
 }
-

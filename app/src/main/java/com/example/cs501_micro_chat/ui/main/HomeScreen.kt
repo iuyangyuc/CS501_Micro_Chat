@@ -232,6 +232,8 @@ fun HomeScreen(
                                     ConversationType.GROUP -> if (convoId.isNotBlank()) {
                                         navController.navigate("$GROUP_PROFILE_ROUTE/$convoId")
                                     }
+
+                                    else -> {}
                                 }
                             }
                         )
@@ -558,7 +560,7 @@ fun HomeTopBar(
                 IconButton(onClick = { showAddMenu = true }) {
                     Icon(
                         imageVector = Icons.Filled.Add,
-                        contentDescription = stringResource(R.string.content_description_add),
+                        contentDescription = "Add",
                         tint = Color.White
                     )
                 }
@@ -567,7 +569,7 @@ fun HomeTopBar(
                 DropdownMenu(
                     expanded = showAddMenu,
                     onDismissRequest = { showAddMenu = false },
-                    modifier = Modifier.background(Color.White)
+                    modifier = Modifier.background(MaterialTheme.colorScheme.surface)
                 ) {
                     // 新增联系人选项
                     DropdownMenuItem(
@@ -580,13 +582,13 @@ fun HomeTopBar(
                                 Icon(
                                     imageVector = Icons.Filled.PersonAdd,
                                     contentDescription = stringResource(R.string.content_description_add_friend),
-                                    tint = Color(0xFF1F2937),
+                                    tint = primaryTextColor(),
                                     modifier = Modifier.size(22.dp)
                                 )
                                 Spacer(modifier = Modifier.width(12.dp))
                                 Text(
                                     text = stringResource(R.string.add_option_new_contact),
-                                    color = Color(0xFF1F2937),
+                                    color = primaryTextColor(),
                                     fontSize = 16.sp,
                                     fontWeight = FontWeight.Medium
                                 )
@@ -600,7 +602,7 @@ fun HomeTopBar(
 
                     HorizontalDivider(
                         thickness = 0.5.dp,
-                        color = Color(0xFFE5E7EB)
+                        color = MaterialTheme.colorScheme.outlineVariant
                     )
 
                     // 新增群组选项
@@ -613,16 +615,16 @@ fun HomeTopBar(
                             ) {
                                 Icon(
                                     imageVector = Icons.Filled.GroupAdd,
-                                    contentDescription = stringResource(R.string.add_option_new_group),
-                                    tint = Color(0xFF1F2937),
+                                    contentDescription = "Create Group",
+                                    tint = primaryTextColor(),
                                     modifier = Modifier.size(22.dp)
                                 )
                                 Spacer(modifier = Modifier.width(12.dp))
                                 Text(
                                     text = stringResource(R.string.add_option_new_group),
-                                    color = Color(0xFF1F2937),
+                                    color = primaryTextColor(),
                                     fontSize = 16.sp,
-                                    fontWeight = FontWeight.Medium
+                                    fontWeight = androidx.compose.ui.text.font.FontWeight.Medium
                                 )
                             }
                         },
@@ -1491,7 +1493,7 @@ fun ContactsScreen(
                         ) {
                             Icon(
                                 imageVector = Icons.Filled.Search,
-                                contentDescription = stringResource(R.string.content_description_search),
+                                contentDescription = "Search",
                                 tint = secondaryTextColor(),
                                 modifier = Modifier.size(20.dp)
                             )
@@ -1921,6 +1923,7 @@ fun ContactListItem(
 ) {
     // 监听 conversationCache 的变化，确保 GROUP 信息加载后界面会更新
     val conversationCache by viewModel.conversationCache.collectAsStateWithLifecycle()
+    val pinnedConversationIds by viewModel.pinnedConversationIds.collectAsStateWithLifecycle()
 
     // 使用 ViewModel 的方法获取显示名称和头像（对 GROUP 会从 Conversation 中获取）
     val displayName = viewModel.getDisplayName(contact)
@@ -2010,10 +2013,11 @@ fun ContactListItem(
                 }
             }
 
-            // 显示备注或标签（如果有）
+            // 显示原始姓名（如果设置了备注）
             if (contact.alias.isNotBlank()) {
+                val originalName = contact.contactName.ifBlank { stringResource(R.string.contacts_original_name_unknown) }
                 Text(
-                    text = stringResource(R.string.contact_alias_label, contact.alias),
+                    text = stringResource(R.string.contacts_original_name_label, originalName),
                     fontSize = 13.sp,
                     color = secondaryTextColor(),
                     maxLines = 1,
@@ -2023,7 +2027,8 @@ fun ContactListItem(
         }
 
         // 收藏图标
-        if (contact.isFavorite) {
+        val isPinned = contact.conversationId.isNotBlank() && pinnedConversationIds.contains(contact.conversationId)
+        if (contact.isFavorite || isPinned) {
             Icon(
                 imageVector = Icons.Filled.Star,
                 contentDescription = stringResource(R.string.content_description_favorite),
@@ -2373,7 +2378,7 @@ fun AddFriendDialog(
                 .fillMaxHeight(0.7f),
             shape = RoundedCornerShape(16.dp),
             colors = CardDefaults.cardColors(
-                containerColor = Color.White
+                containerColor = MaterialTheme.colorScheme.surface
             ),
             elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
         ) {
@@ -2392,7 +2397,7 @@ fun AddFriendDialog(
                         text = stringResource(R.string.add_friend_title),
                         fontSize = 20.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color(0xFF1F2937)
+                        color = primaryTextColor()
                     )
                     IconButton(
                         onClick = onDismiss,
@@ -2401,14 +2406,14 @@ fun AddFriendDialog(
                         Icon(
                             imageVector = Icons.Filled.Close,
                             contentDescription = stringResource(R.string.content_description_close),
-                            tint = Color(0xFF6B7280)
+                            tint = secondaryTextColor()
                         )
                     }
                 }
 
                 HorizontalDivider(
                     thickness = 1.dp,
-                    color = Color(0xFFE5E7EB)
+                    color = MaterialTheme.colorScheme.outlineVariant
                 )
 
                 // 搜索栏
@@ -2421,14 +2426,14 @@ fun AddFriendDialog(
                     placeholder = {
                         Text(
                             text = stringResource(R.string.add_friend_search_placeholder),
-                            color = Color(0xFF9CA3AF)
+                            color = secondaryTextColor()
                         )
                     },
                     leadingIcon = {
                         Icon(
                             imageVector = Icons.Filled.Search,
                             contentDescription = stringResource(R.string.content_description_search),
-                            tint = Color(0xFF6B7280)
+                            tint = secondaryTextColor()
                         )
                     },
                     trailingIcon = {
@@ -2439,7 +2444,7 @@ fun AddFriendDialog(
                                 Icon(
                                     imageVector = Icons.Filled.Clear,
                                     contentDescription = stringResource(R.string.content_description_close),
-                                    tint = Color(0xFF6B7280)
+                                    tint = secondaryTextColor()
                                 )
                             }
                         }
@@ -2447,10 +2452,18 @@ fun AddFriendDialog(
                     singleLine = true,
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = PrimaryBlue,
-                        unfocusedBorderColor = Color(0xFFE5E7EB),
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
                         cursorColor = PrimaryBlue,
-                        focusedTextColor = Color(0xFF1F2937),
-                        unfocusedTextColor = Color(0xFF1F2937)
+                        focusedTextColor = primaryTextColor(),
+                        unfocusedTextColor = primaryTextColor(),
+                        focusedContainerColor = MaterialTheme.colorScheme.surface,
+                        unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                        focusedLeadingIconColor = secondaryTextColor(),
+                        unfocusedLeadingIconColor = secondaryTextColor(),
+                        focusedTrailingIconColor = secondaryTextColor(),
+                        unfocusedTrailingIconColor = secondaryTextColor(),
+                        focusedPlaceholderColor = secondaryTextColor(),
+                        unfocusedPlaceholderColor = secondaryTextColor()
                     ),
                     shape = RoundedCornerShape(12.dp)
                 )
@@ -2488,16 +2501,16 @@ fun AddFriendDialog(
                                         imageVector = Icons.Filled.PersonSearch,
                                         contentDescription = null,
                                         modifier = Modifier.size(64.dp),
-                                        tint = Color(0xFF9CA3AF)
+                                        tint = secondaryTextColor()
                                     )
                                     Text(
                                         text = stringResource(R.string.add_friend_search_hint),
-                                        color = Color(0xFF6B7280),
+                                        color = secondaryTextColor(),
                                         fontSize = 16.sp
                                     )
                                     Text(
                                         text = stringResource(R.string.add_friend_search_subtitle),
-                                        color = Color(0xFF9CA3AF),
+                                        color = secondaryTextColor(),
                                         fontSize = 14.sp
                                     )
                                 }
@@ -2517,7 +2530,7 @@ fun AddFriendDialog(
                                         imageVector = Icons.Filled.SearchOff,
                                         contentDescription = null,
                                         modifier = Modifier.size(64.dp),
-                                        tint = Color(0xFF9CA3AF)
+                                        tint = secondaryTextColor()
                                     )
                                     Text(
                                         text = stringResource(R.string.no_results_found),
@@ -2555,7 +2568,7 @@ fun AddFriendDialog(
                                         onAddClick = {
                                             // 发送好友请求
                                             Log.d("AddFriendDialog", "Send friend request to: ${user.username} (${user.id})")
-                                            homeViewModel.sendFriendRequest(user.id)
+                                        homeViewModel.sendFriendRequest(user)
                                         }
                                     )
                                 }
@@ -2621,12 +2634,12 @@ fun UserSearchResultItem(
                 text = user.username,
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Medium,
-                color = Color(0xFF1F2937)
+                color = primaryTextColor()
             )
             Text(
                 text = user.email,
                 fontSize = 12.sp,
-                color = Color(0xFF6B7280)
+                color = secondaryTextColor()
             )
         }
 
@@ -2640,8 +2653,9 @@ fun UserSearchResultItem(
                     onClick = { /* 不可点击 */ },
                     enabled = false,
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFFE5E7EB),
-                        disabledContainerColor = Color(0xFFE5E7EB)
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant
                     ),
                     shape = RoundedCornerShape(8.dp),
                     contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
@@ -2650,13 +2664,13 @@ fun UserSearchResultItem(
                         imageVector = Icons.Filled.Check,
                         contentDescription = stringResource(R.string.content_description_friend_added),
                         modifier = Modifier.size(18.dp),
-                        tint = Color(0xFF6B7280)
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
                         text = stringResource(R.string.add_friend_button_added),
                         fontSize = 14.sp,
-                        color = Color(0xFF6B7280)
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
@@ -2666,8 +2680,9 @@ fun UserSearchResultItem(
                     onClick = { /* 不可点击 */ },
                     enabled = false,
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFFE5E7EB),
-                        disabledContainerColor = Color(0xFFE5E7EB)
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant
                     ),
                     shape = RoundedCornerShape(8.dp),
                     contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
@@ -2676,13 +2691,13 @@ fun UserSearchResultItem(
                         imageVector = Icons.Filled.Schedule,
                         contentDescription = stringResource(R.string.content_description_request_sent),
                         modifier = Modifier.size(18.dp),
-                        tint = Color(0xFF6B7280)
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
                         text = stringResource(R.string.add_friend_button_sended),
                         fontSize = 14.sp,
-                        color = Color(0xFF6B7280)
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
@@ -2692,8 +2707,9 @@ fun UserSearchResultItem(
                     onClick = { /* 不可点击 */ },
                     enabled = false,
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFFE5E7EB),
-                        disabledContainerColor = Color(0xFFE5E7EB)
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant
                     ),
                     shape = RoundedCornerShape(8.dp),
                     contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
@@ -2701,7 +2717,7 @@ fun UserSearchResultItem(
                     Text(
                         text = stringResource(R.string.add_friend_button_pending),
                         fontSize = 14.sp,
-                        color = Color(0xFF6B7280)
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
@@ -2732,4 +2748,3 @@ fun UserSearchResultItem(
         }
     }
 }
-
