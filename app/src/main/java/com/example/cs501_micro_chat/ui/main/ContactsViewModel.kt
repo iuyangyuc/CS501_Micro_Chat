@@ -50,6 +50,9 @@ class ContactsViewModel @Inject constructor(
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error.asStateFlow()
 
+    private val _pinnedConversationIds = MutableStateFlow<Set<String>>(emptySet())
+    val pinnedConversationIds: StateFlow<Set<String>> = _pinnedConversationIds.asStateFlow()
+
     // 缓存 Conversation 数据，用于显示 GROUP 的真实信息
     private val _conversationCache = MutableStateFlow<Map<String, Conversation>>(emptyMap())
     val conversationCache: StateFlow<Map<String, Conversation>> = _conversationCache.asStateFlow()
@@ -68,6 +71,7 @@ class ContactsViewModel @Inject constructor(
 
     init {
         loadContacts()
+        observePinnedConversations()
     }
 
     /**
@@ -145,6 +149,15 @@ class ContactsViewModel @Inject constructor(
                 Log.e(TAG, "Error loading contacts", e)
                 _error.value = "加载联系人失败: ${e.message}"
                 _isLoading.value = false
+            }
+        }
+    }
+
+    private fun observePinnedConversations() {
+        val flow = chatRepository.observePinnedConversations() ?: return
+        viewModelScope.launch {
+            flow.collect { pinned ->
+                _pinnedConversationIds.value = pinned
             }
         }
     }

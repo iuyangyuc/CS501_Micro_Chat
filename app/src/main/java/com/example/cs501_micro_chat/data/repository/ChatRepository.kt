@@ -207,7 +207,10 @@ class ChatRepository @Inject constructor(
      */
     suspend fun leaveGroup(groupId: String): Result<Unit> {
         val userId = currentUserId ?: return Result.failure(Exception("User not logged in"))
-        return firebaseDataSource.removeGroupMember(groupId, userId)
+        return firebaseDataSource.removeGroupMember(groupId, userId).onSuccess {
+            firebaseDataSource.setPinnedConversation(userId, groupId, false)
+            firebaseDataSource.setConversationParticipantBlocked(groupId, userId, true)
+        }
     }
 
     /**
@@ -420,7 +423,7 @@ class ChatRepository @Inject constructor(
             if (!conversationId.isNullOrBlank()) {
                 firebaseDataSource.setPinnedConversation(userId, conversationId, false)
                 firebaseDataSource.setConversationParticipantBlocked(conversationId, contactId, true)
-                firebaseDataSource.setConversationParticipantBlocked(conversationId, userId, false)
+                firebaseDataSource.setConversationParticipantBlocked(conversationId, userId, true)
             }
         }
         return deleteResult

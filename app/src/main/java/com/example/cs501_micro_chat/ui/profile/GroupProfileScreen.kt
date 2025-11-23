@@ -247,8 +247,8 @@ private fun GroupProfileContent(
                 else -> stringResource(R.string.group_profile_pin_off_description)
             },
             isPinned = state.isPinned,
-            enabled = state.canPin,
-            isLoading = state.isPinUpdating,
+            enabled = state.canPin && !state.isRemoved,
+            isLoading = false,
             onToggle = onTogglePinned
         )
 
@@ -266,23 +266,26 @@ private fun GroupProfileContent(
                 ActionButton(
                     icon = Icons.AutoMirrored.Filled.Send,
                     label = stringResource(R.string.user_profile_send_message),
-                    onClick = onStartChat
+                    onClick = onStartChat,
+                    enabled = !state.isRemoved
                 )
                 ActionButton(
                     icon = Icons.Filled.Search,
                     label = stringResource(R.string.user_profile_search_history),
-                    onClick = onSearchHistory
+                    onClick = onSearchHistory,
+                    enabled = !state.isRemoved && state.conversationId.isNotBlank()
                 )
                 ActionButton(
                     icon = Icons.Outlined.Clear,
                     label = stringResource(R.string.user_profile_clear_history),
-                    onClick = onClearHistory
+                    onClick = onClearHistory,
+                    enabled = !state.isRemoved && state.conversationId.isNotBlank()
                 )
                 ActionButton(
                     icon = Icons.Filled.Delete,
                     label = if (state.isLeaving) stringResource(R.string.group_profile_leaving) else stringResource(R.string.group_profile_leave),
                     onClick = onLeaveGroup,
-                    enabled = !state.isLeaving,
+                    enabled = !state.isLeaving && !state.isRemoved,
                     containerColor = MaterialTheme.colorScheme.error,
                     contentColor = MaterialTheme.colorScheme.onError
                 )
@@ -399,19 +402,13 @@ private fun PinSettingRow(
             ) {
                 Switch(
                     checked = isPinned,
-                    enabled = enabled && !isLoading,
+                    enabled = enabled,
                     onCheckedChange = {
-                        if (enabled && !isLoading) {
+                        if (enabled) {
                             onToggle()
                         }
                     }
                 )
-                if (isLoading) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(20.dp),
-                        strokeWidth = 2.dp
-                    )
-                }
             }
         }
     }

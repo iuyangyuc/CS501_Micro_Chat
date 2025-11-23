@@ -159,6 +159,12 @@
     <string name="user_profile_not_provided">Не указано</string>
     <string name="user_profile_search_history">Поиск в истории чата</string>
     <string name="user_profile_clear_history">Очистить историю чата</string>
+    <string name="user_profile_alias_label">Прозвище контакта</string>
+    <string name="user_profile_alias_placeholder">Введите прозвище</string>
+    <string name="user_profile_alias_save">Сохранить прозвище</string>
+    <string name="user_profile_original_name_label">Исходное имя: %1$s</string>
+    <string name="user_profile_alias_edit">Изменить прозвище</string>
+    <string name="user_profile_alias_cancel">Отменить редактирование</string>
     <string name="user_profile_alias_update_success">Прозвище обновлено</string>
     <string name="user_profile_pin_title">Закрепить чат</string>
     <string name="user_profile_pin_on_description">Всегда держать этот чат наверху списка.</string>
@@ -191,4 +197,40 @@
     <string name="group_profile_leaving">Выход...</string>
     <string name="group_profile_no_members">Нет участников</string>
     <string name="group_profile_title_with_count">Группа (%1$d)</string>
+    <!-- HomeScreen additional strings -->
+    <string name="no_results_found">Результатов не найдено</string>
+    <string name="try_different_search_keyword">Попробуйте другой поисковый запрос</string>
+    <string name="no_conversations_yet">Пока нет разговоров</string>
+    <string name="start_new_chat_hint">Начните новый чат, чтобы общаться с другими!</string>
+    <string name="no_contacts_yet">Пока нет контактов</string>
+    <string name="add_friends_to_start_chatting">Добавьте друзей, чтобы начать чат</string>
+    <string name="wants_to_be_your_friend">Хочет стать вашим другом</string>
+    <string name="action_accept">Принять</string>
+    <string name="action_reject">Отклонить</string>
+    <string name="content_description_group">Группа</string>
+    <string name="contact_alias_label">Примечание: %1$s</string>
+    <string name="content_description_favorite">Избранное</string>
+    <!-- Missing translations for crop avatar and add-friend content descriptions -->
+    <string name="crop_avatar_title">Обрезать аватар</string>
+    <string name="crop_avatar_button">Обрезать</string>
+    <string name="crop_avatar_cancel">Отмена</string>
+    <string name="crop_avatar_failed">Не удалось загрузить изображение</string>
+    <string name="crop_avatar_close">Закрыть</string>
+    <string name="content_description_add_friend">Добавить друга</string>
+    <string name="content_description_friend_added">Друг добавлен</string>
+    <string name="content_description_request_sent">Запрос отправлен</string>
+    <string name="content_description_request_pending">Запрос в ожидании</string>
+    <string name="add_option_new_contact">Новый контакт</string>
+    <string name="add_option_new_group">Новая группа</string>
+    <string name="add_friend_title">Добавить друга</string>
+    <string name="add_friend_search_placeholder">Поиск по имени или email</string>
+    <string name="add_friend_search_hint">Поиск друзей</string>
+    <string name="add_friend_search_subtitle">Введите имя пользователя или email</string>
+    <string name="add_friend_no_results">Пользователи не найдены</string>
+    <string name="add_friend_try_different">Попробуйте другой поисковый запрос</string>
+    <string name="add_friend_button_add">Добавить</string>
+    <string name="add_friend_button_added">Добавлен</string>
+    <string name="add_friend_button_sended">Отправлено</string>
+    <string name="add_friend_button_pending">Ожидание</string>
+    <string name="add_friend_user_id">ID: %s</string>
 </resources>

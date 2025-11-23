@@ -182,6 +182,17 @@
     <string name="chat_message_failed_removed">你已被对方删除，无法继续对话。</string>
     <string name="contacts_original_name_label">原名：%1$s</string>
     <string name="contacts_original_name_unknown">未知</string>
+    <string name="add_option_new_contact">新联系人</string>
+    <string name="add_option_new_group">新群组</string>
+    <string name="content_description_add_friend">添加好友</string>
+    <string name="content_description_friend_added">已添加好友</string>
+    <string name="content_description_request_sent">请求已发送</string>
+    <string name="content_description_request_pending">请求待处理</string>
+    <string name="crop_avatar_title">裁剪头像</string>
+    <string name="crop_avatar_button">裁剪</string>
+    <string name="crop_avatar_cancel">取消</string>
+    <string name="crop_avatar_failed">图片加载失败</string>
+    <string name="crop_avatar_close">关闭</string>
     <string name="group_profile_name_label">群组名称</string>
     <string name="group_profile_save_name">保存名称</string>
     <string name="group_profile_members_title">群成员</string>
@@ -196,5 +207,30 @@
     <string name="group_profile_leave">退出群组</string>
     <string name="group_profile_leaving">正在退出...</string>
     <string name="group_profile_no_members">暂无成员</string>
-    <string name="group_profile_title_with_count">群组（%1$d人）</string>
+    <string name="group_profile_title_with_count">群组（%1$d）</string>
+    <!-- HomeScreen additional strings -->
+    <string name="no_results_found">未找到结果</string>
+    <string name="try_different_search_keyword">请尝试其他关键词</string>
+    <string name="no_conversations_yet">暂无会话</string>
+    <string name="start_new_chat_hint">开始新对话以结识更多人！</string>
+    <string name="no_contacts_yet">暂无联系人</string>
+    <string name="add_friends_to_start_chatting">添加好友开始聊天！</string>
+    <string name="wants_to_be_your_friend">想成为你的好友</string>
+    <string name="action_accept">接受</string>
+    <string name="action_reject">拒绝</string>
+    <string name="content_description_group">群组</string>
+    <string name="contact_alias_label">备注：%1$s</string>
+    <string name="content_description_favorite">收藏</string>
+    <!-- Add Friend Feature -->
+    <string name="add_friend_title">添加好友</string>
+    <string name="add_friend_search_placeholder">按用户名或邮箱搜索</string>
+    <string name="add_friend_search_hint">搜索好友</string>
+    <string name="add_friend_search_subtitle">输入用户名或邮箱</string>
+    <string name="add_friend_no_results">未找到用户</string>
+    <string name="add_friend_try_different">尝试其他搜索词</string>
+    <string name="add_friend_button_add">添加</string>
+    <string name="add_friend_button_added">已添加</string>
+    <string name="add_friend_button_sended">已发送</string>
+    <string name="add_friend_button_pending">待确认</string>
+    <string name="add_friend_user_id">ID: %s</string>
 </resources>

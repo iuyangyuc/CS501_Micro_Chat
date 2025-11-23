@@ -1,27 +1,22 @@
 /**
- * ChatDetailScreen.kt
+ * Chat detail screen for listing messages and sending new ones (based on the Figma design).
  *
- * 对话详情界面 - 显示聊天消息和发送消息（基于 Figma 设计）
- * Chat Detail Screen - Display chat messages and send messages (Based on Figma design)
+ * Features:
+ * - Load historical messages from Firebase
+ * - Receive new messages in real time
+ * - Send text messages
+ * - Message bubbles for self/others
+ * - Read status display
  *
- * 主要功能 / Main Functions:
- * - 显示历史消息列表（从 Firebase 加载）
- * - 实时接收新消息
- * - 发送文本消息
- * - 消息气泡展示（自己/对方）
- * - 消息已读状态
- *
- * 设计参考 / Design Reference:
- * - Figma Chat Interface Design - ChatDetail 组件
- * - 渐变蓝色顶栏 #3296FA → #66B3FF
- * - 消息气泡：自己（蓝色）/ 对方（白色）
- *
- * @author CS501 Team
- * @date 2025-01-08
+ * Design reference:
+ * - Figma Chat Interface Design - ChatDetail component
+ * - Gradient blue top bar #3296FA → #66B3FF
+ * - Message bubbles: self (blue) / others (white)
  */
 package com.example.cs501_micro_chat.ui.chat
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -75,13 +70,12 @@ private fun chatPrimaryTextColor() = MaterialTheme.colorScheme.onSurface
 private fun chatSecondaryTextColor() = MaterialTheme.colorScheme.onSurfaceVariant
 
 /**
- * 对话详情主界面
- * Chat detail main screen
+ * Chat detail main screen.
  *
- * @param conversationId 会话 ID
- * @param conversationName 会话名称
- * @param conversationAvatar 会话头像 URL
- * @param onBack 返回回调
+ * @param conversationId conversation ID
+ * @param conversationName conversation name
+ * @param conversationAvatar conversation avatar URL
+ * @param onBack back callback
  * @param viewModel ViewModel
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -93,7 +87,7 @@ fun ChatDetailScreen(
     onBack: () -> Unit,
     viewModel: ChatDetailViewModel = hiltViewModel()
 ) {
-    // 初始化加载会话消息
+    // Load conversation messages on first open
     LaunchedEffect(conversationId) {
         viewModel.loadMessages(conversationId)
     }
@@ -110,8 +104,13 @@ fun ChatDetailScreen(
     val backgroundColor = chatBackgroundColor()
     val surfaceColor = chatSurfaceColor()
     val inputBackground = chatInputBackground()
+    val inputEnabled = !isBlocked
 
-    // 自动滚动到最新消息
+    LaunchedEffect(isBlocked) {
+        if (isBlocked) showAttachmentMenu = false
+    }
+
+    // Auto scroll to the latest message
     LaunchedEffect(messages.size) {
         if (messages.isNotEmpty()) {
             listState.animateScrollToItem(messages.size - 1)
@@ -120,7 +119,6 @@ fun ChatDetailScreen(
 
     Scaffold(
         topBar = {
-            // Figma 设计的渐变蓝色顶部栏
             Surface(
                 color = Color.Transparent
             ) {
@@ -139,7 +137,7 @@ fun ChatDetailScreen(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // 返回按钮
+                        // Back button
                         IconButton(onClick = onBack) {
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.ArrowBack,
@@ -148,7 +146,7 @@ fun ChatDetailScreen(
                             )
                         }
 
-                        // 会话头像和名称
+                        // Conversation avatar and name
                         if (conversationAvatar.isNotBlank()) {
                             AsyncImage(
                                 model = conversationAvatar,
@@ -185,8 +183,8 @@ fun ChatDetailScreen(
                             modifier = Modifier.weight(1f)
                         )
 
-                        // 更多选项
-                        IconButton(onClick = { /* TODO: 显示更多菜单 */ }) {
+                        // More options
+                        IconButton(onClick = { /* TODO: show more menu */ }) {
                             Icon(
                                 imageVector = Icons.Default.MoreVert,
                                 contentDescription = stringResource(R.string.content_description_more),
@@ -198,35 +196,36 @@ fun ChatDetailScreen(
             }
         },
         bottomBar = {
-            // 输入栏
+            // Input bar
         Surface(
             color = surfaceColor,
             shadowElevation = 8.dp
         ) {
                 Column {
-                    // 附件菜单
+                    // Attachment menu
                     if (showAttachmentMenu) {
                         AttachmentMenu(
                             onDismiss = { showAttachmentMenu = false },
-                            onImageClick = { /* TODO: 选择图片 */ },
-                            onCameraClick = { /* TODO: 拍照 */ },
-                            onFileClick = { /* TODO: 选择文件 */ },
-                            onVoiceClick = { /* TODO: 录音 */ }
+                            onImageClick = { /* TODO: pick image */ },
+                            onCameraClick = { /* TODO: take photo */ },
+                            onFileClick = { /* TODO: pick file */ },
+                            onVoiceClick = { /* TODO: record voice */ }
                         )
                         HorizontalDivider()
                     }
 
-                    // 输入框区域
+                    // Input field area
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 8.dp, vertical = 8.dp),
                         verticalAlignment = Alignment.Bottom
                     ) {
-                        // 语音按钮
+                        // Voice button
                         IconButton(
-                            onClick = { /* TODO: 语音输入 */ },
-                            modifier = Modifier.size(40.dp)
+                            onClick = { /* TODO: voice input */ },
+                            modifier = Modifier.size(40.dp),
+                            enabled = inputEnabled
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Mic,
@@ -235,7 +234,7 @@ fun ChatDetailScreen(
                             )
                         }
 
-                        // 输入框
+                        // Input box
                         Row(
                             modifier = Modifier
                                 .weight(1f)
@@ -248,6 +247,7 @@ fun ChatDetailScreen(
                                 value = inputText,
                                 onValueChange = { inputText = it },
                                 modifier = Modifier.weight(1f),
+                                enabled = inputEnabled,
                                 placeholder = {
                                     Text(
                                         text = stringResource(R.string.chat_input_placeholder),
@@ -264,10 +264,11 @@ fun ChatDetailScreen(
                                 maxLines = 4
                             )
 
-                            // 表情按钮
+                            // Emoji button
                             IconButton(
-                                onClick = { /* TODO: 显示表情选择器 */ },
-                                modifier = Modifier.size(32.dp)
+                                onClick = { /* TODO: show emoji picker */ },
+                                modifier = Modifier.size(32.dp),
+                                enabled = inputEnabled
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.EmojiEmotions,
@@ -280,9 +281,9 @@ fun ChatDetailScreen(
 
                         Spacer(modifier = Modifier.width(4.dp))
 
-                        // 附件/发送按钮
+                        // Attachment/Send button
                         if (inputText.trim().isNotEmpty()) {
-                            // 发送按钮
+                            // Send button
                             IconButton(
                                 onClick = {
                                     if (inputText.isNotBlank()) {
@@ -293,7 +294,8 @@ fun ChatDetailScreen(
                                 modifier = Modifier
                                     .size(40.dp)
                                     .clip(CircleShape)
-                                    .background(PrimaryBlue)
+                                    .background(PrimaryBlue),
+                                enabled = inputEnabled
                             ) {
                                 Icon(
                                     imageVector = Icons.AutoMirrored.Filled.Send,
@@ -303,10 +305,11 @@ fun ChatDetailScreen(
                                 )
                             }
                         } else {
-                            // 附件按钮
+                            // Attachment button
                             IconButton(
                                 onClick = { showAttachmentMenu = !showAttachmentMenu },
-                                modifier = Modifier.size(40.dp)
+                                modifier = Modifier.size(40.dp),
+                                enabled = inputEnabled
                             ) {
                                 Icon(
                                     imageVector = if (showAttachmentMenu) Icons.Default.Close else Icons.Default.Add,
@@ -330,7 +333,7 @@ fun ChatDetailScreen(
                 .padding(innerPadding)
                 .background(backgroundColor)
         ) {
-            // 错误提示
+            // Error message
             error?.let { errorMessage ->
                 Card(
                     modifier = Modifier
@@ -359,14 +362,14 @@ fun ChatDetailScreen(
                 }
             }
 
-            // 加载指示器
+            // Loading indicator
             if (isLoading && messages.isEmpty()) {
                 CircularProgressIndicator(
                     modifier = Modifier.align(Alignment.Center),
                     color = PrimaryBlue
                 )
             }
-            // 空状态
+            // Empty state
             else if (messages.isEmpty() && !isLoading) {
                 Column(
                     modifier = Modifier.align(Alignment.Center),
@@ -391,7 +394,7 @@ fun ChatDetailScreen(
                     )
                 }
             }
-            // 消息列表
+            // Message list
             else {
                 Column(
                     modifier = Modifier.fillMaxSize()
@@ -448,7 +451,6 @@ private fun RemovalBanner() {
 }
 
 /**
- * 消息气泡组件（基于 Figma 设计）
  * Message bubble component (Based on Figma design)
  */
 @Composable
@@ -462,7 +464,7 @@ internal fun MessageBubble(
         horizontalArrangement = if (isSelf) Arrangement.End else Arrangement.Start
     ) {
         if (!isSelf) {
-            // 对方头像
+            // Other user's avatar
             val avatarModifier = Modifier
                 .size(40.dp)
                 .clip(CircleShape)
@@ -495,7 +497,7 @@ internal fun MessageBubble(
             modifier = Modifier.widthIn(max = 280.dp),
             horizontalAlignment = if (isSelf) Alignment.End else Alignment.Start
         ) {
-            // 消息内容
+            // Message content
             Surface(
                 shape = RoundedCornerShape(
                     topStart = if (isSelf) 12.dp else 2.dp,
@@ -516,7 +518,7 @@ internal fun MessageBubble(
                         )
                     }
                     MessageType.IMAGE -> {
-                        // TODO: 显示图片消息
+                        // TODO: show image message
                         Text(
                             text = stringResource(R.string.chat_media_image_label),
                             color = if (isSelf) Color.White else chatPrimaryTextColor(),
@@ -571,7 +573,7 @@ internal fun MessageBubble(
 
         if (isSelf) {
             Spacer(modifier = Modifier.width(8.dp))
-            // 自己的头像
+            // Own avatar
             if (message.senderAvatarUrl.isNotBlank()) {
                 AsyncImage(
                     model = message.senderAvatarUrl,
@@ -601,7 +603,6 @@ internal fun MessageBubble(
 }
 
 /**
- * 附件菜单（基于 Figma 设计）
  * Attachment menu (Based on Figma design)
  */
 @Composable
@@ -657,10 +658,7 @@ private fun AttachmentMenu(
     }
 }
 
-/**
- * 附件菜单项
- * Attachment menu item
- */
+/** Attachment menu item */
 @Composable
 private fun AttachmentMenuItem(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
@@ -676,8 +674,10 @@ private fun AttachmentMenuItem(
     ) {
         Surface(
             shape = RoundedCornerShape(12.dp),
-            color = Color.White,
-            shadowElevation = 2.dp,
+            color = MaterialTheme.colorScheme.surface,
+            tonalElevation = 1.dp,
+            shadowElevation = 0.dp,
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
             modifier = Modifier.size(56.dp)
         ) {
             Box(
@@ -700,10 +700,7 @@ private fun AttachmentMenuItem(
     }
 }
 
-/**
- * 格式化消息时间
- * Format message time
- */
+/** Format message time */
 private fun formatMessageTime(timestamp: Long): String {
     val sdf = SimpleDateFormat("HH:mm", Locale.getDefault())
     return sdf.format(Date(timestamp))

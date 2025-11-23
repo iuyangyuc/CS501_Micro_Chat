@@ -81,7 +81,7 @@ class FirebaseProfileRepository @Inject constructor(
     private suspend fun uploadAvatar(userId: String, uri: Uri): String {
         val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
             ?: throw IllegalStateException("Unable to read image data")
-        val reference = storage.reference.child("avatars/$userId.jpg")
+        val reference = storage.reference.child("Avatars/$userId.jpg")
         reference.putBytes(bytes).await()
         return reference.downloadUrl.await().toString()
     }

@@ -1,18 +1,12 @@
 /**
- * ChatDetailViewModel.kt
+ * Chat detail ViewModel that manages message lists and sending.
  *
- * 对话详情 ViewModel - 管理消息列表和发送消息
- * Chat Detail ViewModel - Manages message list and sending messages
- *
- * 功能 / Features:
- * - 从 Firebase 加载历史消息
- * - 实时监听新消息
- * - 发送文本消息
- * - 标记消息已读
- * - 获取当前用户 ID
- *
- * @author CS501 Team
- * @date 2025-01-08
+ * Features:
+ * - Load historical messages from Firebase
+ * - Listen for new messages in real time
+ * - Send text messages
+ * - Mark messages as read
+ * - Get current user ID
  */
 package com.example.cs501_micro_chat.ui.chat
 
@@ -23,6 +17,7 @@ import com.example.cs501_micro_chat.data.model.Message
 import com.example.cs501_micro_chat.data.model.MessageStatus
 import com.example.cs501_micro_chat.data.model.MessageType
 import com.example.cs501_micro_chat.data.repository.ChatRepository
+import com.example.cs501_micro_chat.data.repository.StorageRepository
 import com.google.firebase.auth.FirebaseAuth
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -31,9 +26,16 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+data class MediaUploadState(
+    val isUploading: Boolean = false,
+    val uploadingType: MessageType? = null,
+    val lastUploadedUrl: String? = null
+)
+
 @HiltViewModel
 class ChatDetailViewModel @Inject constructor(
     private val chatRepository: ChatRepository,
+    private val storageRepository: StorageRepository,
     private val auth: FirebaseAuth
 ) : ViewModel() {
 
@@ -57,22 +59,23 @@ class ChatDetailViewModel @Inject constructor(
 
     private val _conversationId = MutableStateFlow("")
     val conversationId: StateFlow<String> = _conversationId.asStateFlow()
+    private val _mediaUploadState = MutableStateFlow(MediaUploadState())
+    val mediaUploadState: StateFlow<MediaUploadState> = _mediaUploadState.asStateFlow()
 
     private val _isConversationBlocked = MutableStateFlow(false)
     val isConversationBlocked: StateFlow<Boolean> = _isConversationBlocked.asStateFlow()
 
-    // 用户信息缓存：userId -> User
+    // User info cache: userId -> User
     private val userCache = mutableMapOf<String, com.example.cs501_micro_chat.data.model.User>()
 
     private var currentConversationId: String? = null
 
     /**
-     * 加载会话消息并实时监听
-     * Load conversation messages and listen for real-time updates
+     * Load conversation messages and listen for real-time updates.
      */
     fun loadMessages(conversationId: String) {
         if (currentConversationId == conversationId) {
-            // 已经在监听这个会话
+            // Already listening to this conversation
             return
         }
 
@@ -85,18 +88,18 @@ class ChatDetailViewModel @Inject constructor(
         viewModelScope.launch {
             loadConversationMeta(conversationId)
             try {
-                // 实时监听消息变化
+                // Listen for message changes in real time
                 chatRepository.observeMessages(conversationId).collect { messageList ->
                     Log.d("ChatDetailViewModel", "Received ${messageList.size} messages")
 
-                    // 补充缺失的用户信息
+                    // Fill missing user info
                     val enrichedMessages = enrichMessagesWithUserInfo(messageList)
 
                     _messages.value = enrichedMessages.sortedBy { it.timestamp }
                     _isLoading.value = false
                     _error.value = null
 
-                    // 标记所有消息为已读
+                    // Mark messages as read
                     markAllAsRead(conversationId)
                 }
             } catch (e: Exception) {
@@ -127,11 +130,10 @@ class ChatDetailViewModel @Inject constructor(
     }
 
     /**
-     * 补充消息中缺失的用户信息
-     * Enrich messages with missing user information
+     * Enrich messages with missing user information.
      */
     private suspend fun enrichMessagesWithUserInfo(messages: List<Message>): List<Message> {
-        // 收集所有需要加载的用户 ID（senderName 或 senderAvatarUrl 为空的）
+        // Collect sender IDs that need loading when name or avatar is missing
         val userIdsToLoad = messages
             .filter { it.senderName.isBlank() || it.senderAvatarUrl.isBlank() }
             .map { it.senderId }
@@ -141,7 +143,7 @@ class ChatDetailViewModel @Inject constructor(
         if (userIdsToLoad.isNotEmpty()) {
             Log.d("ChatDetailViewModel", "Loading user info for ${userIdsToLoad.size} users")
 
-            // 批量加载用户信息
+            // Fetch user info in batch
             chatRepository.getUsers(userIdsToLoad).onSuccess { users ->
                 userCache.putAll(users)
                 Log.d("ChatDetailViewModel", "Loaded ${users.size} users into cache")
@@ -150,7 +152,7 @@ class ChatDetailViewModel @Inject constructor(
             }
         }
 
-        // 使用缓存的用户信息补充消息
+        // Apply cached user info back to messages
         return messages.map { message ->
             if (message.senderName.isBlank() || message.senderAvatarUrl.isBlank()) {
                 val user = userCache[message.senderId]
@@ -169,8 +171,7 @@ class ChatDetailViewModel @Inject constructor(
     }
 
     /**
-     * 发送文本消息
-     * Send text message
+     * Send text message.
      */
     fun sendMessage(conversationId: String, content: String) {
         if (content.isBlank()) {
@@ -199,9 +200,135 @@ class ChatDetailViewModel @Inject constructor(
     }
 
     /**
-     * 标记所有消息为已读
-     * Mark all messages as read
-     */
+     * Upload an image to Firebase Storage and send the image message.
+     *fun uploadImageMessage(
+        conversationId: String,
+        imageBytes: ByteArray,
+        mimeType: String = "image/jpeg",
+        extension: String? = null
+    ) {
+        val userId = auth.currentUser?.uid ?: run {
+            _error.value = "用户未登录"
+            return
+        }
+
+        viewModelScope.launch {
+            _mediaUploadState.value = _mediaUploadState.value.copy(
+                isUploading = true,
+                uploadingType = MessageType.IMAGE
+            )
+
+            val uploadResult = storageRepository.uploadImage(
+                bytes = imageBytes,
+                conversationId = conversationId,
+                ownerId = userId,
+                mimeType = mimeType,
+                extension = extension
+            )
+
+            if (uploadResult.isFailure) {
+                val message = uploadResult.exceptionOrNull()?.message ?: "未知错误"
+                _error.value = "上传图片失败: $message"
+                _mediaUploadState.value = _mediaUploadState.value.copy(
+                    isUploading = false,
+                    uploadingType = null
+                )
+                return@launch
+            }
+
+            val media = uploadResult.getOrThrow()
+            val sendResult = chatRepository.sendMessage(
+                conversationId = conversationId,
+                content = "图片",
+                type = MessageType.IMAGE,
+                mediaUrl = media.downloadUrl
+            )
+
+            if (sendResult.isFailure) {
+                val message = sendResult.exceptionOrNull()?.message ?: "未知错误"
+                _error.value = "发送图片消息失败: $message"
+                storageRepository.deleteByPath(media.storagePath)
+                _mediaUploadState.value = _mediaUploadState.value.copy(
+                    isUploading = false,
+                    uploadingType = null
+                )
+                return@launch
+            }
+
+            _mediaUploadState.value = _mediaUploadState.value.copy(
+                isUploading = false,
+                uploadingType = null,
+                lastUploadedUrl = media.downloadUrl
+            )
+        }
+    }
+
+    /** Upload an mp3 voice clip and send it as a message. */
+    fun uploadVoiceMessage(
+        conversationId: String,
+        audioBytes: ByteArray,
+        durationMillis: Long,
+        mimeType: String = "audio/mpeg",
+        extension: String? = null
+    ) {
+        val userId = auth.currentUser?.uid ?: run {
+            _error.value = "用户未登录"
+            return
+        }
+
+        viewModelScope.launch {
+            _mediaUploadState.value = _mediaUploadState.value.copy(
+                isUploading = true,
+                uploadingType = MessageType.VOICE
+            )
+
+            val uploadResult = storageRepository.uploadVoiceMessage(
+                bytes = audioBytes,
+                conversationId = conversationId,
+                ownerId = userId,
+                mimeType = mimeType,
+                extension = extension
+            )
+
+            if (uploadResult.isFailure) {
+                val message = uploadResult.exceptionOrNull()?.message ?: "未知错误"
+                _error.value = "上传语音失败: $message"
+                _mediaUploadState.value = _mediaUploadState.value.copy(
+                    isUploading = false,
+                    uploadingType = null
+                )
+                return@launch
+            }
+
+            val media = uploadResult.getOrThrow()
+            val seconds = (durationMillis / 1000).coerceAtLeast(1)
+            val sendResult = chatRepository.sendMessage(
+                conversationId = conversationId,
+                content = "语音消息 (${seconds}s)",
+                type = MessageType.VOICE,
+                mediaUrl = media.downloadUrl
+            )
+
+            if (sendResult.isFailure) {
+                val message = sendResult.exceptionOrNull()?.message ?: "未知错误"
+                _error.value = "发送语音消息失败: $message"
+                storageRepository.deleteByPath(media.storagePath)
+                _mediaUploadState.value = _mediaUploadState.value.copy(
+                    isUploading = false,
+                    uploadingType = null
+                )
+                return@launch
+            }
+
+            _mediaUploadState.value = _mediaUploadState.value.copy(
+                isUploading = false,
+                uploadingType = null,
+                lastUploadedUrl = media.downloadUrl
+            )
+        }
+    }
+
+    /** Mark all messages as read. */
     private fun markAllAsRead(conversationId: String) {
         val userId = auth.currentUser?.uid ?: return
 
@@ -215,7 +342,7 @@ class ChatDetailViewModel @Inject constructor(
                 }
             }
 
-            // 清空未读数
+            // Clear unread count
             chatRepository.clearUnreadCount(conversationId)
                 .onFailure { error ->
                     Log.e("ChatDetailViewModel", "Error clearing unread count", error)
@@ -223,11 +350,17 @@ class ChatDetailViewModel @Inject constructor(
         }
     }
 
-    /**
-     * 清除错误信息
-     * Clear error message
-     */
+    /** Clear error message. */
     fun clearError() {
         _error.value = null
+    }
+
+    /** Reset media upload indicator state. */
+    fun clearMediaUploadState() {
+        _mediaUploadState.value = MediaUploadState(
+            isUploading = false,
+            uploadingType = null,
+            lastUploadedUrl = null
+        )
     }
 }

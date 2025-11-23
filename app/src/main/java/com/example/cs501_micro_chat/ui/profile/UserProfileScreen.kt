@@ -343,8 +343,8 @@ private fun ProfileContent(
             title = stringResource(R.string.user_profile_pin_title),
             description = pinDescription,
             isPinned = state.isPinned,
-            enabled = state.canPin,
-            isLoading = state.isPinUpdating,
+            enabled = state.canPin && !state.isDeleted,
+            isLoading = false,
             onToggle = onTogglePinned
         )
 
@@ -357,7 +357,7 @@ private fun ProfileContent(
             Button(
                 onClick = onStartChat,
                 modifier = Modifier.fillMaxWidth(),
-                enabled = !state.isChatting && state.userId.isNotBlank()
+                enabled = !state.isChatting && state.userId.isNotBlank() && !state.isDeleted
             ) {
                 Icon(imageVector = Icons.AutoMirrored.Filled.Send, contentDescription = null)
                 Spacer(modifier = Modifier.width(8.dp))
@@ -372,7 +372,7 @@ private fun ProfileContent(
             Button(
                 onClick = onSearchHistory,
                 modifier = Modifier.fillMaxWidth(),
-                enabled = state.conversationId.isNotBlank()
+                enabled = state.conversationId.isNotBlank() && !state.isDeleted
             ) {
                 Icon(imageVector = Icons.Default.Search, contentDescription = null)
                 Spacer(modifier = Modifier.width(8.dp))
@@ -381,7 +381,7 @@ private fun ProfileContent(
             Button(
                 onClick = onClearHistory,
                 modifier = Modifier.fillMaxWidth(),
-                enabled = state.conversationId.isNotBlank(),
+                enabled = state.conversationId.isNotBlank() && !state.isDeleted,
                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
             ) {
                 Icon(imageVector = Icons.Outlined.Clear, contentDescription = null)
@@ -392,7 +392,7 @@ private fun ProfileContent(
                 onClick = onDeleteContact,
                 modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF4444)),
-                enabled = !state.isDeleting && state.userId.isNotBlank()
+                enabled = !state.isDeleting && state.userId.isNotBlank() && !state.isDeleted
             ) {
                 Icon(imageVector = Icons.Filled.Delete, contentDescription = null)
                 Spacer(modifier = Modifier.width(8.dp))
@@ -469,19 +469,13 @@ private fun PinSettingRow(
             ) {
                 Switch(
                     checked = isPinned,
-                    enabled = enabled && !isLoading,
+                    enabled = enabled,
                     onCheckedChange = {
-                        if (enabled && !isLoading) {
+                        if (enabled) {
                             onToggle()
                         }
                     }
                 )
-                if (isLoading) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(20.dp),
-                        strokeWidth = 2.dp
-                    )
-                }
             }
         }
     }

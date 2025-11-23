@@ -172,10 +172,20 @@ class GroupProfileViewModel @Inject constructor(
             _uiState.update { it.copy(isLeaving = true) }
             chatRepository.leaveGroup(groupId).onSuccess {
                 _events.send(GroupProfileEvent.LeftGroup)
+                _uiState.update {
+                    it.copy(
+                        isLeaving = false,
+                        isRemoved = true,
+                        canPin = false,
+                        isPinned = false,
+                        contactFavorite = false,
+                        conversationId = ""
+                    )
+                }
             }.onFailure { error ->
                 _events.send(GroupProfileEvent.ShowMessage(error.message ?: "Failed to leave group"))
+                _uiState.update { it.copy(isLeaving = false) }
             }
-            _uiState.update { it.copy(isLeaving = false) }
         }
     }
 
@@ -228,6 +238,7 @@ data class GroupProfileUiState(
     val canPin: Boolean = false,
     val isPinUpdating: Boolean = false,
     val contactFavorite: Boolean = false,
+    val isRemoved: Boolean = false,
     val isSaving: Boolean = false,
     val isLeaving: Boolean = false,
     val isLoading: Boolean = false,
