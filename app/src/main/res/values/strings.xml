@@ -180,7 +180,7 @@
 
     <!-- Add Friend Dialog -->
     <string name="add_friend_title">Add Friend</string>
-    <string name="add_friend_search_placeholder">Search by User ID or Username</string>
+    <string name="add_friend_search_placeholder">Search by Username or Email</string>
     <string name="add_friend_search_hint">Search for friends</string>
     <string name="add_friend_search_subtitle">Enter User ID or Username</string>
     <string name="add_friend_no_results">No users found</string>

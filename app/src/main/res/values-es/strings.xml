@@ -193,4 +193,15 @@
     <string name="content_description_request_pending">Solicitud pendiente</string>
     <string name="add_option_new_contact">Nuevo contacto</string>
     <string name="add_option_new_group">Nuevo grupo</string>
+    <string name="add_friend_title">Agregar amigo</string>
+    <string name="add_friend_search_placeholder">Buscar por nombre o email</string>
+    <string name="add_friend_search_hint">Buscar amigos</string>
+    <string name="add_friend_search_subtitle">Ingresa nombre de usuario o email</string>
+    <string name="add_friend_no_results">No se encontraron usuarios</string>
+    <string name="add_friend_try_different">Intenta con otro término de búsqueda</string>
+    <string name="add_friend_button_add">Agregar</string>
+    <string name="add_friend_button_added">Agregado</string>
+    <string name="add_friend_button_sended">Enviado</string>
+    <string name="add_friend_button_pending">Pendiente</string>
+    <string name="add_friend_user_id">ID: %s</string>
 </resources>

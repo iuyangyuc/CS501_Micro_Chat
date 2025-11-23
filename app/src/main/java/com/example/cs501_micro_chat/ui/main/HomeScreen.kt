@@ -2624,7 +2624,7 @@ fun UserSearchResultItem(
                 color = Color(0xFF1F2937)
             )
             Text(
-                text = stringResource(R.string.add_friend_user_id, user.id),
+                text = user.email,
                 fontSize = 12.sp,
                 color = Color(0xFF6B7280)
             )

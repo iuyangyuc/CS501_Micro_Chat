@@ -193,4 +193,15 @@
     <string name="content_description_request_pending">Запрос в ожидании</string>
     <string name="add_option_new_contact">Новый контакт</string>
     <string name="add_option_new_group">Новая группа</string>
+    <string name="add_friend_title">Добавить друга</string>
+    <string name="add_friend_search_placeholder">Поиск по имени или email</string>
+    <string name="add_friend_search_hint">Поиск друзей</string>
+    <string name="add_friend_search_subtitle">Введите имя пользователя или email</string>
+    <string name="add_friend_no_results">Пользователи не найдены</string>
+    <string name="add_friend_try_different">Попробуйте другой поисковый запрос</string>
+    <string name="add_friend_button_add">Добавить</string>
+    <string name="add_friend_button_added">Добавлен</string>
+    <string name="add_friend_button_sended">Отправлено</string>
+    <string name="add_friend_button_pending">Ожидание</string>
+    <string name="add_friend_user_id">ID: %s</string>
 </resources>

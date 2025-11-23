@@ -14,12 +14,10 @@ import com.example.cs501_micro_chat.data.repository.AuthRepository
 import com.example.cs501_micro_chat.data.repository.ChatRepository
 import com.example.cs501_micro_chat.data.repository.FirebaseProfileRepository
 import com.example.cs501_micro_chat.data.repository.FirebaseAuthRepository
-import com.example.cs501_micro_chat.data.repository.FirebaseStorageRepository
 import com.example.cs501_micro_chat.data.repository.ProfileRepository
 import com.example.cs501_micro_chat.data.repository.StorageRepository
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
-import com.google.firebase.firestore.FirebaseFirestoreSettings
 import com.google.firebase.storage.FirebaseStorage
 import dagger.Module
 import dagger.Provides
@@ -46,12 +44,7 @@ object FirebaseModule {
     @Provides
     @Singleton
     fun provideFirebaseFirestore(): FirebaseFirestore {
-        return FirebaseFirestore.getInstance().apply {
-            // 启用离线持久化
-            firestoreSettings = FirebaseFirestoreSettings.Builder()
-                .setPersistenceEnabled(true)
-                .build()
-        }
+        return FirebaseFirestore.getInstance()
     }
 
     /**
@@ -118,6 +111,6 @@ object FirebaseModule {
     fun provideStorageRepository(
         storage: FirebaseStorage
     ): StorageRepository {
-        return FirebaseStorageRepository(storage)
+        return StorageRepository(storage)
     }
 }

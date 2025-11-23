@@ -194,7 +194,7 @@
     <string name="add_option_new_contact">Nouveau contact</string>
     <string name="add_option_new_group">Nouveau groupe</string>
     <string name="add_friend_title">Ajouter un ami</string>
-    <string name="add_friend_search_placeholder">Rechercher par ID ou nom d\'utilisateur</string>
+    <string name="add_friend_search_placeholder">Rechercher par nom ou email</string>
     <string name="add_friend_search_hint">Rechercher des amis</string>
     <string name="add_friend_search_subtitle">Entrez l\'ID ou le nom d\'utilisateur</string>
     <string name="add_friend_no_results">Aucun utilisateur trouvé</string>

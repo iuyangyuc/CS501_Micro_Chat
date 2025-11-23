@@ -122,47 +122,77 @@ class FirebaseDataSource @Inject constructor(
     }
 
     /**
-     * 搜索用户（通过用户名、用户 ID 或邮箱）
+     * 搜索用户（支持 username 和 email 搜索）
+     * Search users by username or email
      */
     suspend fun searchUsers(query: String): Result<List<User>> = runCatching {
         val results = mutableListOf<User>()
+        val lowerQuery = query.lowercase().trim()
 
-        // 1. 通过 ID 精确搜索
-        try {
-            val byId = usersCollection
-                .document(query)
-                .get()
-                .await()
-            byId.toObject(User::class.java)?.let { user ->
-                results.add(user.copy(id = byId.id))
-            }
-        } catch (e: Exception) {
-            Log.d(TAG, "User ID search failed: ${e.message}")
+        if (lowerQuery.isBlank()) {
+            return@runCatching emptyList()
         }
 
-        // 2. 通过用户名前缀搜索
-        val byUsername = usersCollection
-            .whereGreaterThanOrEqualTo("username", query)
-            .whereLessThanOrEqualTo("username", query + "\uf8ff")
-            .get()
-            .await()
-            .documents
-            .mapNotNull { doc ->
-                doc.toObject(User::class.java)?.copy(id = doc.id)
-            }
+        // 1. 通过用户名搜索（前缀匹配）
+        try {
+            val byUsername = usersCollection
+                .whereGreaterThanOrEqualTo("username", query)
+                .whereLessThanOrEqualTo("username", query + "\uf8ff")
+                .limit(20)
+                .get()
+                .await()
+                .documents
+                .mapNotNull { doc ->
+                    doc.toObject(User::class.java)?.copy(id = doc.id)
+                }
+            results.addAll(byUsername)
+        } catch (e: Exception) {
+            Log.d(TAG, "Username search failed: ${e.message}")
+        }
 
-        // 3. 通过邮箱精确搜索
-        val byEmail = usersCollection
-            .whereEqualTo("email", query)
-            .get()
-            .await()
-            .documents
-            .mapNotNull { doc ->
-                doc.toObject(User::class.java)?.copy(id = doc.id)
-            }
+        // 2. 通过邮箱搜索（前缀匹配）
+        try {
+            val byEmail = usersCollection
+                .whereGreaterThanOrEqualTo("email", lowerQuery)
+                .whereLessThanOrEqualTo("email", lowerQuery + "\uf8ff")
+                .limit(20)
+                .get()
+                .await()
+                .documents
+                .mapNotNull { doc ->
+                    doc.toObject(User::class.java)?.copy(id = doc.id)
+                }
+            results.addAll(byEmail)
+        } catch (e: Exception) {
+            Log.d(TAG, "Email search failed: ${e.message}")
+        }
 
-        // 合并结果并去重
-        (results + byUsername + byEmail).distinctBy { it.id }
+        // 3. 如果结果太少，尝试精确匹配 ID
+        if (results.isEmpty()) {
+            try {
+                val byId = usersCollection
+                    .document(query)
+                    .get()
+                    .await()
+                byId.toObject(User::class.java)?.let { user ->
+                    results.add(user.copy(id = byId.id))
+                }
+            } catch (e: Exception) {
+                Log.d(TAG, "User ID search failed: ${e.message}")
+            }
+        }
+
+        // 去重并按相关性排序
+        results.distinctBy { it.id }
+            .sortedWith(compareBy(
+                // 优先显示用户名完全匹配的
+                { !it.username.equals(query, ignoreCase = true) },
+                // 其次显示邮箱完全匹配的
+                { !it.email.equals(lowerQuery, ignoreCase = true) },
+                // 最后按用户名字母顺序
+                { it.username.lowercase() }
+            ))
+            .take(10) // 最多返回10个结果
     }
 
     // ==================== 联系人相关 Contact Operations ====================

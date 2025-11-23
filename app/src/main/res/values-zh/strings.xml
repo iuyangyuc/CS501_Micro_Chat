@@ -181,4 +181,16 @@
     <string name="content_description_group">群组</string>
     <string name="contact_alias_label">备注：%1$s</string>
     <string name="content_description_favorite">收藏</string>
+    <!-- Add Friend Feature -->
+    <string name="add_friend_title">添加好友</string>
+    <string name="add_friend_search_placeholder">按用户名或邮箱搜索</string>
+    <string name="add_friend_search_hint">搜索好友</string>
+    <string name="add_friend_search_subtitle">输入用户名或邮箱</string>
+    <string name="add_friend_no_results">未找到用户</string>
+    <string name="add_friend_try_different">尝试其他搜索词</string>
+    <string name="add_friend_button_add">添加</string>
+    <string name="add_friend_button_added">已添加</string>
+    <string name="add_friend_button_sended">已发送</string>
+    <string name="add_friend_button_pending">待确认</string>
+    <string name="add_friend_user_id">ID: %s</string>
 </resources>
