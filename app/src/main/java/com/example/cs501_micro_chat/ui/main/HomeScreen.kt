@@ -21,7 +21,16 @@
  */
 package com.example.cs501_micro_chat.ui.main
 
+import android.Manifest
+import android.media.MediaRecorder
+import android.os.SystemClock
+import android.webkit.MimeTypeMap
 import android.util.Log
+import android.net.Uri
+import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.BorderStroke
@@ -49,6 +58,8 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.runtime.*
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
@@ -59,6 +70,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -100,6 +112,10 @@ import com.example.cs501_micro_chat.ui.theme.ThemeViewModel
 import java.text.Collator
 import java.util.Locale
 import kotlinx.coroutines.launch
+import androidx.core.content.ContextCompat
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.io.File
 
 // Figma Design Colors (still used for branding)
 private val PrimaryBlue = Color(0xFF3296FA)
@@ -880,6 +896,7 @@ fun ChatDetailContent(
     onAvatarClick: (String) -> Unit = {}
 ) {
     val viewModel: com.example.cs501_micro_chat.ui.chat.ChatDetailViewModel = hiltViewModel()
+    val context = LocalContext.current
 
     LaunchedEffect(conversationId) {
         viewModel.loadMessages(conversationId)
@@ -892,7 +909,135 @@ fun ChatDetailContent(
     var showActionSheet by remember { mutableStateOf(false) }
     val actionSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val coroutineScope = rememberCoroutineScope()
+    val contentResolver = context.contentResolver
+    var isRecording by remember { mutableStateOf(false) }
+    var mediaRecorder by remember { mutableStateOf<MediaRecorder?>(null) }
+    var recordingFile by remember { mutableStateOf<File?>(null) }
+    var recordingStart by remember { mutableStateOf(0L) }
     val listState = rememberLazyListState()
+
+    fun resolveMimeType(uri: Uri, fallback: String): Pair<String, String?> {
+        val resolverType = contentResolver.getType(uri)
+        val mimeType = resolverType ?: fallback
+        val extension = MimeTypeMap.getSingleton()
+            .getExtensionFromMimeType(mimeType)
+            ?: uri.toString().substringAfterLast('.', "")
+        return mimeType to extension
+    }
+
+    fun handlePickedMedia(uri: Uri, isVideo: Boolean) {
+        coroutineScope.launch {
+            val (mimeType, extension) = resolveMimeType(
+                uri,
+                if (isVideo) "video/mp4" else "image/jpeg"
+            )
+            val bytes = withContext(Dispatchers.IO) {
+                contentResolver.openInputStream(uri)?.use { it.readBytes() }
+            } ?: return@launch
+
+            if (isVideo) {
+                viewModel.uploadVideoMessage(
+                    conversationId = conversationId,
+                    videoBytes = bytes,
+                    mimeType = mimeType,
+                    extension = extension
+                )
+            } else {
+                viewModel.uploadImageMessage(
+                    conversationId = conversationId,
+                    imageBytes = bytes,
+                    mimeType = mimeType,
+                    extension = extension
+                )
+            }
+        }
+    }
+
+    fun startRecording() {
+        try {
+            val output = File(context.cacheDir, "voice_${System.currentTimeMillis()}.mp4")
+            val recorder = MediaRecorder().apply {
+                setAudioSource(MediaRecorder.AudioSource.MIC)
+                setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
+                setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
+                setAudioEncodingBitRate(128000)
+                setAudioSamplingRate(44100)
+                setOutputFile(output.absolutePath)
+                prepare()
+                start()
+            }
+            mediaRecorder = recorder
+            recordingFile = output
+            recordingStart = SystemClock.elapsedRealtime()
+            isRecording = true
+        } catch (e: Exception) {
+            Log.e("ChatDetailContent", "Failed to start recording", e)
+            mediaRecorder?.release()
+            mediaRecorder = null
+            recordingFile = null
+            isRecording = false
+        }
+    }
+
+    fun stopRecordingAndUpload() {
+        val file = recordingFile ?: return
+        val start = recordingStart
+        try {
+            mediaRecorder?.apply {
+                stop()
+                release()
+            }
+        } catch (e: Exception) {
+            Log.e("ChatDetailContent", "Failed to stop recording", e)
+        } finally {
+            mediaRecorder = null
+            isRecording = false
+        }
+
+        val duration = (SystemClock.elapsedRealtime() - start).coerceAtLeast(1L)
+        coroutineScope.launch {
+            val bytes = withContext(Dispatchers.IO) {
+                runCatching { file.readBytes() }.getOrNull()
+            } ?: return@launch
+            withContext(Dispatchers.IO) {
+                runCatching { file.delete() }
+            }
+            recordingFile = null
+            viewModel.uploadVoiceMessage(
+                conversationId = conversationId,
+                audioBytes = bytes,
+                durationMillis = duration,
+                mimeType = "audio/mp4",
+                extension = "mp4"
+            )
+        }
+    }
+
+    val audioPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            startRecording()
+        }
+    }
+
+    fun requestAudioPermissionAndRecord() {
+        when (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO)) {
+            PackageManager.PERMISSION_GRANTED -> startRecording()
+            else -> audioPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+        }
+    }
+
+    val photoPicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia()
+    ) { uri ->
+        uri?.let { handlePickedMedia(it, isVideo = false) }
+    }
+    val videoPicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia()
+    ) { uri ->
+        uri?.let { handlePickedMedia(it, isVideo = true) }
+    }
 
     LaunchedEffect(messages.size) {
         if (messages.isNotEmpty()) {
@@ -915,10 +1060,37 @@ fun ChatDetailContent(
             containerColor = surfaceColorChat,
             dragHandle = { BottomSheetDefaults.DragHandle() }
         ) {
+            data class SheetAction(val icon: ImageVector, val label: String, val onClick: () -> Unit)
             val actions = listOf(
-                Pair(Icons.Default.PhotoLibrary, stringResource(R.string.action_sheet_photos)),
-                Pair(Icons.Default.Videocam, stringResource(R.string.action_sheet_video)),
-                Pair(Icons.Default.Mic, stringResource(R.string.action_sheet_voice))
+                SheetAction(
+                    icon = Icons.Default.PhotoLibrary,
+                    label = stringResource(R.string.action_sheet_photos),
+                    onClick = {
+                        photoPicker.launch(
+                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                        )
+                    }
+                ),
+                SheetAction(
+                    icon = Icons.Default.Videocam,
+                    label = stringResource(R.string.action_sheet_video),
+                    onClick = {
+                        videoPicker.launch(
+                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.VideoOnly)
+                        )
+                    }
+                ),
+                SheetAction(
+                    icon = Icons.Default.Mic,
+                    label = stringResource(R.string.action_sheet_voice),
+                    onClick = {
+                        if (isRecording) {
+                            stopRecordingAndUpload()
+                        } else {
+                            requestAudioPermissionAndRecord()
+                        }
+                    }
+                )
             )
 
             LazyVerticalGrid(
@@ -945,19 +1117,20 @@ fun ChatDetailContent(
                                     coroutineScope.launch {
                                         actionSheetState.hide()
                                         showActionSheet = false
+                                        action.onClick()
                                     }
                                 },
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
-                                imageVector = action.first,
-                                contentDescription = action.second,
+                                imageVector = action.icon,
+                                contentDescription = action.label,
                                 tint = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.size(32.dp)
                             )
                         }
                         Text(
-                            text = action.second,
+                            text = action.label,
                             color = primaryTextColor(),
                             fontSize = 14.sp
                         )
@@ -968,6 +1141,18 @@ fun ChatDetailContent(
             Spacer(modifier = Modifier.height(24.dp))
         }
     }
+    DisposableEffect(Unit) {
+        onDispose {
+            try {
+                mediaRecorder?.release()
+            } catch (_: Exception) {
+            }
+            mediaRecorder = null
+            recordingFile = null
+            isRecording = false
+        }
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -1026,95 +1211,122 @@ fun ChatDetailContent(
             color = surfaceColorChat,
             shadowElevation = 8.dp
         ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 8.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.Bottom
-            ) {
-                IconButton(
-                    onClick = {
-                        if (showActionSheet) {
-                            coroutineScope.launch {
-                                actionSheetState.hide()
-                                showActionSheet = false
-                            }
-                        } else {
-                            showActionSheet = true
-                        }
-                    },
-                    modifier = Modifier.size(40.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Add,
-                        contentDescription = stringResource(R.string.content_description_attachment),
-                        tint = secondaryTextColor()
-                    )
-                }
-
-                Row(
-                    modifier = Modifier
-                        .weight(1f)
-                        .clip(RoundedCornerShape(20.dp))
-                        .background(searchBackgroundChat)
-                        .padding(horizontal = 12.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    TextField(
-                        value = inputText,
-                        onValueChange = { inputText = it },
-                        modifier = Modifier.weight(1f),
-                        placeholder = {
-                            Text(
-                                text = stringResource(R.string.chat_input_placeholder),
-                                color = secondaryTextColor(),
-                                fontSize = 14.sp
-                            )
-                        },
-                        colors = TextFieldDefaults.colors(
-                            focusedContainerColor = Color.Transparent,
-                            unfocusedContainerColor = Color.Transparent,
-                            focusedIndicatorColor = Color.Transparent,
-                            unfocusedIndicatorColor = Color.Transparent
-                        ),
-                        maxLines = 4
-                    )
-                }
-
-                Spacer(modifier = Modifier.width(4.dp))
-
-                val hasMessage = inputText.trim().isNotEmpty()
-                if (hasMessage) {
-                    IconButton(
-                        onClick = {
-                            if (inputText.isNotBlank()) {
-                                viewModel.sendMessage(conversationId, inputText.trim())
-                                inputText = ""
-                            }
-                        },
+            Column {
+                if (isRecording) {
+                    Row(
                         modifier = Modifier
-                            .size(40.dp)
-                            .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.primary)
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Icon(
-                            imageVector = Icons.AutoMirrored.Filled.Send,
-                            contentDescription = stringResource(R.string.content_description_send),
-                            tint = MaterialTheme.colorScheme.onPrimary,
-                            modifier = Modifier.size(20.dp)
+                            imageVector = Icons.Default.Mic,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary
                         )
+                        Text(
+                            text = stringResource(R.string.voice_recording_hint),
+                            color = primaryTextColor(),
+                            fontSize = 14.sp,
+                            modifier = Modifier.weight(1f)
+                        )
+                        TextButton(onClick = { stopRecordingAndUpload() }) {
+                            Text(text = stringResource(R.string.voice_recording_stop))
+                        }
                     }
-                } else {
+                    HorizontalDivider()
+                }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.Bottom
+                ) {
                     IconButton(
-                        onClick = {},
-                        enabled = false,
+                        onClick = {
+                            if (showActionSheet) {
+                                coroutineScope.launch {
+                                    actionSheetState.hide()
+                                    showActionSheet = false
+                                }
+                            } else {
+                                showActionSheet = true
+                            }
+                        },
                         modifier = Modifier.size(40.dp)
                     ) {
                         Icon(
-                            imageVector = Icons.AutoMirrored.Filled.Send,
-                            contentDescription = stringResource(R.string.content_description_send),
+                            imageVector = Icons.Default.Add,
+                            contentDescription = stringResource(R.string.content_description_attachment),
                             tint = secondaryTextColor()
                         )
+                    }
+
+                    Row(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(20.dp))
+                            .background(searchBackgroundChat)
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        TextField(
+                            value = inputText,
+                            onValueChange = { inputText = it },
+                            modifier = Modifier.weight(1f),
+                            placeholder = {
+                                Text(
+                                    text = stringResource(R.string.chat_input_placeholder),
+                                    color = secondaryTextColor(),
+                                    fontSize = 14.sp
+                                )
+                            },
+                            colors = TextFieldDefaults.colors(
+                                focusedContainerColor = Color.Transparent,
+                                unfocusedContainerColor = Color.Transparent,
+                                focusedIndicatorColor = Color.Transparent,
+                                unfocusedIndicatorColor = Color.Transparent
+                            ),
+                            maxLines = 4
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.width(4.dp))
+
+                    val hasMessage = inputText.trim().isNotEmpty()
+                    if (hasMessage) {
+                        IconButton(
+                            onClick = {
+                                if (inputText.isNotBlank()) {
+                                    viewModel.sendMessage(conversationId, inputText.trim())
+                                    inputText = ""
+                                }
+                            },
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.primary)
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.Send,
+                                contentDescription = stringResource(R.string.content_description_send),
+                                tint = MaterialTheme.colorScheme.onPrimary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    } else {
+                        IconButton(
+                            onClick = {},
+                            enabled = false,
+                            modifier = Modifier.size(40.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.Send,
+                                contentDescription = stringResource(R.string.content_description_send),
+                                tint = secondaryTextColor()
+                            )
+                        }
                     }
                 }
             }

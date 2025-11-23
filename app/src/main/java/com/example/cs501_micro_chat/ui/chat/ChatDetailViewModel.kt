@@ -333,6 +333,71 @@ class ChatDetailViewModel @Inject constructor(
     }
 
     /**
+     * 上传视频并发送视频消息
+     */
+    fun uploadVideoMessage(
+        conversationId: String,
+        videoBytes: ByteArray,
+        mimeType: String = "video/mp4",
+        extension: String? = null
+    ) {
+        val userId = auth.currentUser?.uid ?: run {
+            _error.value = "用户未登录"
+            return
+        }
+
+        viewModelScope.launch {
+            _mediaUploadState.value = _mediaUploadState.value.copy(
+                isUploading = true,
+                uploadingType = MessageType.VIDEO
+            )
+
+            val uploadResult = storageRepository.uploadImage(
+                bytes = videoBytes,
+                conversationId = conversationId,
+                ownerId = userId,
+                mimeType = mimeType,
+                extension = extension
+            )
+
+            if (uploadResult.isFailure) {
+                val message = uploadResult.exceptionOrNull()?.message ?: "未知错误"
+                _error.value = "上传视频失败: $message"
+                _mediaUploadState.value = _mediaUploadState.value.copy(
+                    isUploading = false,
+                    uploadingType = null
+                )
+                return@launch
+            }
+
+            val media = uploadResult.getOrThrow()
+            val sendResult = chatRepository.sendMessage(
+                conversationId = conversationId,
+                content = "视频",
+                type = MessageType.VIDEO,
+                mediaUrl = media.downloadUrl
+            )
+
+            if (sendResult.isFailure) {
+                val message = sendResult.exceptionOrNull()?.message ?: "未知错误"
+                _error.value = "发送视频消息失败: $message"
+                storageRepository.deleteByPath(media.storagePath)
+                _mediaUploadState.value = _mediaUploadState.value.copy(
+                    isUploading = false,
+                    uploadingType = null
+                )
+                return@launch
+            }
+
+            _mediaUploadState.value = _mediaUploadState.value.copy(
+                isUploading = false,
+                uploadingType = null,
+                lastUploadedUrl = media.downloadUrl
+            )
+        }
+    }
+
+    /**
      * 标记所有消息为已读
      * Mark all messages as read
      */

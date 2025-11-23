@@ -100,6 +100,8 @@
     <string name="content_description_search">Search</string>
     <string name="content_description_avatar">%s avatar</string>
     <string name="content_description_my_avatar">My avatar</string>
+    <string name="content_description_voice_play">Play voice message</string>
+    <string name="content_description_voice_stop">Stop voice message</string>
     <string name="attachment_option_photo">Photo</string>
     <string name="attachment_option_camera">Camera</string>
     <string name="attachment_option_file">File</string>
@@ -107,6 +109,10 @@
     <string name="action_sheet_photos">Photos</string>
     <string name="action_sheet_video">Video</string>
     <string name="action_sheet_voice">Voice</string>
+    <string name="voice_message_label">Voice message</string>
+    <string name="voice_recording_hint">Recording... tap stop to send</string>
+    <string name="voice_recording_stop">Stop</string>
+    <string name="video_message_label">Video</string>
     <string name="chat_media_image_label">[Image]</string>
     <string name="chat_media_unknown_label">[%1$s]</string>
     <string name="privacy_change_password_title">Change password</string>
