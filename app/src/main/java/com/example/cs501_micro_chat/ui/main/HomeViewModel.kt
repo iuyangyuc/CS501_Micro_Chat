@@ -249,12 +249,21 @@ class HomeViewModel @Inject constructor(
         if (otherUserId != null) {
             val otherUser = _userCache.value[otherUserId]
             if (otherUser != null) {
-                return otherUser.username
+                val name = otherUser.username.ifBlank { otherUser.email.substringBefore("@") }
+                if (name.isNotBlank()) return name
             }
         }
 
         // 如果缓存中没有，返回默认值
-        return conversation.name.ifEmpty { "加载中..." }
+        val currentName = auth.currentUser?.displayName.orEmpty()
+        val currentEmailPrefix = auth.currentUser?.email?.substringBefore("@").orEmpty()
+        val convoName = conversation.name
+        // Avoid falling back to my own name; prefer other user's id prefix if possible
+        if (convoName.isNotBlank() && convoName != currentName && convoName != currentEmailPrefix) {
+            return convoName
+        }
+
+        return otherUserId?.takeIf { it.isNotBlank() } ?: "加载中..."
     }
 
     /**

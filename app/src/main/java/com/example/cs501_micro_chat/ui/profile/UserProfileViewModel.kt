@@ -50,7 +50,8 @@ class UserProfileViewModel @Inject constructor(
                     canPin = false,
                     isPinned = false,
                     isPinUpdating = false,
-                    contactFavorite = false
+                    contactFavorite = false,
+                    isDeleted = false
                 )
             }
 
@@ -64,10 +65,11 @@ class UserProfileViewModel @Inject constructor(
                 return@launch
             }
 
+            val displayName = user.username.ifBlank { user.email.substringBefore("@") }
             _uiState.update {
                 it.copy(
-                    displayName = user.username,
-                    originalName = user.username,
+                    displayName = displayName,
+                    originalName = displayName,
                     email = user.email,
                     avatarUrl = user.avatarUrl,
                     statusMessage = user.statusMessage
@@ -136,16 +138,7 @@ class UserProfileViewModel @Inject constructor(
             result.onSuccess {
                 _events.send(UserProfileEvent.ShowStatus(R.string.user_profile_delete_success, true))
                 _events.send(UserProfileEvent.Deleted)
-                _uiState.update {
-                    it.copy(
-                        isDeleting = false,
-                        isDeleted = true,
-                        canPin = false,
-                        isPinned = false,
-                        contactFavorite = false,
-                        conversationId = ""
-                    )
-                }
+                _uiState.update { it.copy(isDeleting = false, isDeleted = true, canPin = false, isPinned = false, contactFavorite = false, conversationId = "") }
             }.onFailure { error ->
                 _events.send(UserProfileEvent.ShowError(error.message ?: "Failed to delete contact"))
                 _uiState.update { it.copy(isDeleting = false) }

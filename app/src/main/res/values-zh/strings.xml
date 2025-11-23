@@ -179,7 +179,7 @@
     <string name="user_profile_delete_success">联系人已删除</string>
     <string name="chat_removed_notice">对方已将你从联系人中移除，消息将无法送达。</string>
     <string name="chat_message_failed">消息发送失败</string>
-    <string name="chat_message_failed_removed">你已被对方删除，无法继续对话。</string>
+    <string name="chat_message_failed_removed">你已被对方删除或拉黑，无法继续对话。</string>
     <string name="contacts_original_name_label">原名：%1$s</string>
     <string name="contacts_original_name_unknown">未知</string>
     <string name="add_option_new_contact">新联系人</string>

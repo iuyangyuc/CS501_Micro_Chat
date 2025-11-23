@@ -181,7 +181,7 @@
     <string name="user_profile_delete_success">Contact removed</string>
     <string name="chat_removed_notice">You have been removed by this contact. Messages will not be delivered.</string>
     <string name="chat_message_failed">Message not delivered</string>
-    <string name="chat_message_failed_removed">You were removed by this contact.</string>
+    <string name="chat_message_failed_removed">You were removed/blocked by this contact.</string>
     <string name="contacts_original_name_label">Original name: %1$s</string>
     <string name="contacts_original_name_unknown">Unknown</string>
     <string name="group_profile_name_label">Group name</string>

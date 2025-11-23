@@ -81,8 +81,22 @@ class FirebaseAuthRepository(
         val profile = mutableMapOf<String, Any>()
         val email = firebaseUser.email ?: fallbackEmail
         if (!email.isNullOrBlank()) profile["email"] = email
+
+        val emailPrefix = email?.substringBefore("@").orEmpty()
         val displayName = firebaseUser.displayName
+        val username = when {
+            !displayName.isNullOrBlank() -> displayName
+            emailPrefix.isNotBlank() -> emailPrefix
+            else -> ""
+        }
+
         if (!displayName.isNullOrBlank()) profile["displayName"] = displayName
+        if (username.isNotBlank()) {
+            profile["username"] = username
+            if (displayName.isNullOrBlank()) {
+                profile["displayName"] = username
+            }
+        }
         firebaseUser.photoUrl?.toString()?.takeIf { it.isNotBlank() }?.let { profile["photoUrl"] = it }
         profile["updatedAt"] = FieldValue.serverTimestamp()
         if (authResult.additionalUserInfo?.isNewUser != false) {

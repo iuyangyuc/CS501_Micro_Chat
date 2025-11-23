@@ -112,7 +112,7 @@ class ContactsViewModel @Inject constructor(
                     val confirmedContacts = allContacts.filter { contact ->
                         val shouldShow = if (contact.type == "GROUP") {
                             Log.d(TAG, "✅ Contact ${contact.contactId} (GROUP): SHOW")
-                            true // 群组直接显示
+                            true
                         } else {
                             // 个人联系人：只显示已确认的好友
                             val result = !contact.isNew && !contact.isPending

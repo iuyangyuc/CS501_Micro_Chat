@@ -173,7 +173,7 @@
     <string name="user_profile_delete_success">聯絡人已刪除</string>
     <string name="chat_removed_notice">對方已將你移除，訊息將無法送達。</string>
     <string name="chat_message_failed">訊息未送出</string>
-    <string name="chat_message_failed_removed">你已被對方刪除，無法繼續聊天。</string>
+    <string name="chat_message_failed_removed">你已被對方刪除或封鎖，無法繼續聊天。</string>
     <string name="contacts_original_name_label">原名：%1$s</string>
     <string name="contacts_original_name_unknown">未知</string>
     <string name="group_profile_name_label">群組名稱</string>

@@ -179,7 +179,7 @@
     <string name="user_profile_delete_success">Контакт удалён</string>
     <string name="chat_removed_notice">Собеседник удалил вас. Сообщения больше не доставляются.</string>
     <string name="chat_message_failed">Сообщение не отправлено</string>
-    <string name="chat_message_failed_removed">Вы удалены из этого чата.</string>
+    <string name="chat_message_failed_removed">Вы удалены или заблокированы в этом чате.</string>
     <string name="contacts_original_name_label">Исходное имя: %1$s</string>
     <string name="contacts_original_name_unknown">Неизвестно</string>
     <string name="group_profile_name_label">Название группы</string>

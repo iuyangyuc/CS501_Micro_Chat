@@ -179,7 +179,7 @@
     <string name="user_profile_delete_success">Contacto eliminado</string>
     <string name="chat_removed_notice">Esta persona te eliminó. Tus mensajes ya no se entregarán.</string>
     <string name="chat_message_failed">Mensaje no enviado</string>
-    <string name="chat_message_failed_removed">Fuiste eliminado de este chat.</string>
+    <string name="chat_message_failed_removed">Fuiste eliminado o bloqueado en este chat.</string>
     <string name="contacts_original_name_label">Nombre original: %1$s</string>
     <string name="contacts_original_name_unknown">Desconocido</string>
     <string name="group_profile_name_label">Nombre del grupo</string>

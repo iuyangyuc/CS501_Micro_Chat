@@ -173,7 +173,7 @@
     <string name="user_profile_delete_success">Contact supprimé</string>
     <string name="chat_removed_notice">Cette personne vous a supprimé. Vos messages ne seront plus délivrés.</string>
     <string name="chat_message_failed">Message non envoyé</string>
-    <string name="chat_message_failed_removed">Vous avez été retiré de cette conversation.</string>
+    <string name="chat_message_failed_removed">Vous avez été retiré ou bloqué de cette conversation.</string>
     <string name="contacts_original_name_label">Nom d’origine : %1$s</string>
     <string name="contacts_original_name_unknown">Inconnu</string>
     <string name="group_profile_name_label">Nom du groupe</string>
