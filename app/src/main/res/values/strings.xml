@@ -104,6 +104,9 @@
     <string name="attachment_option_camera">Camera</string>
     <string name="attachment_option_file">File</string>
     <string name="attachment_option_voice">Voice</string>
+    <string name="action_sheet_photos">Photos</string>
+    <string name="action_sheet_video">Video</string>
+    <string name="action_sheet_voice">Voice</string>
     <string name="chat_media_image_label">[Image]</string>
     <string name="chat_media_unknown_label">[%1$s]</string>
     <string name="privacy_change_password_title">Change password</string>
