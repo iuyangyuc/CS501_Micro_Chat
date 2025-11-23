@@ -170,4 +170,45 @@
     <string name="group_profile_leaving">Leaving...</string>
     <string name="group_profile_no_members">No members</string>
     <string name="group_profile_title_with_count">Group (%1$d)</string>
+
+    <!-- Avatar Crop Dialog -->
+    <string name="crop_avatar_title">Crop Avatar</string>
+    <string name="crop_avatar_button">Crop</string>
+    <string name="crop_avatar_cancel">Cancel</string>
+    <string name="crop_avatar_failed">Failed to load image</string>
+    <string name="crop_avatar_close">Close</string>
+
+    <!-- Add Friend Dialog -->
+    <string name="add_friend_title">Add Friend</string>
+    <string name="add_friend_search_placeholder">Search by User ID or Username</string>
+    <string name="add_friend_search_hint">Search for friends</string>
+    <string name="add_friend_search_subtitle">Enter User ID or Username</string>
+    <string name="add_friend_no_results">No users found</string>
+    <string name="add_friend_try_different">Try a different search term</string>
+    <string name="add_friend_button_add">Add</string>
+    <string name="add_friend_button_added">Added</string>
+    <string name="add_friend_button_sended">Sended</string>
+    <string name="add_friend_button_pending">Pending</string>
+    <string name="add_friend_user_id">ID: %s</string>
+    <string name="content_description_add_friend">Add friend</string>
+    <string name="content_description_friend_added">Friend added</string>
+    <string name="content_description_request_sent">Request sent</string>
+    <string name="content_description_request_pending">Request pending</string>
+
+    <!-- Add Options Menu -->
+    <string name="add_option_new_contact">New contact</string>
+    <string name="add_option_new_group">New group</string>
+    <!-- UI strings added for HomeScreen localization -->
+    <string name="no_results_found">No results found</string>
+    <string name="try_different_search_keyword">Try searching with a different keyword</string>
+    <string name="no_conversations_yet">No Conversations Yet</string>
+    <string name="start_new_chat_hint">Start a new chat to connect with others!</string>
+    <string name="no_contacts_yet">No Contacts Yet</string>
+    <string name="add_friends_to_start_chatting">Add friends to start chatting!</string>
+    <string name="wants_to_be_your_friend">Wants to be your friend</string>
+    <string name="action_accept">Accept</string>
+    <string name="action_reject">Reject</string>
+    <string name="content_description_group">Group</string>
+    <string name="contact_alias_label">Note: %1$s</string>
+    <string name="content_description_favorite">Favorite</string>
 </resources>

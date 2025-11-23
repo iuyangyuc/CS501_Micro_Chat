@@ -14,7 +14,9 @@ import com.example.cs501_micro_chat.data.repository.AuthRepository
 import com.example.cs501_micro_chat.data.repository.ChatRepository
 import com.example.cs501_micro_chat.data.repository.FirebaseProfileRepository
 import com.example.cs501_micro_chat.data.repository.FirebaseAuthRepository
+import com.example.cs501_micro_chat.data.repository.FirebaseStorageRepository
 import com.example.cs501_micro_chat.data.repository.ProfileRepository
+import com.example.cs501_micro_chat.data.repository.StorageRepository
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreSettings
@@ -106,5 +108,16 @@ object FirebaseModule {
         auth: FirebaseAuth
     ): ChatRepository {
         return ChatRepository(firebaseDataSource, auth)
+    }
+
+    /**
+     * 提供 StorageRepository 实例
+     */
+    @Provides
+    @Singleton
+    fun provideStorageRepository(
+        storage: FirebaseStorage
+    ): StorageRepository {
+        return FirebaseStorageRepository(storage)
     }
 }

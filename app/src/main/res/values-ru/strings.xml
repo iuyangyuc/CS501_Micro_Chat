@@ -168,4 +168,29 @@
     <string name="group_profile_leaving">Выход...</string>
     <string name="group_profile_no_members">Нет участников</string>
     <string name="group_profile_title_with_count">Группа (%1$d)</string>
+    <!-- HomeScreen additional strings -->
+    <string name="no_results_found">Результатов не найдено</string>
+    <string name="try_different_search_keyword">Попробуйте другой поисковый запрос</string>
+    <string name="no_conversations_yet">Пока нет разговоров</string>
+    <string name="start_new_chat_hint">Начните новый чат, чтобы общаться с другими!</string>
+    <string name="no_contacts_yet">Пока нет контактов</string>
+    <string name="add_friends_to_start_chatting">Добавьте друзей, чтобы начать чат</string>
+    <string name="wants_to_be_your_friend">Хочет стать вашим другом</string>
+    <string name="action_accept">Принять</string>
+    <string name="action_reject">Отклонить</string>
+    <string name="content_description_group">Группа</string>
+    <string name="contact_alias_label">Примечание: %1$s</string>
+    <string name="content_description_favorite">Избранное</string>
+    <!-- Missing translations for crop avatar and add-friend content descriptions -->
+    <string name="crop_avatar_title">Обрезать аватар</string>
+    <string name="crop_avatar_button">Обрезать</string>
+    <string name="crop_avatar_cancel">Отмена</string>
+    <string name="crop_avatar_failed">Не удалось загрузить изображение</string>
+    <string name="crop_avatar_close">Закрыть</string>
+    <string name="content_description_add_friend">Добавить друга</string>
+    <string name="content_description_friend_added">Друг добавлен</string>
+    <string name="content_description_request_sent">Запрос отправлен</string>
+    <string name="content_description_request_pending">Запрос в ожидании</string>
+    <string name="add_option_new_contact">Новый контакт</string>
+    <string name="add_option_new_group">Новая группа</string>
 </resources>

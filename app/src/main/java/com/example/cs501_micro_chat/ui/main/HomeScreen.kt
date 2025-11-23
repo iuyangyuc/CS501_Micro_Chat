@@ -232,8 +232,6 @@ fun HomeScreen(
                                     ConversationType.GROUP -> if (convoId.isNotBlank()) {
                                         navController.navigate("$GROUP_PROFILE_ROUTE/$convoId")
                                     }
-
-                                    else -> {}
                                 }
                             }
                         )
@@ -560,7 +558,7 @@ fun HomeTopBar(
                 IconButton(onClick = { showAddMenu = true }) {
                     Icon(
                         imageVector = Icons.Filled.Add,
-                        contentDescription = "Add",
+                        contentDescription = stringResource(R.string.content_description_add),
                         tint = Color.White
                     )
                 }
@@ -581,16 +579,16 @@ fun HomeTopBar(
                             ) {
                                 Icon(
                                     imageVector = Icons.Filled.PersonAdd,
-                                    contentDescription = "Add Contact",
-                                    tint = Color(0xFF1F2937), // 深灰色，确保可见
+                                    contentDescription = stringResource(R.string.content_description_add_friend),
+                                    tint = Color(0xFF1F2937),
                                     modifier = Modifier.size(22.dp)
                                 )
                                 Spacer(modifier = Modifier.width(12.dp))
                                 Text(
-                                    text = "New Contact",
-                                    color = Color(0xFF1F2937), // 深灰色，确保可见
+                                    text = stringResource(R.string.add_option_new_contact),
+                                    color = Color(0xFF1F2937),
                                     fontSize = 16.sp,
-                                    fontWeight = androidx.compose.ui.text.font.FontWeight.Medium
+                                    fontWeight = FontWeight.Medium
                                 )
                             }
                         },
@@ -615,16 +613,16 @@ fun HomeTopBar(
                             ) {
                                 Icon(
                                     imageVector = Icons.Filled.GroupAdd,
-                                    contentDescription = "Create Group",
-                                    tint = Color(0xFF1F2937), // 深灰色，确保可见
+                                    contentDescription = stringResource(R.string.add_option_new_group),
+                                    tint = Color(0xFF1F2937),
                                     modifier = Modifier.size(22.dp)
                                 )
                                 Spacer(modifier = Modifier.width(12.dp))
                                 Text(
-                                    text = "New Group",
-                                    color = Color(0xFF1F2937), // 深灰色，确保可见
+                                    text = stringResource(R.string.add_option_new_group),
+                                    color = Color(0xFF1F2937),
                                     fontSize = 16.sp,
-                                    fontWeight = androidx.compose.ui.text.font.FontWeight.Medium
+                                    fontWeight = FontWeight.Medium
                                 )
                             }
                         },
@@ -870,7 +868,7 @@ fun ChatDetailContent(
     conversationId: String,
     onAvatarClick: (String) -> Unit = {}
 ) {
-    val viewModel: com.example.cs501_micro_chat.ui.chat.ChatDetailViewModel = hiltViewModel()
+    val viewModel: ChatDetailViewModel = hiltViewModel()
 
     LaunchedEffect(conversationId) {
         viewModel.loadMessages(conversationId)
@@ -1083,7 +1081,7 @@ fun ChatListScreen(
                         ) {
                             Icon(
                                 imageVector = Icons.Filled.Search,
-                                contentDescription = "Search",
+                                contentDescription = stringResource(R.string.content_description_search),
                                 tint = secondaryTextColor(),
                                 modifier = Modifier.size(20.dp)
                             )
@@ -1094,7 +1092,7 @@ fun ChatListScreen(
                                 modifier = Modifier.weight(1f),
                                 placeholder = {
                                     Text(
-                                        text = "Search",
+                                        text = stringResource(R.string.search_hint),
                                         color = secondaryTextColor(),
                                         fontSize = 15.sp
                                     )
@@ -1102,41 +1100,11 @@ fun ChatListScreen(
                                 colors = TextFieldDefaults.colors(
                                     focusedContainerColor = Color.Transparent,
                                     unfocusedContainerColor = Color.Transparent,
-                                    disabledContainerColor = Color.Transparent,
                                     focusedIndicatorColor = Color.Transparent,
-                                    unfocusedIndicatorColor = Color.Transparent,
-                                    disabledIndicatorColor = Color.Transparent,
-                                    focusedTextColor = primaryTextColor(),
-                                    unfocusedTextColor = primaryTextColor(),
+                                    unfocusedIndicatorColor = Color.Transparent
                                 ),
-                                singleLine = true
+                                maxLines = 4
                             )
-                            if (searchQuery.isNotBlank()) {
-                                IconButton(
-                                    onClick = { viewModel.clearSearch() },
-                                    modifier = Modifier.size(20.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Close,
-                                        contentDescription = "Clear",
-                                        tint = secondaryTextColor(),
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                }
-                            }
-                            IconButton(
-                                onClick = {
-                                    viewModel.clearSearch()
-                                    isSearchActive = false
-                                },
-                                modifier = Modifier.size(24.dp)
-                            ) {
-                                Text(
-                                    text = "Cancel",
-                                    color = PrimaryBlue,
-                                    fontSize = 14.sp
-                                )
-                            }
                         }
                     } else {
                         // 默认状态：占位符搜索框
@@ -1152,13 +1120,13 @@ fun ChatListScreen(
                         ) {
                             Icon(
                                 imageVector = Icons.Filled.Search,
-                                contentDescription = "Search",
+                                contentDescription = stringResource(R.string.content_description_search),
                                 tint = secondaryTextColor(),
                                 modifier = Modifier.size(20.dp)
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = "Search",
+                                text = stringResource(R.string.search_hint),
                                 color = secondaryTextColor(),
                                 fontSize = 15.sp
                             )
@@ -1348,13 +1316,13 @@ fun ConversationSearchResultsList(
                     modifier = Modifier.size(64.dp)
                 )
                 Text(
-                    text = "No results found",
+                    text = stringResource(R.string.no_results_found),
                     color = primaryTextColor(),
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Medium
                 )
                 Text(
-                    text = "Try searching with a different keyword",
+                    text = stringResource(R.string.try_different_search_keyword),
                     color = secondaryTextColor(),
                     fontSize = 14.sp
                 )
@@ -1432,12 +1400,12 @@ fun ConversationsList(
                     modifier = Modifier.size(64.dp)
                 )
                 Text(
-                    text = "No Conversations Yet",
+                    text = stringResource(R.string.no_conversations_yet),
                     color = secondaryTextColor(),
                     fontSize = 16.sp
                 )
                 Text(
-                    text = "Start a new chat to connect with others!",
+                    text = stringResource(R.string.start_new_chat_hint),
                     color = secondaryTextColor(),
                     fontSize = 14.sp
                 )
@@ -1523,7 +1491,7 @@ fun ContactsScreen(
                         ) {
                             Icon(
                                 imageVector = Icons.Filled.Search,
-                                contentDescription = "Search",
+                                contentDescription = stringResource(R.string.content_description_search),
                                 tint = secondaryTextColor(),
                                 modifier = Modifier.size(20.dp)
                             )
@@ -1534,7 +1502,7 @@ fun ContactsScreen(
                                 modifier = Modifier.weight(1f),
                                 placeholder = {
                                     Text(
-                                        text = "Search contacts",
+                                        text = stringResource(R.string.contacts_search_hint),
                                         color = secondaryTextColor(),
                                         fontSize = 15.sp
                                     )
@@ -1542,41 +1510,11 @@ fun ContactsScreen(
                                 colors = TextFieldDefaults.colors(
                                     focusedContainerColor = Color.Transparent,
                                     unfocusedContainerColor = Color.Transparent,
-                                    disabledContainerColor = Color.Transparent,
                                     focusedIndicatorColor = Color.Transparent,
-                                    unfocusedIndicatorColor = Color.Transparent,
-                                    disabledIndicatorColor = Color.Transparent,
-                                    focusedTextColor = primaryTextColor(),
-                                    unfocusedTextColor = primaryTextColor(),
+                                    unfocusedIndicatorColor = Color.Transparent
                                 ),
-                                singleLine = true
+                                maxLines = 4
                             )
-                            if (searchQuery.isNotBlank()) {
-                                IconButton(
-                                    onClick = { viewModel.clearSearch() },
-                                    modifier = Modifier.size(20.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Close,
-                                        contentDescription = "Clear",
-                                        tint = secondaryTextColor(),
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                }
-                            }
-                            IconButton(
-                                onClick = {
-                                    viewModel.clearSearch()
-                                    isSearchActive = false
-                                },
-                                modifier = Modifier.size(24.dp)
-                            ) {
-                                Text(
-                                    text = "Cancel",
-                                    color = PrimaryBlue,
-                                    fontSize = 14.sp
-                                )
-                            }
                         }
                     } else {
                         // 默认状态：占位符搜索框
@@ -1592,13 +1530,13 @@ fun ContactsScreen(
                         ) {
                             Icon(
                                 imageVector = Icons.Filled.Search,
-                                contentDescription = "Search",
+                                contentDescription = stringResource(R.string.content_description_search),
                                 tint = secondaryTextColor(),
                                 modifier = Modifier.size(20.dp)
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = "Search contacts",
+                                text = stringResource(R.string.contacts_search_hint),
                                 color = secondaryTextColor(),
                                 fontSize = 15.sp
                             )
@@ -1675,13 +1613,13 @@ fun SearchResultsList(
                     modifier = Modifier.size(64.dp)
                 )
                 Text(
-                    text = "No results found",
+                    text = stringResource(R.string.no_results_found),
                     color = primaryTextColor(),
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Medium
                 )
                 Text(
-                    text = "Try searching with a different keyword",
+                    text = stringResource(R.string.try_different_search_keyword),
                     color = secondaryTextColor(),
                     fontSize = 14.sp
                 )
@@ -1779,12 +1717,12 @@ fun ContactsList(
                     tint = secondaryTextColor()
                 )
                 Text(
-                    text = "No Contacts Yet",
+                    text = stringResource(R.string.no_contacts_yet),
                     color = secondaryTextColor(),
                     fontSize = 16.sp
                 )
                 Text(
-                    text = "Add friends to start chatting!",
+                    text = stringResource(R.string.add_friends_to_start_chatting),
                     color = secondaryTextColor(),
                     fontSize = 14.sp
                 )
@@ -1943,7 +1881,7 @@ fun PendingFriendRequestItem(
             modifier = Modifier.height(36.dp)
         ) {
             Text(
-                text = "Accept",
+                text = stringResource(R.string.action_accept),
                 fontSize = 13.sp,
                 color = Color.White
             )
@@ -1963,7 +1901,7 @@ fun PendingFriendRequestItem(
             modifier = Modifier.height(36.dp)
         ) {
             Text(
-                text = "Reject",
+                text = stringResource(R.string.action_reject),
                 fontSize = 13.sp
             )
         }
@@ -2065,7 +2003,7 @@ fun ContactListItem(
                     Spacer(modifier = Modifier.width(4.dp))
                     Icon(
                         imageVector = Icons.Filled.People,
-                        contentDescription = "Group",
+                        contentDescription = stringResource(R.string.content_description_group),
                         tint = secondaryTextColor(),
                         modifier = Modifier.size(16.dp)
                     )
@@ -2075,7 +2013,7 @@ fun ContactListItem(
             // 显示备注或标签（如果有）
             if (contact.alias.isNotBlank()) {
                 Text(
-                    text = "备注: ${contact.alias}",
+                    text = stringResource(R.string.contact_alias_label, contact.alias),
                     fontSize = 13.sp,
                     color = secondaryTextColor(),
                     maxLines = 1,
@@ -2088,7 +2026,7 @@ fun ContactListItem(
         if (contact.isFavorite) {
             Icon(
                 imageVector = Icons.Filled.Star,
-                contentDescription = "Favorite",
+                contentDescription = stringResource(R.string.content_description_favorite),
                 tint = Color(0xFFFFC107),
                 modifier = Modifier.size(20.dp)
             )
@@ -2451,7 +2389,7 @@ fun AddFriendDialog(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "Add Friend",
+                        text = stringResource(R.string.add_friend_title),
                         fontSize = 20.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color(0xFF1F2937)
@@ -2462,7 +2400,7 @@ fun AddFriendDialog(
                     ) {
                         Icon(
                             imageVector = Icons.Filled.Close,
-                            contentDescription = "Close",
+                            contentDescription = stringResource(R.string.content_description_close),
                             tint = Color(0xFF6B7280)
                         )
                     }
@@ -2482,14 +2420,14 @@ fun AddFriendDialog(
                         .padding(16.dp),
                     placeholder = {
                         Text(
-                            text = "Search by User ID or Username",
+                            text = stringResource(R.string.add_friend_search_placeholder),
                             color = Color(0xFF9CA3AF)
                         )
                     },
                     leadingIcon = {
                         Icon(
                             imageVector = Icons.Filled.Search,
-                            contentDescription = "Search",
+                            contentDescription = stringResource(R.string.content_description_search),
                             tint = Color(0xFF6B7280)
                         )
                     },
@@ -2500,7 +2438,7 @@ fun AddFriendDialog(
                             ) {
                                 Icon(
                                     imageVector = Icons.Filled.Clear,
-                                    contentDescription = "Clear",
+                                    contentDescription = stringResource(R.string.content_description_close),
                                     tint = Color(0xFF6B7280)
                                 )
                             }
@@ -2553,12 +2491,12 @@ fun AddFriendDialog(
                                         tint = Color(0xFF9CA3AF)
                                     )
                                     Text(
-                                        text = "Search for friends",
+                                        text = stringResource(R.string.add_friend_search_hint),
                                         color = Color(0xFF6B7280),
                                         fontSize = 16.sp
                                     )
                                     Text(
-                                        text = "Enter User ID or Username",
+                                        text = stringResource(R.string.add_friend_search_subtitle),
                                         color = Color(0xFF9CA3AF),
                                         fontSize = 14.sp
                                     )
@@ -2582,14 +2520,14 @@ fun AddFriendDialog(
                                         tint = Color(0xFF9CA3AF)
                                     )
                                     Text(
-                                        text = "No users found",
-                                        color = Color(0xFF6B7280),
+                                        text = stringResource(R.string.no_results_found),
+                                        color = primaryTextColor(),
                                         fontSize = 16.sp,
                                         fontWeight = FontWeight.Medium
                                     )
                                     Text(
-                                        text = "Try a different search term",
-                                        color = Color(0xFF9CA3AF),
+                                        text = stringResource(R.string.try_different_search_keyword),
+                                        color = secondaryTextColor(),
                                         fontSize = 14.sp
                                     )
                                 }
@@ -2650,7 +2588,7 @@ fun UserSearchResultItem(
         if (user.avatarUrl.isNotBlank()) {
             AsyncImage(
                 model = user.avatarUrl,
-                contentDescription = "${user.username} avatar",
+                contentDescription = stringResource(R.string.content_description_avatar, user.username),
                 modifier = Modifier
                     .size(48.dp)
                     .clip(CircleShape),
@@ -2686,7 +2624,7 @@ fun UserSearchResultItem(
                 color = Color(0xFF1F2937)
             )
             Text(
-                text = "ID: ${user.id}",
+                text = stringResource(R.string.add_friend_user_id, user.id),
                 fontSize = 12.sp,
                 color = Color(0xFF6B7280)
             )
@@ -2710,13 +2648,13 @@ fun UserSearchResultItem(
                 ) {
                     Icon(
                         imageVector = Icons.Filled.Check,
-                        contentDescription = "Added",
+                        contentDescription = stringResource(R.string.content_description_friend_added),
                         modifier = Modifier.size(18.dp),
                         tint = Color(0xFF6B7280)
                     )
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
-                        text = "Added",
+                        text = stringResource(R.string.add_friend_button_added),
                         fontSize = 14.sp,
                         color = Color(0xFF6B7280)
                     )
@@ -2736,13 +2674,13 @@ fun UserSearchResultItem(
                 ) {
                     Icon(
                         imageVector = Icons.Filled.Schedule,
-                        contentDescription = "Sended",
+                        contentDescription = stringResource(R.string.content_description_request_sent),
                         modifier = Modifier.size(18.dp),
                         tint = Color(0xFF6B7280)
                     )
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
-                        text = "Sended",
+                        text = stringResource(R.string.add_friend_button_sended),
                         fontSize = 14.sp,
                         color = Color(0xFF6B7280)
                     )
@@ -2761,7 +2699,7 @@ fun UserSearchResultItem(
                     contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
                 ) {
                     Text(
-                        text = "Pending",
+                        text = stringResource(R.string.add_friend_button_pending),
                         fontSize = 14.sp,
                         color = Color(0xFF6B7280)
                     )
@@ -2779,13 +2717,13 @@ fun UserSearchResultItem(
                 ) {
                     Icon(
                         imageVector = Icons.Filled.PersonAdd,
-                        contentDescription = "Add",
+                        contentDescription = stringResource(R.string.content_description_add_friend),
                         modifier = Modifier.size(18.dp),
                         tint = Color.White
                     )
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
-                        text = "Add",
+                        text = stringResource(R.string.add_friend_button_add),
                         fontSize = 14.sp,
                         color = Color.White
                     )
@@ -2794,5 +2732,4 @@ fun UserSearchResultItem(
         }
     }
 }
-
 
