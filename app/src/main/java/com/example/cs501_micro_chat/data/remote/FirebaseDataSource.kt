@@ -829,7 +829,47 @@ class FirebaseDataSource @Inject constructor(
                     return@addSnapshotListener
                 }
 
-                val contacts = contactsSnapshot?.toObjects(Contact::class.java) ?: emptyList()
+                // **手动构造 Contact 对象，确保 isPending 和 isNew 字段被正确读取**
+                val contacts = contactsSnapshot?.documents?.mapNotNull { doc ->
+                    try {
+                        val data = doc.data
+                        if (data != null) {
+                            Contact(
+                                userId = data["userId"] as? String ?: "",
+                                contactId = data["contactId"] as? String ?: doc.id,
+                                contactName = data["contactName"] as? String ?: "",
+                                contactAvatarUrl = data["contactAvatarUrl"] as? String ?: "",
+                                type = data["type"] as? String ?: "PRIVATE",
+                                alias = data["alias"] as? String ?: "",
+                                tags = (data["tags"] as? List<*>)?.mapNotNull { it as? String } ?: emptyList(),
+                                isFavorite = data["isFavorite"] as? Boolean ?: false,
+                                isBlocked = data["isBlocked"] as? Boolean ?: false,
+                                isNew = data["isNew"] as? Boolean ?: false,
+                                isPending = data["isPending"] as? Boolean ?: false,
+                                addedAt = (data["addedAt"] as? Long) ?: System.currentTimeMillis(),
+                                conversationId = data["conversationId"] as? String ?: ""
+                            )
+                        } else {
+                            null
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Error parsing contact ${doc.id}: ${e.message}")
+                        null
+                    }
+                } ?: emptyList()
+
+                // 详细日志：显示所有 contacts 的状态
+                Log.d(TAG, "observeUserConversations: ====== ALL CONTACTS ======")
+                contacts.forEach { contact ->
+                    val status = when {
+                        contact.type == "GROUP" -> "GROUP (always show)"
+                        !contact.isNew && !contact.isPending -> "✅ CONFIRMED (show)"
+                        contact.isPending -> "⏳ PENDING (hide - waiting for accept)"
+                        contact.isNew -> "🆕 NEW REQUEST (hide - waiting for me to accept)"
+                        else -> "❓ UNKNOWN"
+                    }
+                    Log.d(TAG, "  Contact ${contact.contactId}: isNew=${contact.isNew}, isPending=${contact.isPending}, conversationId=${contact.conversationId} → $status")
+                }
 
                 // 过滤出已确认的联系人
                 // 只保留：isNew = false && isPending = false 的联系人和群组

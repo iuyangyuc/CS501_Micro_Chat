@@ -1,3 +1,5 @@
+package com.example.cs501_micro_chat.ui.main
+
 /**
  * HomeScreen.kt
  *
@@ -19,12 +21,10 @@
  * @author CS501 Team
  * @date 2025-11-04
  */
-package com.example.cs501_micro_chat.ui.main
 
 import android.util.Log
-import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.BorderStroke
+
 import androidx.compose.ui.draw.shadow
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -70,6 +70,8 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import androidx.compose.animation.*
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
@@ -88,6 +90,10 @@ import com.example.cs501_micro_chat.ui.settings.ProfileEditScreen
 import com.example.cs501_micro_chat.ui.settings.SettingsScreen
 import com.example.cs501_micro_chat.ui.chat.ChatDetailViewModel
 import com.example.cs501_micro_chat.data.model.ConversationType
+import com.example.cs501_micro_chat.ui.main.ContactsViewModel
+import com.example.cs501_micro_chat.ui.main.HomeViewModel
+import com.example.cs501_micro_chat.ui.main.ProfileSettingsUiState
+import com.example.cs501_micro_chat.ui.main.ProfileSettingsViewModel
 import com.example.cs501_micro_chat.ui.theme.ThemeOption
 import com.example.cs501_micro_chat.ui.theme.ThemeViewModel
 import java.text.Collator
@@ -2748,3 +2754,4 @@ fun UserSearchResultItem(
         }
     }
 }
+

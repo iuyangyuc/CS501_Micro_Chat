@@ -70,6 +70,16 @@ class HomeViewModel @Inject constructor(
     private val _isAddFriendSearching = MutableStateFlow(false)
     val isAddFriendSearching: StateFlow<Boolean> = _isAddFriendSearching.asStateFlow()
 
+    // 添加群组搜索相关状态
+    private val _addGroupSearchQuery = MutableStateFlow("")
+    val addGroupSearchQuery: StateFlow<String> = _addGroupSearchQuery.asStateFlow()
+
+    private val _addGroupSearchResults = MutableStateFlow<List<Conversation>>(emptyList())
+    val addGroupSearchResults: StateFlow<List<Conversation>> = _addGroupSearchResults.asStateFlow()
+
+    private val _isAddGroupSearching = MutableStateFlow(false)
+    val isAddGroupSearching: StateFlow<Boolean> = _isAddGroupSearching.asStateFlow()
+
     // 已有联系人的 ID 集合（用于判断用户是否已添加）
     private val _existingContactIds = MutableStateFlow<Set<String>>(emptySet())
     val existingContactIds: StateFlow<Set<String>> = _existingContactIds.asStateFlow()

@@ -229,8 +229,12 @@ class ChatRepository @Inject constructor(
 
     /**
      * 发送好友请求
-     * 1. 在目标用户的 contacts 中添加当前用户，设置 isNew = true（待确认）
-     * 2. 在当前用户的 contacts 中添加目标用户，设置 isPending = true（已发送，等待接受）
+     * 1. **检查双方的旧 contacts 中是否有旧的 conversationId**
+     * 2. 如果找到旧的 conversationId，在新的 contact 中保留它
+     * 3. 在目标用户的 contacts 中添加当前用户，设置 isNew = true（待确认）
+     * 4. 在当前用户的 contacts 中添加目标用户，设置 isPending = true（已发送，等待接受）
+     *
+     * 注意：即使保留了 conversationId，因为 isNew 或 isPending 为 true，会话也不会显示在聊天列表中
      */
     suspend fun sendFriendRequest(targetUserId: String, alias: String = ""): Result<Unit> {
         val userId = currentUserId ?: return Result.failure(Exception("User not logged in"))
@@ -256,7 +260,30 @@ class ChatRepository @Inject constructor(
             }
             Log.d("ChatRepository", "✅ Target user found: ${targetUser.username} (${targetUser.id})")
 
+            // **关键步骤：检查双方的旧 contacts 中是否有旧的 conversationId**
+            Log.d("ChatRepository", "  🔍 Checking for old conversationId in both users' contacts...")
+
+            // 检查发送方（当前用户）的旧 contact
+            val senderOldContactResult = firebaseDataSource.getContact(userId, targetUserId)
+            val senderOldConversationId = senderOldContactResult.getOrNull()?.conversationId?.takeIf { it.isNotBlank() }
+            Log.d("ChatRepository", "    📋 Sender's old conversationId: ${senderOldConversationId ?: "null"}")
+
+            // 检查接收方（目标用户）的旧 contact
+            val receiverOldContactResult = firebaseDataSource.getContact(targetUserId, userId)
+            val receiverOldConversationId = receiverOldContactResult.getOrNull()?.conversationId?.takeIf { it.isNotBlank() }
+            Log.d("ChatRepository", "    📋 Receiver's old conversationId: ${receiverOldConversationId ?: "null"}")
+
+            // 优先使用任何一方保留的旧 conversationId
+            val existingConversationId = senderOldConversationId ?: receiverOldConversationId ?: ""
+
+            if (existingConversationId.isNotBlank()) {
+                Log.d("ChatRepository", "  ♻️ Found old conversationId: $existingConversationId, will preserve it")
+            } else {
+                Log.d("ChatRepository", "  🆕 No old conversationId found, will create new one on acceptance")
+            }
+
             // 在目标用户的 contacts 中创建一个待确认的联系人（当前用户）
+            // **保留旧的 conversationId（如果存在）**
             val receiverContact = Contact(
                 userId = targetUserId, // 目标用户的ID
                 contactId = userId, // 当前用户的ID
@@ -266,9 +293,9 @@ class ChatRepository @Inject constructor(
                 type = "PRIVATE",
                 isNew = true, // 标记为待确认（接收者看到的）
                 isPending = false,
-                conversationId = "" // 暂时不设置 conversationId
+                conversationId = existingConversationId // **保留旧的 conversationId**
             )
-            Log.d("ChatRepository", "📝 Creating receiver contact: user=${receiverContact.userId}, contact=${receiverContact.contactId}, isNew=${receiverContact.isNew}, isPending=${receiverContact.isPending}")
+            Log.d("ChatRepository", "📝 Creating receiver contact: user=${receiverContact.userId}, contact=${receiverContact.contactId}, isNew=${receiverContact.isNew}, isPending=${receiverContact.isPending}, conversationId=$existingConversationId")
 
             val receiverResult = firebaseDataSource.addContact(receiverContact)
             if (receiverResult.isFailure) {
@@ -278,6 +305,7 @@ class ChatRepository @Inject constructor(
             Log.d("ChatRepository", "✅ Receiver contact added successfully")
 
             // 在当前用户的 contacts 中创建一个已发送的联系人（目标用户）
+            // **保留旧的 conversationId（如果存在）**
             val senderContact = Contact(
                 userId = userId, // 当前用户的ID
                 contactId = targetUserId, // 目标用户的ID
@@ -287,9 +315,9 @@ class ChatRepository @Inject constructor(
                 type = "PRIVATE",
                 isNew = false,
                 isPending = true, // 标记为已发送等待接受（发送者看到的）
-                conversationId = "" // 暂时不设置 conversationId
+                conversationId = existingConversationId // **保留旧的 conversationId**
             )
-            Log.d("ChatRepository", "📝 Creating sender contact: user=${senderContact.userId}, contact=${senderContact.contactId}, isNew=${senderContact.isNew}, isPending=${senderContact.isPending}")
+            Log.d("ChatRepository", "📝 Creating sender contact: user=${senderContact.userId}, contact=${senderContact.contactId}, isNew=${senderContact.isNew}, isPending=${senderContact.isPending}, conversationId=$existingConversationId")
 
             val senderResult = firebaseDataSource.addContact(senderContact)
             if (senderResult.isFailure) {
@@ -298,7 +326,7 @@ class ChatRepository @Inject constructor(
             }
             Log.d("ChatRepository", "✅ Sender contact added successfully")
 
-            Log.d("ChatRepository", "🎉 Friend request sent successfully!")
+            Log.d("ChatRepository", "🎉 Friend request sent successfully with conversationId: $existingConversationId")
             return Result.success(Unit)
         } catch (e: Exception) {
             Log.e("ChatRepository", "❌ Exception in sendFriendRequest", e)
@@ -308,14 +336,17 @@ class ChatRepository @Inject constructor(
 
     /**
      * 接受好友请求
-     * 1. 创建私聊会话
-     * 2. 将当前用户 contacts 中的 isNew 设置为 false，添加 conversationId
-     * 3. 将请求者 contacts 中的 isPending 设置为 false，添加 conversationId
+     * 1. 从 contacts 中获取 conversationId（在发送请求时已经保留了旧的 conversationId）
+     * 2. 如果有 conversationId，检查会话是否存在，不存在则重建；如果没有则创建新的
+     * 3. 将当前用户 contacts 中的 isNew 设置为 false
+     * 4. 将请求者 contacts 中的 isPending 设置为 false
      */
     suspend fun acceptFriendRequest(requesterId: String): Result<Unit> {
         val userId = currentUserId ?: return Result.failure(Exception("User not logged in"))
 
         try {
+            Log.d("ChatRepository", "🤝 Accepting friend request from: $requesterId")
+
             // 获取请求者信息
             val requesterResult = firebaseDataSource.getUser(requesterId)
             val requester = requesterResult.getOrNull()
@@ -326,23 +357,63 @@ class ChatRepository @Inject constructor(
             val currentUser = currentUserResult.getOrNull()
                 ?: return Result.failure(Exception("Current user not found"))
 
-            // 直接创建新的私聊会话，不使用 createOrGetPrivateConversation
-            // 因为后者会自动创建 contacts 并覆盖我们的状态
-            val conversationId = firebaseDataSource.generateConversationId()
-            val conversation = Conversation(
-                id = conversationId,
-                type = ConversationType.PRIVATE,
-                name = requester.username,
-                avatarUrl = requester.avatarUrl,
-                participants = listOf(userId, requesterId),
-                createdBy = userId,
-                unreadCounts = mapOf(userId to 0, requesterId to 0)
-            )
+            // 从当前的 contacts 中获取 conversationId（在 sendFriendRequest 时已经保留）
+            Log.d("ChatRepository", "  🔍 Checking conversationId from contacts...")
 
-            // 保存会话到 Firebase
-            firebaseDataSource.createConversation(conversation).getOrThrow()
+            val receiverContactResult = firebaseDataSource.getContact(userId, requesterId)
+            val receiverConversationId = receiverContactResult.getOrNull()?.conversationId
+            Log.d("ChatRepository", "    📋 Receiver's conversationId: ${receiverConversationId ?: "null"}")
 
-            // 更新当前用户的 contact（将 isNew 设置为 false，添加 conversationId）
+            val requesterContactResult = firebaseDataSource.getContact(requesterId, userId)
+            val requesterConversationId = requesterContactResult.getOrNull()?.conversationId
+            Log.d("ChatRepository", "    📋 Requester's conversationId: ${requesterConversationId ?: "null"}")
+
+            // 使用已保留的 conversationId
+            val existingConversationId = receiverConversationId?.takeIf { it.isNotBlank() }
+                ?: requesterConversationId?.takeIf { it.isNotBlank() }
+
+            val conversationId: String
+
+            if (!existingConversationId.isNullOrBlank()) {
+                // 使用已保留的 conversationId
+                Log.d("ChatRepository", "  ♻️ Using preserved conversationId: $existingConversationId")
+                conversationId = existingConversationId
+
+                // 检查会话是否仍然存在
+                val existingConversation = firebaseDataSource.getConversation(conversationId).getOrNull()
+                if (existingConversation == null) {
+                    Log.d("ChatRepository", "  ⚠️ Conversation doesn't exist, recreating it with same ID")
+                    val conversation = Conversation(
+                        id = conversationId,
+                        type = ConversationType.PRIVATE,
+                        name = requester.username,
+                        avatarUrl = requester.avatarUrl,
+                        participants = listOf(userId, requesterId),
+                        createdBy = userId,
+                        unreadCounts = mapOf(userId to 0, requesterId to 0)
+                    )
+                    firebaseDataSource.createConversation(conversation).getOrThrow()
+                } else {
+                    Log.d("ChatRepository", "  ✅ Conversation already exists, no need to recreate")
+                }
+            } else {
+                // 第一次加好友，创建新的会话
+                Log.d("ChatRepository", "  🆕 No conversationId found, creating new conversation")
+                conversationId = firebaseDataSource.generateConversationId()
+                val conversation = Conversation(
+                    id = conversationId,
+                    type = ConversationType.PRIVATE,
+                    name = requester.username,
+                    avatarUrl = requester.avatarUrl,
+                    participants = listOf(userId, requesterId),
+                    createdBy = userId,
+                    unreadCounts = mapOf(userId to 0, requesterId to 0)
+                )
+                firebaseDataSource.createConversation(conversation).getOrThrow()
+            }
+
+            // 更新当前用户的 contact（将 isNew 设置为 false，确保有 conversationId）
+            Log.d("ChatRepository", "  📝 Updating current user's contact")
             val myContact = Contact(
                 userId = userId,
                 contactId = requesterId,
@@ -355,7 +426,8 @@ class ChatRepository @Inject constructor(
             )
             firebaseDataSource.addContact(myContact).getOrThrow()
 
-            // 更新请求者的 contact（将 isPending 设置为 false，添加 conversationId）
+            // 更新请求者的 contact（将 isPending 设置为 false，确保有 conversationId）
+            Log.d("ChatRepository", "  📝 Updating requester's contact")
             val theirContact = Contact(
                 userId = requesterId,
                 contactId = userId,
@@ -368,8 +440,10 @@ class ChatRepository @Inject constructor(
             )
             firebaseDataSource.addContact(theirContact).getOrThrow()
 
+            Log.d("ChatRepository", "  🎉 Friend request accepted successfully with conversationId: $conversationId")
             return Result.success(Unit)
         } catch (e: Exception) {
+            Log.e("ChatRepository", "  ❌ Failed to accept friend request", e)
             return Result.failure(e)
         }
     }
