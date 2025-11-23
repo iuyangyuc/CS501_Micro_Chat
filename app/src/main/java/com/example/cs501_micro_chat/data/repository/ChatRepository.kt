@@ -14,6 +14,7 @@
  */
 package com.example.cs501_micro_chat.data.repository
 
+import android.util.Log
 import com.example.cs501_micro_chat.data.model.*
 import com.example.cs501_micro_chat.data.remote.FirebaseDataSource
 import com.google.firebase.auth.FirebaseAuth
@@ -238,15 +239,25 @@ class ChatRepository @Inject constructor(
         val userId = currentUserId ?: return Result.failure(Exception("User not logged in"))
 
         try {
+            Log.d("ChatRepository", "🔄 sendFriendRequest: currentUser=$userId, targetUser=$targetUserId")
+
             // 获取当前用户信息
             val currentUserResult = firebaseDataSource.getUser(userId)
             val currentUser = currentUserResult.getOrNull()
-                ?: return Result.failure(Exception("Current user not found"))
+            if (currentUser == null) {
+                Log.e("ChatRepository", "❌ Current user not found: $userId")
+                return Result.failure(Exception("Current user not found"))
+            }
+            Log.d("ChatRepository", "✅ Current user found: ${currentUser.username} (${currentUser.id})")
 
             // 获取目标用户信息
             val targetUserResult = firebaseDataSource.getUser(targetUserId)
             val targetUser = targetUserResult.getOrNull()
-                ?: return Result.failure(Exception("Target user not found"))
+            if (targetUser == null) {
+                Log.e("ChatRepository", "❌ Target user not found: $targetUserId")
+                return Result.failure(Exception("Target user not found"))
+            }
+            Log.d("ChatRepository", "✅ Target user found: ${targetUser.username} (${targetUser.id})")
 
             // 在目标用户的 contacts 中创建一个待确认的联系人（当前用户）
             val receiverContact = Contact(
@@ -260,7 +271,14 @@ class ChatRepository @Inject constructor(
                 isPending = false,
                 conversationId = "" // 暂时不设置 conversationId
             )
-            firebaseDataSource.addContact(receiverContact).getOrThrow()
+            Log.d("ChatRepository", "📝 Creating receiver contact: user=${receiverContact.userId}, contact=${receiverContact.contactId}, isNew=${receiverContact.isNew}, isPending=${receiverContact.isPending}")
+
+            val receiverResult = firebaseDataSource.addContact(receiverContact)
+            if (receiverResult.isFailure) {
+                Log.e("ChatRepository", "❌ Failed to add receiver contact", receiverResult.exceptionOrNull())
+                return Result.failure(receiverResult.exceptionOrNull() ?: Exception("Failed to add receiver contact"))
+            }
+            Log.d("ChatRepository", "✅ Receiver contact added successfully")
 
             // 在当前用户的 contacts 中创建一个已发送的联系人（目标用户）
             val senderContact = Contact(
@@ -274,10 +292,19 @@ class ChatRepository @Inject constructor(
                 isPending = true, // 标记为已发送等待接受（发送者看到的）
                 conversationId = "" // 暂时不设置 conversationId
             )
-            firebaseDataSource.addContact(senderContact).getOrThrow()
+            Log.d("ChatRepository", "📝 Creating sender contact: user=${senderContact.userId}, contact=${senderContact.contactId}, isNew=${senderContact.isNew}, isPending=${senderContact.isPending}")
 
+            val senderResult = firebaseDataSource.addContact(senderContact)
+            if (senderResult.isFailure) {
+                Log.e("ChatRepository", "❌ Failed to add sender contact", senderResult.exceptionOrNull())
+                return Result.failure(senderResult.exceptionOrNull() ?: Exception("Failed to add sender contact"))
+            }
+            Log.d("ChatRepository", "✅ Sender contact added successfully")
+
+            Log.d("ChatRepository", "🎉 Friend request sent successfully!")
             return Result.success(Unit)
         } catch (e: Exception) {
+            Log.e("ChatRepository", "❌ Exception in sendFriendRequest", e)
             return Result.failure(e)
         }
     }

@@ -59,6 +59,7 @@ class ChatDetailViewModel @Inject constructor(
 
     private val _conversationId = MutableStateFlow("")
     val conversationId: StateFlow<String> = _conversationId.asStateFlow()
+
     private val _mediaUploadState = MutableStateFlow(MediaUploadState())
     val mediaUploadState: StateFlow<MediaUploadState> = _mediaUploadState.asStateFlow()
 
@@ -201,7 +202,8 @@ class ChatDetailViewModel @Inject constructor(
 
     /**
      * Upload an image to Firebase Storage and send the image message.
-     *fun uploadImageMessage(
+     */
+    fun uploadImageMessage(
         conversationId: String,
         imageBytes: ByteArray,
         mimeType: String = "image/jpeg",
@@ -263,7 +265,9 @@ class ChatDetailViewModel @Inject constructor(
         }
     }
 
-    /** Upload an mp3 voice clip and send it as a message. */
+    /**
+     * Upload an mp3 voice clip and send it as a message.
+     */
     fun uploadVoiceMessage(
         conversationId: String,
         audioBytes: ByteArray,
@@ -328,7 +332,9 @@ class ChatDetailViewModel @Inject constructor(
         }
     }
 
-    /** Mark all messages as read. */
+    /**
+     * Mark all messages as read.
+     */
     private fun markAllAsRead(conversationId: String) {
         val userId = auth.currentUser?.uid ?: return
 
@@ -350,12 +356,16 @@ class ChatDetailViewModel @Inject constructor(
         }
     }
 
-    /** Clear error message. */
+    /**
+     * Clear error message.
+     */
     fun clearError() {
         _error.value = null
     }
 
-    /** Reset media upload indicator state. */
+    /**
+     * Reset media upload indicator state.
+     */
     fun clearMediaUploadState() {
         _mediaUploadState.value = MediaUploadState(
             isUploading = false,
@@ -364,3 +374,6 @@ class ChatDetailViewModel @Inject constructor(
         )
     }
 }
+
+
+

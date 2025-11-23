@@ -61,8 +61,72 @@ class FirebaseDataSource @Inject constructor(
      * 获取用户信息
      */
     suspend fun getUser(userId: String): Result<User?> = runCatching {
+        Log.d(TAG, "🔍 getUser: Fetching user with ID: '$userId' (length: ${userId.length})")
+
         val snapshot = usersCollection.document(userId).get().await()
-        snapshot.toObject(User::class.java)?.copy(id = userId)
+
+        if (snapshot.exists()) {
+            Log.d(TAG, "  ✅ User document exists in Firebase")
+            Log.d(TAG, "  📄 Document data: ${snapshot.data}")
+
+            try {
+                // 手动构造 User 对象，处理 Timestamp 类型
+                val data = snapshot.data
+                if (data != null) {
+                    val createdAt = when (val created = data["createdAt"]) {
+                        is Long -> created
+                        is com.google.firebase.Timestamp -> created.toDate().time
+                        else -> System.currentTimeMillis()
+                    }
+
+                    val lastSeenAt = when (val lastSeen = data["lastSeenAt"]) {
+                        is Long -> lastSeen
+                        is com.google.firebase.Timestamp -> lastSeen.toDate().time
+                        else -> System.currentTimeMillis()
+                    }
+
+                    val user = User(
+                        id = userId,
+                        username = data["username"] as? String ?: "",
+                        email = data["email"] as? String ?: "",
+                        avatarUrl = data["avatarUrl"] as? String ?: "",
+                        status = try {
+                            UserStatus.valueOf(data["status"] as? String ?: "OFFLINE")
+                        } catch (e: Exception) {
+                            UserStatus.OFFLINE
+                        },
+                        statusMessage = data["statusMessage"] as? String ?: "",
+                        createdAt = createdAt,
+                        lastSeenAt = lastSeenAt
+                    )
+
+                    Log.d(TAG, "  ✅ User object created: ${user.username} (${user.email})")
+                    user
+                } else {
+                    Log.e(TAG, "  ❌ Document data is null")
+                    null
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "  ❌ Failed to deserialize user document: ${e.message}", e)
+                null
+            }
+        } else {
+            Log.e(TAG, "  ❌ User document does NOT exist at path: /users/$userId")
+            Log.d(TAG, "  🔍 Attempting to list all user IDs to debug...")
+
+            // 尝试列出所有用户ID来帮助调试
+            try {
+                val allUsers = usersCollection.limit(10).get().await()
+                Log.d(TAG, "  📋 First 10 user IDs in database:")
+                allUsers.documents.forEach { doc ->
+                    Log.d(TAG, "    - ${doc.id} (username: ${doc.getString("username")})")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "  ❌ Failed to list users: ${e.message}")
+            }
+
+            null
+        }
     }
 
     /**
@@ -128,17 +192,18 @@ class FirebaseDataSource @Inject constructor(
      */
     suspend fun searchUsers(query: String): Result<List<User>> = runCatching {
         val results = mutableListOf<User>()
-        val lowerQuery = query.lowercase().trim()
+        val trimmedQuery = query.trim()
+        val lowerQuery = trimmedQuery.lowercase()
 
-        if (lowerQuery.isBlank()) {
+        if (trimmedQuery.isBlank()) {
             return@runCatching emptyList()
         }
 
-        // 1. 通过用户名搜索（前缀匹配）
+        // 1. 通过用户名搜索（前缀匹配）- 尝试原始大小写
         try {
             val byUsername = usersCollection
-                .whereGreaterThanOrEqualTo("username", query)
-                .whereLessThanOrEqualTo("username", query + "\uf8ff")
+                .whereGreaterThanOrEqualTo("username", trimmedQuery)
+                .whereLessThanOrEqualTo("username", trimmedQuery + "\uf8ff")
                 .limit(20)
                 .get()
                 .await()
@@ -148,7 +213,26 @@ class FirebaseDataSource @Inject constructor(
                 }
             results.addAll(byUsername)
         } catch (e: Exception) {
-            Log.d(TAG, "Username search failed: ${e.message}")
+            Log.d(TAG, "Username search (original case) failed: ${e.message}")
+        }
+
+        // 1b. 通过用户名搜索（小写前缀匹配）
+        if (lowerQuery != trimmedQuery) {
+            try {
+                val byUsernameLower = usersCollection
+                    .whereGreaterThanOrEqualTo("username", lowerQuery)
+                    .whereLessThanOrEqualTo("username", lowerQuery + "\uf8ff")
+                    .limit(20)
+                    .get()
+                    .await()
+                    .documents
+                    .mapNotNull { doc ->
+                        doc.toObject(User::class.java)?.copy(id = doc.id)
+                    }
+                results.addAll(byUsernameLower)
+            } catch (e: Exception) {
+                Log.d(TAG, "Username search (lowercase) failed: ${e.message}")
+            }
         }
 
         // 2. 通过邮箱搜索（前缀匹配）
@@ -172,7 +256,7 @@ class FirebaseDataSource @Inject constructor(
         if (results.isEmpty()) {
             try {
                 val byId = usersCollection
-                    .document(query)
+                    .document(trimmedQuery)
                     .get()
                     .await()
                 byId.toObject(User::class.java)?.let { user ->
@@ -183,13 +267,91 @@ class FirebaseDataSource @Inject constructor(
             }
         }
 
+        // 4. 如果还是没结果，尝试获取所有用户并在本地进行大小写不敏感的匹配
+        if (results.isEmpty()) {
+            try {
+                Log.d(TAG, "Falling back to client-side search for: $trimmedQuery")
+                val allUsers = usersCollection
+                    .limit(100) // 限制返回数量以提高性能
+                    .get()
+                    .await()
+                    .documents
+                    .mapNotNull { doc ->
+                        try {
+                            // 手动构造 User 对象，处理 Timestamp 类型
+                            val data = doc.data
+                            if (data != null) {
+                                val createdAt = when (val created = data["createdAt"]) {
+                                    is Long -> created
+                                    is com.google.firebase.Timestamp -> created.toDate().time
+                                    else -> System.currentTimeMillis()
+                                }
+
+                                val lastSeenAt = when (val lastSeen = data["lastSeenAt"]) {
+                                    is Long -> lastSeen
+                                    is com.google.firebase.Timestamp -> lastSeen.toDate().time
+                                    else -> System.currentTimeMillis()
+                                }
+
+                                User(
+                                    id = doc.id,
+                                    username = data["username"] as? String ?: "",
+                                    email = data["email"] as? String ?: "",
+                                    avatarUrl = data["avatarUrl"] as? String ?: "",
+                                    status = try {
+                                        UserStatus.valueOf(data["status"] as? String ?: "OFFLINE")
+                                    } catch (e: Exception) {
+                                        UserStatus.OFFLINE
+                                    },
+                                    statusMessage = data["statusMessage"] as? String ?: "",
+                                    createdAt = createdAt,
+                                    lastSeenAt = lastSeenAt
+                                )
+                            } else {
+                                null
+                            }
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Error parsing user ${doc.id}: ${e.message}")
+                            null
+                        }
+                    }
+
+                Log.d(TAG, "Client-side search: Retrieved ${allUsers.size} users")
+
+                // 记录所有用户的ID和用户名以便调试
+                allUsers.forEach { user ->
+                    Log.d(TAG, "  👤 Found user: id='${user.id}' username='${user.username}' email='${user.email}'")
+                }
+
+                // 在客户端进行大小写不敏感的搜索
+                val matchedUsers = allUsers.filter { user ->
+                    val usernameMatch = user.username.contains(trimmedQuery, ignoreCase = true)
+                    val emailMatch = user.email.contains(lowerQuery, ignoreCase = true)
+                    val idMatch = user.id == trimmedQuery
+
+                    if (usernameMatch || emailMatch || idMatch) {
+                        Log.d(TAG, "  ✅ MATCH: ${user.username} (id=${user.id}) - usernameMatch=$usernameMatch, emailMatch=$emailMatch, idMatch=$idMatch")
+                    }
+
+                    usernameMatch || emailMatch || idMatch
+                }
+
+                Log.d(TAG, "Client-side search: Matched ${matchedUsers.size} users for query '$trimmedQuery'")
+                results.addAll(matchedUsers)
+            } catch (e: Exception) {
+                Log.e(TAG, "Client-side search failed: ${e.message}", e)
+            }
+        }
+
         // 去重并按相关性排序
         results.distinctBy { it.id }
             .sortedWith(compareBy(
                 // 优先显示用户名完全匹配的
-                { !it.username.equals(query, ignoreCase = true) },
+                { !it.username.equals(trimmedQuery, ignoreCase = true) },
                 // 其次显示邮箱完全匹配的
                 { !it.email.equals(lowerQuery, ignoreCase = true) },
+                // 然后显示用户名包含搜索词的
+                { !it.username.contains(trimmedQuery, ignoreCase = true) },
                 // 最后按用户名字母顺序
                 { it.username.lowercase() }
             ))
@@ -202,12 +364,29 @@ class FirebaseDataSource @Inject constructor(
      * 添加联系人
      */
     suspend fun addContact(contact: Contact): Result<Unit> = runCatching {
-        usersCollection
+        Log.d(TAG, "🔄 addContact: user=${contact.userId}, contact=${contact.contactId}")
+        Log.d(TAG, "  📋 Contact details: name=${contact.contactName}, type=${contact.type}, isNew=${contact.isNew}, isPending=${contact.isPending}")
+
+        val docRef = usersCollection
             .document(contact.userId)
             .collection("contacts")
             .document(contact.contactId)
-            .set(contact.toMap())
-            .await()
+
+        val contactMap = contact.toMap()
+        Log.d(TAG, "  📦 Contact map: $contactMap")
+
+        docRef.set(contactMap).await()
+
+        Log.d(TAG, "  ✅ Contact added successfully to Firebase: /users/${contact.userId}/contacts/${contact.contactId}")
+
+        // 验证数据是否真的写入了
+        val verification = docRef.get().await()
+        if (verification.exists()) {
+            Log.d(TAG, "  ✅ Verification: Document exists in Firebase")
+            Log.d(TAG, "  📄 Verification data: ${verification.data}")
+        } else {
+            Log.e(TAG, "  ❌ Verification: Document does NOT exist in Firebase!")
+        }
     }
 
     /**
