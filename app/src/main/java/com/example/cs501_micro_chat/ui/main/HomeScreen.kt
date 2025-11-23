@@ -24,6 +24,7 @@ package com.example.cs501_micro_chat.ui.main
 import android.Manifest
 import android.media.MediaRecorder
 import android.os.SystemClock
+import android.speech.tts.TextToSpeech
 import android.webkit.MimeTypeMap
 import android.util.Log
 import android.net.Uri
@@ -42,6 +43,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.rememberScrollState
@@ -74,6 +76,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -99,6 +102,7 @@ import coil.compose.AsyncImage
 import com.example.cs501_micro_chat.R
 import com.example.cs501_micro_chat.data.model.Conversation
 import com.example.cs501_micro_chat.data.model.Contact
+import com.example.cs501_micro_chat.data.model.Message
 import com.example.cs501_micro_chat.ui.profile.GroupProfileScreen
 import com.example.cs501_micro_chat.ui.profile.UserProfileScreen
 import com.example.cs501_micro_chat.ui.settings.AboutScreen
@@ -107,6 +111,7 @@ import com.example.cs501_micro_chat.ui.settings.ProfileEditScreen
 import com.example.cs501_micro_chat.ui.settings.SettingsScreen
 import com.example.cs501_micro_chat.ui.chat.ChatDetailViewModel
 import com.example.cs501_micro_chat.data.model.ConversationType
+import com.example.cs501_micro_chat.ui.chat.messageKey
 import com.example.cs501_micro_chat.ui.theme.ThemeOption
 import com.example.cs501_micro_chat.ui.theme.ThemeViewModel
 import java.text.Collator
@@ -542,6 +547,7 @@ fun HomeScreen(
             }
         }
     }
+
 }
 
 /**
@@ -904,9 +910,16 @@ fun ChatDetailContent(
 
     val messages by viewModel.messages.collectAsStateWithLifecycle()
     val currentUserId by viewModel.currentUserId.collectAsStateWithLifecycle()
+    val translationStates by viewModel.translationStates.collectAsStateWithLifecycle()
+    val voiceTranscriptionStates by viewModel.voiceTranscriptionStates.collectAsStateWithLifecycle()
 
     var inputText by remember { mutableStateOf("") }
     var showActionSheet by remember { mutableStateOf(false) }
+    var messageAwaitingTranslation by remember { mutableStateOf<Message?>(null) }
+    var selectedLanguage by remember { mutableStateOf("English") }
+    val languageOptions = remember { listOf("English", "Chinese", "French") }
+    var textToSpeech by remember { mutableStateOf<TextToSpeech?>(null) }
+    var ttsReady by remember { mutableStateOf(false) }
     val actionSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val coroutineScope = rememberCoroutineScope()
     val contentResolver = context.contentResolver
@@ -1083,6 +1096,30 @@ fun ChatDetailContent(
         uri?.let { handlePickedFile(it) }
     }
 
+    DisposableEffect(Unit) {
+        val tts = TextToSpeech(context) { status ->
+            ttsReady = status == TextToSpeech.SUCCESS
+        }
+        textToSpeech = tts
+
+        onDispose {
+            tts.stop()
+            tts.shutdown()
+            textToSpeech = null
+            ttsReady = false
+        }
+    }
+
+    fun speakMessage(text: String) {
+        if (text.isBlank() || !ttsReady) return
+        textToSpeech?.speak(
+            text,
+            TextToSpeech.QUEUE_FLUSH,
+            null,
+            "chat_message_tts_${text.hashCode()}"
+        )
+    }
+
     LaunchedEffect(messages.size) {
         if (messages.isNotEmpty()) {
             listState.animateScrollToItem(messages.size - 1)
@@ -1242,15 +1279,17 @@ fun ChatDetailContent(
                 ) {
                     items(
                         items = messages,
-                        key = { message ->
-                            if (message.id.isNotBlank()) message.id
-                            else "${message.timestamp}_${message.senderId}_${message.content.hashCode()}"
-                        }
+                        key = { message -> messageKey(message) }
                     ) { message ->
                         com.example.cs501_micro_chat.ui.chat.MessageBubble(
                             message = message,
                             isSelf = message.senderId == currentUserId,
-                            onAvatarClick = onAvatarClick
+                            translationState = translationStates[messageKey(message)],
+                            transcriptionState = voiceTranscriptionStates[messageKey(message)],
+                            onAvatarClick = onAvatarClick,
+                            onTranslateClick = { messageAwaitingTranslation = message },
+                            onPlayClick = { speakMessage(message.content) },
+                            onTranscribeClick = { viewModel.transcribeVoiceMessage(it) }
                         )
                     }
                 }
@@ -1382,6 +1421,61 @@ fun ChatDetailContent(
                 }
             }
         }
+    }
+
+    messageAwaitingTranslation?.let { pendingMessage ->
+        AlertDialog(
+            onDismissRequest = { messageAwaitingTranslation = null },
+            title = { Text(text = stringResource(R.string.translate_dialog_title)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = stringResource(R.string.translate_dialog_subtitle),
+                        color = secondaryTextColor(),
+                        fontSize = 14.sp
+                    )
+                    languageOptions.forEach { option ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .selectable(
+                                    selected = selectedLanguage == option,
+                                    onClick = { selectedLanguage = option },
+                                    role = Role.RadioButton
+                                )
+                                .padding(horizontal = 4.dp, vertical = 2.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RadioButton(
+                                selected = selectedLanguage == option,
+                                onClick = { selectedLanguage = option }
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = option,
+                                color = primaryTextColor(),
+                                fontSize = 14.sp
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.translateMessage(pendingMessage, selectedLanguage)
+                        messageAwaitingTranslation = null
+                    }
+                ) {
+                    Text(text = stringResource(R.string.translate_dialog_confirm))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { messageAwaitingTranslation = null }) {
+                    Text(text = stringResource(R.string.translate_dialog_cancel))
+                }
+            }
+        )
     }
 }
 
