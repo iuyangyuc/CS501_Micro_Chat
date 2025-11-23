@@ -23,10 +23,12 @@ package com.example.cs501_micro_chat.ui.chat
 
 import android.media.MediaPlayer
 import android.net.Uri
+import android.speech.tts.TextToSpeech
 import android.widget.MediaController
 import android.widget.VideoView
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -49,6 +51,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -107,13 +110,45 @@ fun ChatDetailScreen(
     val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
     val error by viewModel.error.collectAsStateWithLifecycle()
     val currentUserId by viewModel.currentUserId.collectAsStateWithLifecycle()
+    val translationStates by viewModel.translationStates.collectAsStateWithLifecycle()
 
     var inputText by remember { mutableStateOf("") }
     var showAttachmentMenu by remember { mutableStateOf(false) }
+    var messageAwaitingTranslation by remember { mutableStateOf<Message?>(null) }
+    var selectedLanguage by remember { mutableStateOf("English") }
+    val languageOptions = remember { listOf("English", "Chinese", "French") }
+
+    val context = LocalContext.current
+    var textToSpeech by remember { mutableStateOf<TextToSpeech?>(null) }
+    var ttsReady by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
     val backgroundColor = chatBackgroundColor()
     val surfaceColor = chatSurfaceColor()
     val inputBackground = chatInputBackground()
+
+    DisposableEffect(Unit) {
+        val tts = TextToSpeech(context) { status ->
+            ttsReady = status == TextToSpeech.SUCCESS
+        }
+        textToSpeech = tts
+
+        onDispose {
+            tts.stop()
+            tts.shutdown()
+            textToSpeech = null
+            ttsReady = false
+        }
+    }
+
+    fun speakMessage(text: String) {
+        if (text.isBlank() || !ttsReady) return
+        textToSpeech?.speak(
+            text,
+            TextToSpeech.QUEUE_FLUSH,
+            null,
+            "chat_message_tts_${text.hashCode()}"
+        )
+    }
 
     // 自动滚动到最新消息
     LaunchedEffect(messages.size) {
@@ -405,23 +440,75 @@ fun ChatDetailScreen(
                 ) {
                     items(
                         items = messages,
-                        key = { message ->
-                            // 使用消息ID，如果为空则使用时间戳+发送者ID组合
-                            if (message.id.isNotBlank()) {
-                                message.id
-                            } else {
-                                "${message.timestamp}_${message.senderId}_${message.content.hashCode()}"
-                            }
-                        }
+                        key = { message -> messageKey(message) }
                     ) { message ->
                         MessageBubble(
                             message = message,
-                            isSelf = message.senderId == currentUserId
+                            isSelf = message.senderId == currentUserId,
+                            translationState = translationStates[messageKey(message)],
+                            onAvatarClick = {},
+                            onTranslateClick = { messageAwaitingTranslation = message },
+                            onPlayClick = { speakMessage(message.content) }
                         )
                     }
                 }
             }
         }
+    }
+
+    messageAwaitingTranslation?.let { pendingMessage ->
+        AlertDialog(
+            onDismissRequest = { messageAwaitingTranslation = null },
+            title = { Text(text = stringResource(R.string.translate_dialog_title)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = stringResource(R.string.translate_dialog_subtitle),
+                        color = chatSecondaryTextColor(),
+                        fontSize = 14.sp
+                    )
+                    languageOptions.forEach { option ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .selectable(
+                                    selected = selectedLanguage == option,
+                                    onClick = { selectedLanguage = option },
+                                    role = Role.RadioButton
+                                )
+                                .padding(horizontal = 4.dp, vertical = 2.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RadioButton(
+                                selected = selectedLanguage == option,
+                                onClick = { selectedLanguage = option }
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = option,
+                                color = chatPrimaryTextColor(),
+                                fontSize = 14.sp
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.translateMessage(pendingMessage, selectedLanguage)
+                        messageAwaitingTranslation = null
+                    }
+                ) {
+                    Text(text = stringResource(R.string.translate_dialog_confirm))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { messageAwaitingTranslation = null }) {
+                    Text(text = stringResource(R.string.translate_dialog_cancel))
+                }
+            }
+        )
     }
 }
 
@@ -433,8 +520,14 @@ fun ChatDetailScreen(
 internal fun MessageBubble(
     message: Message,
     isSelf: Boolean,
-    onAvatarClick: (String) -> Unit = {}
+    translationState: TranslationResultState? = null,
+    onAvatarClick: (String) -> Unit = {},
+    onTranslateClick: (Message) -> Unit = {},
+    onPlayClick: (Message) -> Unit = {}
 ) {
+    val isTextMessage = message.type == MessageType.TEXT
+    var showActionMenu by remember { mutableStateOf(false) }
+
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = if (isSelf) Arrangement.End else Arrangement.Start
@@ -474,60 +567,157 @@ internal fun MessageBubble(
             horizontalAlignment = if (isSelf) Alignment.End else Alignment.Start
         ) {
             // 消息内容
-            Surface(
-                shape = RoundedCornerShape(
-                    topStart = if (isSelf) 12.dp else 2.dp,
-                    topEnd = if (isSelf) 2.dp else 12.dp,
-                    bottomStart = 12.dp,
-                    bottomEnd = 12.dp
-                ),
-                color = if (isSelf) PrimaryBlue else chatSurfaceColor(),
-                shadowElevation = if (isSelf) 0.dp else 1.dp
-            ) {
-                when (message.type) {
-                    MessageType.TEXT -> {
-                        Text(
-                            text = message.content,
-                            color = if (isSelf) Color.White else chatPrimaryTextColor(),
-                            fontSize = 15.sp,
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
-                        )
-                    }
-                    MessageType.IMAGE -> {
-                        if (message.mediaUrl.isNotBlank()) {
-                            AsyncImage(
-                                model = message.mediaUrl,
-                                contentDescription = stringResource(R.string.chat_media_image_label),
-                                modifier = Modifier
-                                    .widthIn(max = 240.dp)
-                                    .heightIn(max = 240.dp)
-                                    .clip(RoundedCornerShape(8.dp)),
-                                contentScale = ContentScale.Crop
+            Box {
+                Surface(
+                    modifier = if (isTextMessage) {
+                        Modifier.clickable { showActionMenu = true }
+                    } else {
+                        Modifier
+                    },
+                    shape = RoundedCornerShape(
+                        topStart = if (isSelf) 12.dp else 2.dp,
+                        topEnd = if (isSelf) 2.dp else 12.dp,
+                        bottomStart = 12.dp,
+                        bottomEnd = 12.dp
+                    ),
+                    color = if (isSelf) PrimaryBlue else chatSurfaceColor(),
+                    shadowElevation = if (isSelf) 0.dp else 1.dp
+                ) {
+                    when (message.type) {
+                        MessageType.TEXT -> {
+                            val baseTextColor = if (isSelf) Color.White else chatPrimaryTextColor()
+                            val secondaryTextColor = if (isSelf) {
+                                Color.White.copy(alpha = 0.85f)
+                            } else {
+                                chatSecondaryTextColor()
+                            }
+
+                            Column(
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Text(
+                                    text = message.content,
+                                    color = baseTextColor,
+                                    fontSize = 15.sp
+                                )
+
+                                translationState?.let { state ->
+                                    when {
+                                        state.isLoading -> {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                            ) {
+                                                CircularProgressIndicator(
+                                                    modifier = Modifier.size(14.dp),
+                                                    strokeWidth = 2.dp,
+                                                    color = if (isSelf) Color.White else PrimaryBlue
+                                                )
+                                                Text(
+                                                    text = stringResource(R.string.translate_status_loading),
+                                                    color = secondaryTextColor,
+                                                    fontSize = 13.sp
+                                                )
+                                            }
+                                        }
+
+                                        state.errorMessage != null -> {
+                                            Text(
+                                                text = state.errorMessage,
+                                                color = MaterialTheme.colorScheme.error,
+                                                fontSize = 13.sp
+                                            )
+                                        }
+
+                                        state.translatedText != null -> {
+                                            val label = state.targetLanguage?.let { target ->
+                                                stringResource(
+                                                    R.string.translate_result_label,
+                                                    target
+                                                )
+                                            } ?: stringResource(R.string.translate_result_fallback_label)
+
+                                            Text(
+                                                text = "$label: ${state.translatedText}",
+                                                color = secondaryTextColor,
+                                                fontSize = 13.sp
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        MessageType.IMAGE -> {
+                            if (message.mediaUrl.isNotBlank()) {
+                                AsyncImage(
+                                    model = message.mediaUrl,
+                                    contentDescription = stringResource(R.string.chat_media_image_label),
+                                    modifier = Modifier
+                                        .widthIn(max = 240.dp)
+                                        .heightIn(max = 240.dp)
+                                        .clip(RoundedCornerShape(8.dp)),
+                                    contentScale = ContentScale.Crop
+                                )
+                            } else {
+                                Text(
+                                    text = stringResource(R.string.chat_media_image_label),
+                                    color = if (isSelf) Color.White else chatPrimaryTextColor(),
+                                    fontSize = 15.sp,
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                                )
+                            }
+                        }
+                        MessageType.VOICE -> {
+                            VoiceMessageBubble(
+                                mediaUrl = message.mediaUrl,
+                                content = message.content
                             )
-                        } else {
+                        }
+                        MessageType.VIDEO -> {
+                            VideoMessageBubble(mediaUrl = message.mediaUrl)
+                        }
+                        else -> {
                             Text(
-                                text = stringResource(R.string.chat_media_image_label),
+                                text = stringResource(R.string.chat_media_unknown_label, message.type.name),
                                 color = if (isSelf) Color.White else chatPrimaryTextColor(),
                                 fontSize = 15.sp,
                                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
                             )
                         }
                     }
-                    MessageType.VOICE -> {
-                        VoiceMessageBubble(
-                            mediaUrl = message.mediaUrl,
-                            content = message.content
+                }
+
+                if (isTextMessage) {
+                    DropdownMenu(
+                        expanded = showActionMenu,
+                        onDismissRequest = { showActionMenu = false }
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text(text = stringResource(R.string.translate_menu_action)) },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.Language,
+                                    contentDescription = null
+                                )
+                            },
+                            onClick = {
+                                showActionMenu = false
+                                onTranslateClick(message)
+                            }
                         )
-                    }
-                    MessageType.VIDEO -> {
-                        VideoMessageBubble(mediaUrl = message.mediaUrl)
-                    }
-                    else -> {
-                        Text(
-                            text = stringResource(R.string.chat_media_unknown_label, message.type.name),
-                            color = if (isSelf) Color.White else chatPrimaryTextColor(),
-                            fontSize = 15.sp,
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                        DropdownMenuItem(
+                            text = { Text(text = stringResource(R.string.translate_menu_play)) },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.VolumeUp,
+                                    contentDescription = null
+                                )
+                            },
+                            onClick = {
+                                showActionMenu = false
+                                onPlayClick(message)
+                            }
                         )
                     }
                 }
