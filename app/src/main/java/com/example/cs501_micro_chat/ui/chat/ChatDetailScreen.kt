@@ -21,6 +21,10 @@
  */
 package com.example.cs501_micro_chat.ui.chat
 
+import android.media.MediaPlayer
+import android.net.Uri
+import android.widget.MediaController
+import android.widget.VideoView
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -42,10 +46,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
@@ -488,13 +494,33 @@ internal fun MessageBubble(
                         )
                     }
                     MessageType.IMAGE -> {
-                        // TODO: 显示图片消息
-                        Text(
-                            text = stringResource(R.string.chat_media_image_label),
-                            color = if (isSelf) Color.White else chatPrimaryTextColor(),
-                            fontSize = 15.sp,
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                        if (message.mediaUrl.isNotBlank()) {
+                            AsyncImage(
+                                model = message.mediaUrl,
+                                contentDescription = stringResource(R.string.chat_media_image_label),
+                                modifier = Modifier
+                                    .widthIn(max = 240.dp)
+                                    .heightIn(max = 240.dp)
+                                    .clip(RoundedCornerShape(8.dp)),
+                                contentScale = ContentScale.Crop
+                            )
+                        } else {
+                            Text(
+                                text = stringResource(R.string.chat_media_image_label),
+                                color = if (isSelf) Color.White else chatPrimaryTextColor(),
+                                fontSize = 15.sp,
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                            )
+                        }
+                    }
+                    MessageType.VOICE -> {
+                        VoiceMessageBubble(
+                            mediaUrl = message.mediaUrl,
+                            content = message.content
                         )
+                    }
+                    MessageType.VIDEO -> {
+                        VideoMessageBubble(mediaUrl = message.mediaUrl)
                     }
                     else -> {
                         Text(
@@ -546,6 +572,148 @@ internal fun MessageBubble(
             }
         }
     }
+}
+
+@Composable
+private fun VoiceMessageBubble(
+    mediaUrl: String,
+    content: String
+) {
+    var isPlaying by remember { mutableStateOf(false) }
+    var player by remember { mutableStateOf<MediaPlayer?>(null) }
+
+    DisposableEffect(mediaUrl) {
+        onDispose {
+            player?.release()
+            player = null
+            isPlaying = false
+        }
+    }
+
+    fun stopPlayback() {
+        player?.apply {
+            try {
+                stop()
+            } catch (_: Exception) {
+            }
+            release()
+        }
+        player = null
+        isPlaying = false
+    }
+
+    fun startPlayback() {
+        if (mediaUrl.isBlank()) return
+        stopPlayback()
+        val mediaPlayer = MediaPlayer()
+        player = mediaPlayer
+        try {
+            mediaPlayer.setDataSource(mediaUrl)
+            mediaPlayer.setOnPreparedListener {
+                isPlaying = true
+                it.start()
+            }
+            mediaPlayer.setOnCompletionListener {
+                stopPlayback()
+            }
+            mediaPlayer.setOnErrorListener { _, _, _ ->
+                stopPlayback()
+                true
+            }
+            mediaPlayer.prepareAsync()
+        } catch (_: Exception) {
+            stopPlayback()
+        }
+    }
+
+    Row(
+        modifier = Modifier
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        IconButton(
+            onClick = {
+                if (isPlaying) {
+                    stopPlayback()
+                } else {
+                    startPlayback()
+                }
+            },
+            modifier = Modifier.size(40.dp)
+        ) {
+            Icon(
+                imageVector = if (isPlaying) Icons.Default.Stop else Icons.Default.PlayArrow,
+                contentDescription = if (isPlaying) {
+                    stringResource(R.string.content_description_voice_stop)
+                } else {
+                    stringResource(R.string.content_description_voice_play)
+                },
+                tint = chatPrimaryTextColor()
+            )
+        }
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = stringResource(R.string.voice_message_label),
+                color = chatPrimaryTextColor(),
+                fontSize = 15.sp
+            )
+            Text(
+                text = content.ifBlank { "" },
+                color = chatSecondaryTextColor(),
+                fontSize = 12.sp
+            )
+        }
+    }
+}
+
+@Composable
+private fun VideoMessageBubble(
+    mediaUrl: String
+) {
+    if (mediaUrl.isBlank()) {
+        Text(
+            text = stringResource(R.string.video_message_label),
+            color = chatPrimaryTextColor(),
+            fontSize = 15.sp,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+        )
+        return
+    }
+
+    val context = LocalContext.current
+    var videoView by remember { mutableStateOf<VideoView?>(null) }
+
+    DisposableEffect(mediaUrl) {
+        onDispose {
+            videoView?.stopPlayback()
+            videoView = null
+        }
+    }
+
+    AndroidView(
+        factory = { ctx ->
+            VideoView(ctx).apply {
+                val controller = MediaController(ctx)
+                controller.setAnchorView(this)
+                setMediaController(controller)
+                setVideoURI(Uri.parse(mediaUrl))
+                setOnPreparedListener { it.isLooping = false }
+                videoView = this
+            }
+        },
+        update = { view ->
+            if (view.tag != mediaUrl) {
+                view.stopPlayback()
+                view.setVideoURI(Uri.parse(mediaUrl))
+                view.tag = mediaUrl
+            }
+        },
+        modifier = Modifier
+            .widthIn(max = 260.dp)
+            .heightIn(min = 160.dp, max = 240.dp)
+            .clip(RoundedCornerShape(8.dp))
+    )
 }
 
 /**
