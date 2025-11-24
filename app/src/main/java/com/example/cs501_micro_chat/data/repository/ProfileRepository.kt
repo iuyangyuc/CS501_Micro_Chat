@@ -39,10 +39,12 @@ class FirebaseProfileRepository @Inject constructor(
             .document(userId)
             .get()
             .await()
-        val displayName = snapshot.getString("username") ?: auth.currentUser?.displayName.orEmpty()
+        val email = snapshot.getString("email") ?: auth.currentUser?.email.orEmpty()
+        val emailPrefix = email.substringBefore("@")
+        val displayName = (snapshot.getString("username") ?: auth.currentUser?.displayName.orEmpty())
+            .ifBlank { emailPrefix }
         val bio = snapshot.getString("statusMessage") ?: ""
         val avatarUrl = snapshot.getString("avatarUrl") ?: auth.currentUser?.photoUrl?.toString().orEmpty()
-        val email = snapshot.getString("email") ?: auth.currentUser?.email.orEmpty()
         UserProfile(
             displayName = displayName,
             bio = bio,
@@ -81,7 +83,7 @@ class FirebaseProfileRepository @Inject constructor(
     private suspend fun uploadAvatar(userId: String, uri: Uri): String {
         val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
             ?: throw IllegalStateException("Unable to read image data")
-        val reference = storage.reference.child("avatars/$userId.jpg")
+        val reference = storage.reference.child("Avatars/$userId.jpg")
         reference.putBytes(bytes).await()
         return reference.downloadUrl.await().toString()
     }

@@ -32,11 +32,14 @@ class ProfileSettingsViewModel @Inject constructor(
             result
                 .onSuccess { profile ->
                     _uiState.update {
+                        val email = profile.email.ifBlank { firebaseAuth.currentUser?.email.orEmpty() }
+                        val emailPrefix = email.substringBefore("@")
+                        val display = profile.displayName
+                            .ifBlank { firebaseAuth.currentUser?.displayName.orEmpty() }
+                            .ifBlank { emailPrefix }
                         it.copy(
-                            displayName = profile.displayName.ifBlank {
-                                firebaseAuth.currentUser?.displayName.orEmpty()
-                            },
-                            email = profile.email.ifBlank { firebaseAuth.currentUser?.email.orEmpty() },
+                            displayName = display,
+                            email = email,
                             bio = profile.bio,
                             avatarUrl = profile.avatarUrl,
                             isLoading = false

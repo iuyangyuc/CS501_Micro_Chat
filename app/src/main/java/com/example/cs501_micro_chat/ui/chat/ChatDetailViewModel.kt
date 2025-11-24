@@ -1,18 +1,12 @@
 /**
- * ChatDetailViewModel.kt
+ * Chat detail ViewModel that manages message lists and sending.
  *
- * 对话详情 ViewModel - 管理消息列表和发送消息
- * Chat Detail ViewModel - Manages message list and sending messages
- *
- * 功能 / Features:
- * - 从 Firebase 加载历史消息
- * - 实时监听新消息
- * - 发送文本消息
- * - 标记消息已读
- * - 获取当前用户 ID
- *
- * @author CS501 Team
- * @date 2025-01-08
+ * Features:
+ * - Load historical messages from Firebase
+ * - Listen for new messages in real time
+ * - Send text messages
+ * - Mark messages as read
+ * - Get current user ID
  */
 package com.example.cs501_micro_chat.ui.chat
 
@@ -20,6 +14,7 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.cs501_micro_chat.data.model.Message
+import com.example.cs501_micro_chat.data.model.MessageStatus
 import com.example.cs501_micro_chat.data.model.MessageType
 import com.example.cs501_micro_chat.data.repository.ChatRepository
 import com.example.cs501_micro_chat.data.repository.StorageRepository
@@ -82,6 +77,7 @@ class ChatDetailViewModel @Inject constructor(
 
     private val _conversationId = MutableStateFlow("")
     val conversationId: StateFlow<String> = _conversationId.asStateFlow()
+
     private val _mediaUploadState = MutableStateFlow(MediaUploadState())
     val mediaUploadState: StateFlow<MediaUploadState> = _mediaUploadState.asStateFlow()
 
@@ -97,12 +93,11 @@ class ChatDetailViewModel @Inject constructor(
     private var currentConversationId: String? = null
 
     /**
-     * 加载会话消息并实时监听
-     * Load conversation messages and listen for real-time updates
+     * Load conversation messages and listen for real-time updates.
      */
     fun loadMessages(conversationId: String) {
         if (currentConversationId == conversationId) {
-            // 已经在监听这个会话
+            // Already listening to this conversation
             return
         }
 
@@ -116,18 +111,18 @@ class ChatDetailViewModel @Inject constructor(
         viewModelScope.launch {
             loadConversationMeta(conversationId)
             try {
-                // 实时监听消息变化
+                // Listen for message changes in real time
                 chatRepository.observeMessages(conversationId).collect { messageList ->
                     Log.d("ChatDetailViewModel", "Received ${messageList.size} messages")
 
-                    // 补充缺失的用户信息
+                    // Fill missing user info
                     val enrichedMessages = enrichMessagesWithUserInfo(messageList)
 
                     _messages.value = enrichedMessages.sortedBy { it.timestamp }
                     _isLoading.value = false
                     _error.value = null
 
-                    // 标记所有消息为已读
+                    // Mark messages as read
                     markAllAsRead(conversationId)
                 }
             } catch (e: Exception) {
@@ -150,17 +145,18 @@ class ChatDetailViewModel @Inject constructor(
             } else {
                 _otherUserId.value = ""
             }
+            val blocked = convo.blockedParticipants[_currentUserId.value] == true
+            _isConversationBlocked.value = blocked
         }.onFailure { error ->
             Log.e("ChatDetailViewModel", "Failed to load conversation meta", error)
         }
     }
 
     /**
-     * 补充消息中缺失的用户信息
-     * Enrich messages with missing user information
+     * Enrich messages with missing user information.
      */
     private suspend fun enrichMessagesWithUserInfo(messages: List<Message>): List<Message> {
-        // 收集所有需要加载的用户 ID（senderName 或 senderAvatarUrl 为空的）
+        // Collect sender IDs that need loading when name or avatar is missing
         val userIdsToLoad = messages
             .filter { it.senderName.isBlank() || it.senderAvatarUrl.isBlank() }
             .map { it.senderId }
@@ -170,7 +166,7 @@ class ChatDetailViewModel @Inject constructor(
         if (userIdsToLoad.isNotEmpty()) {
             Log.d("ChatDetailViewModel", "Loading user info for ${userIdsToLoad.size} users")
 
-            // 批量加载用户信息
+            // Fetch user info in batch
             chatRepository.getUsers(userIdsToLoad).onSuccess { users ->
                 userCache.putAll(users)
                 Log.d("ChatDetailViewModel", "Loaded ${users.size} users into cache")
@@ -179,7 +175,7 @@ class ChatDetailViewModel @Inject constructor(
             }
         }
 
-        // 使用缓存的用户信息补充消息
+        // Apply cached user info back to messages
         return messages.map { message ->
             if (message.senderName.isBlank() || message.senderAvatarUrl.isBlank()) {
                 val user = userCache[message.senderId]
@@ -198,8 +194,7 @@ class ChatDetailViewModel @Inject constructor(
     }
 
     /**
-     * 发送文本消息
-     * Send text message
+     * Send text message.
      */
     fun sendMessage(conversationId: String, content: String) {
         if (content.isBlank()) {
@@ -212,9 +207,10 @@ class ChatDetailViewModel @Inject constructor(
                     conversationId = conversationId,
                     content = content,
                     type = MessageType.TEXT
-                ).onSuccess {
-                    Log.d("ChatDetailViewModel", "Message sent successfully")
-                    // 消息会通过 observeMessages 自动更新到列表
+                ).onSuccess { sent ->
+                    if (sent.status == MessageStatus.FAILED) {
+                        _isConversationBlocked.value = true
+                    }
                 }.onFailure { error ->
                     Log.e("ChatDetailViewModel", "Error sending message", error)
                     _error.value = "发送消息失败: ${error.message}"
@@ -227,7 +223,7 @@ class ChatDetailViewModel @Inject constructor(
     }
 
     /**
-     * 上传图片到 Firebase Storage 并发送图片消息
+     * Upload an image to Firebase Storage and send the image message.
      */
     fun uploadImageMessage(
         conversationId: String,
@@ -292,7 +288,7 @@ class ChatDetailViewModel @Inject constructor(
     }
 
     /**
-     * 上传 mp3 语音并发送语音消息
+     * Upload an mp3 voice clip and send it as a message.
      */
     fun uploadVoiceMessage(
         conversationId: String,
@@ -431,7 +427,7 @@ class ChatDetailViewModel @Inject constructor(
         val userId = auth.currentUser?.uid ?: return
 
         viewModelScope.launch {
-            _messages.value.forEach { message ->
+            for (message in _messages.value) {
                 if (!message.readBy.contains(userId) && message.senderId != userId) {
                     chatRepository.markMessageAsRead(conversationId, message.id)
                         .onFailure { error ->
@@ -440,7 +436,7 @@ class ChatDetailViewModel @Inject constructor(
                 }
             }
 
-            // 清空未读数
+            // Clear unread count
             chatRepository.clearUnreadCount(conversationId)
                 .onFailure { error ->
                     Log.e("ChatDetailViewModel", "Error clearing unread count", error)
@@ -449,15 +445,14 @@ class ChatDetailViewModel @Inject constructor(
     }
 
     /**
-     * 清除错误信息
-     * Clear error message
+     * Clear error message.
      */
     fun clearError() {
         _error.value = null
     }
 
     /**
-     * 重置媒体上传提示状态
+     * Reset media upload indicator state.
      */
     fun clearMediaUploadState() {
         _mediaUploadState.value = MediaUploadState(
@@ -540,3 +535,6 @@ internal fun messageKey(message: Message): String {
         "${message.timestamp}_${message.senderId}_${message.content.hashCode()}"
     }
 }
+
+
+

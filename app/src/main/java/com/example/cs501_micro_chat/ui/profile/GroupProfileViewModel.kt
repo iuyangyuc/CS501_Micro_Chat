@@ -52,6 +52,7 @@ class GroupProfileViewModel @Inject constructor(
                     )
                 }
                 loadMembers(convo.participants)
+                loadPinFromContact(convo.id)
             }.onFailure { error ->
                 _uiState.update { it.copy(isLoading = false, errorMessage = error.message) }
             }
@@ -70,6 +71,51 @@ class GroupProfileViewModel @Inject constructor(
                 )
             }
             _uiState.update { it.copy(members = members) }
+        }
+    }
+
+    private fun loadPinFromContact(conversationId: String) {
+        viewModelScope.launch {
+            chatRepository.getContact(conversationId).onSuccess { contact ->
+                val favorite = contact?.isFavorite == true
+                _uiState.update {
+                    it.copy(
+                        isPinned = favorite,
+                        canPin = true,
+                        isPinUpdating = false,
+                        contactFavorite = favorite
+                    )
+                }
+                refreshPinnedState(conversationId)
+            }.onFailure {
+                _uiState.update { it.copy(canPin = true, isPinUpdating = false) }
+                refreshPinnedState(conversationId)
+            }
+        }
+    }
+
+    private fun refreshPinnedState(conversationId: String) {
+        viewModelScope.launch {
+            chatRepository.isConversationPinned(conversationId).onSuccess { persisted ->
+                val current = _uiState.value
+                var finalPinned = persisted
+                if (current.contactFavorite && !finalPinned) {
+                    chatRepository.setPinnedConversation(conversationId, true)
+                    finalPinned = true
+                } else if (!current.contactFavorite && finalPinned) {
+                    chatRepository.updateContactFavorite(conversationId, true)
+                }
+                _uiState.update {
+                    it.copy(
+                        isPinned = finalPinned,
+                        canPin = true,
+                        isPinUpdating = false,
+                        contactFavorite = finalPinned
+                    )
+                }
+            }.onFailure { error ->
+                _events.send(GroupProfileEvent.ShowMessage(error.message ?: "Failed to load pin status"))
+            }
         }
     }
 
@@ -126,17 +172,44 @@ class GroupProfileViewModel @Inject constructor(
             _uiState.update { it.copy(isLeaving = true) }
             chatRepository.leaveGroup(groupId).onSuccess {
                 _events.send(GroupProfileEvent.LeftGroup)
+                _uiState.update {
+                    it.copy(
+                        isLeaving = false,
+                        isRemoved = true,
+                        canPin = false,
+                        isPinned = false,
+                        contactFavorite = false,
+                        conversationId = ""
+                    )
+                }
             }.onFailure { error ->
                 _events.send(GroupProfileEvent.ShowMessage(error.message ?: "Failed to leave group"))
+                _uiState.update { it.copy(isLeaving = false) }
             }
-            _uiState.update { it.copy(isLeaving = false) }
         }
     }
 
     fun togglePinned() {
-        _uiState.update { it.copy(isPinned = !it.isPinned) }
+        val state = _uiState.value
+        val conversationId = state.conversationId
+        if (!state.canPin || conversationId.isBlank() || state.isPinUpdating) return
+        val newStatus = !state.isPinned
         viewModelScope.launch {
-            _events.send(GroupProfileEvent.ShowMessage("Pin status saved locally"))
+            _uiState.update { it.copy(isPinUpdating = true) }
+            chatRepository.setPinnedConversation(conversationId, newStatus).onSuccess {
+                chatRepository.updateContactFavorite(conversationId, newStatus)
+                _uiState.update {
+                    it.copy(
+                        isPinned = newStatus,
+                        isPinUpdating = false,
+                        contactFavorite = newStatus
+                    )
+                }
+                _events.send(GroupProfileEvent.PinStatusChanged(newStatus))
+            }.onFailure { error ->
+                _uiState.update { it.copy(isPinUpdating = false) }
+                _events.send(GroupProfileEvent.ShowMessage(error.message ?: "Failed to update pin status"))
+            }
         }
     }
 
@@ -162,6 +235,10 @@ data class GroupProfileUiState(
     val participants: List<String> = emptyList(),
     val members: List<GroupMember> = emptyList(),
     val isPinned: Boolean = false,
+    val canPin: Boolean = false,
+    val isPinUpdating: Boolean = false,
+    val contactFavorite: Boolean = false,
+    val isRemoved: Boolean = false,
     val isSaving: Boolean = false,
     val isLeaving: Boolean = false,
     val isLoading: Boolean = false,
@@ -180,4 +257,5 @@ sealed interface GroupProfileEvent {
     data object LeftGroup : GroupProfileEvent
     data class Renamed(val name: String) : GroupProfileEvent
     data class ShowMessage(val message: String) : GroupProfileEvent
+    data class PinStatusChanged(val isPinned: Boolean) : GroupProfileEvent
 }
