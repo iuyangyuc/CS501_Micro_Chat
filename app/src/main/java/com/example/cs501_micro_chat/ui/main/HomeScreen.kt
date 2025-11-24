@@ -22,15 +22,17 @@ package com.example.cs501_micro_chat.ui.main
  * @date 2025-11-04
  */
 
-import android.net.Uri
-import android.util.Log
+import android.Manifest
+import android.media.MediaRecorder
+import android.os.SystemClock
+import android.speech.tts.TextToSpeech
 import android.webkit.MimeTypeMap
+import android.util.Log
+import android.net.Uri
+import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.*
-import androidx.compose.animation.core.tween
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -39,6 +41,10 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -49,11 +55,17 @@ import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
-import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.BottomSheetDefaults
+import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.runtime.*
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
@@ -69,6 +81,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -88,12 +101,16 @@ import com.example.cs501_micro_chat.data.model.Contact
 import com.example.cs501_micro_chat.data.model.Conversation
 import com.example.cs501_micro_chat.data.model.ConversationType
 import com.example.cs501_micro_chat.ui.chat.ChatDetailViewModel
+import com.example.cs501_micro_chat.data.model.Message
 import com.example.cs501_micro_chat.ui.profile.GroupProfileScreen
 import com.example.cs501_micro_chat.ui.profile.UserProfileScreen
 import com.example.cs501_micro_chat.ui.settings.AboutScreen
 import com.example.cs501_micro_chat.ui.settings.PrivacySettingsScreen
 import com.example.cs501_micro_chat.ui.settings.ProfileEditScreen
 import com.example.cs501_micro_chat.ui.settings.SettingsScreen
+import com.example.cs501_micro_chat.ui.chat.ChatDetailViewModel
+import com.example.cs501_micro_chat.data.model.ConversationType
+import com.example.cs501_micro_chat.ui.chat.messageKey
 import com.example.cs501_micro_chat.ui.theme.ThemeOption
 import com.example.cs501_micro_chat.ui.theme.ThemeViewModel
 import java.net.URLDecoder
@@ -107,6 +124,10 @@ import kotlinx.coroutines.withContext
 import androidx.compose.ui.platform.LocalContext
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.launch
+import androidx.core.content.ContextCompat
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.io.File
 
 // Figma Design Colors (still used for branding)
 private val PrimaryBlue = Color(0xFF3296FA)
@@ -542,6 +563,7 @@ fun HomeScreen(
             }
         }
     }
+
 }
 
 /**
@@ -1038,12 +1060,14 @@ fun ChatDetailTopBar(
 /**
  * ChatDetail 的内容区域（不包含顶栏）
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChatDetailContent(
     conversationId: String,
     onAvatarClick: (String) -> Unit = {}
 ) {
-    val viewModel: ChatDetailViewModel = hiltViewModel()
+    val viewModel: com.example.cs501_micro_chat.ui.chat.ChatDetailViewModel = hiltViewModel()
+    val context = LocalContext.current
 
     LaunchedEffect(conversationId) {
         viewModel.loadMessages(conversationId)
@@ -1051,9 +1075,215 @@ fun ChatDetailContent(
 
     val messages by viewModel.messages.collectAsStateWithLifecycle()
     val currentUserId by viewModel.currentUserId.collectAsStateWithLifecycle()
+    val translationStates by viewModel.translationStates.collectAsStateWithLifecycle()
+    val voiceTranscriptionStates by viewModel.voiceTranscriptionStates.collectAsStateWithLifecycle()
 
     var inputText by remember { mutableStateOf("") }
+    var showActionSheet by remember { mutableStateOf(false) }
+    var messageAwaitingTranslation by remember { mutableStateOf<Message?>(null) }
+    var selectedLanguage by remember { mutableStateOf("English") }
+    val languageOptions = remember { listOf("English", "Chinese", "French") }
+    var textToSpeech by remember { mutableStateOf<TextToSpeech?>(null) }
+    var ttsReady by remember { mutableStateOf(false) }
+    val actionSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val coroutineScope = rememberCoroutineScope()
+    val contentResolver = context.contentResolver
+    var isRecording by remember { mutableStateOf(false) }
+    var mediaRecorder by remember { mutableStateOf<MediaRecorder?>(null) }
+    var recordingFile by remember { mutableStateOf<File?>(null) }
+    var recordingStart by remember { mutableStateOf(0L) }
     val listState = rememberLazyListState()
+
+    fun resolveMimeType(uri: Uri, fallback: String): Pair<String, String?> {
+        val resolverType = contentResolver.getType(uri)
+        val mimeType = resolverType ?: fallback
+        val extension = MimeTypeMap.getSingleton()
+            .getExtensionFromMimeType(mimeType)
+            ?: uri.toString().substringAfterLast('.', "")
+        return mimeType to extension
+    }
+
+    fun handlePickedMedia(uri: Uri, isVideo: Boolean) {
+        coroutineScope.launch {
+            val (mimeType, extension) = resolveMimeType(
+                uri,
+                if (isVideo) "video/mp4" else "image/jpeg"
+            )
+            val bytes = withContext(Dispatchers.IO) {
+                contentResolver.openInputStream(uri)?.use { it.readBytes() }
+            } ?: return@launch
+
+            if (isVideo) {
+                viewModel.uploadVideoMessage(
+                    conversationId = conversationId,
+                    videoBytes = bytes,
+                    mimeType = mimeType,
+                    extension = extension
+                )
+            } else {
+                viewModel.uploadImageMessage(
+                    conversationId = conversationId,
+                    imageBytes = bytes,
+                    mimeType = mimeType,
+                    extension = extension
+                )
+            }
+        }
+    }
+
+    fun startRecording() {
+        try {
+            val output = File(context.cacheDir, "voice_${System.currentTimeMillis()}.mp4")
+            val recorder = MediaRecorder().apply {
+                setAudioSource(MediaRecorder.AudioSource.MIC)
+                setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
+                setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
+                setAudioEncodingBitRate(128000)
+                setAudioSamplingRate(44100)
+                setOutputFile(output.absolutePath)
+                prepare()
+                start()
+            }
+            mediaRecorder = recorder
+            recordingFile = output
+            recordingStart = SystemClock.elapsedRealtime()
+            isRecording = true
+        } catch (e: Exception) {
+            Log.e("ChatDetailContent", "Failed to start recording", e)
+            mediaRecorder?.release()
+            mediaRecorder = null
+            recordingFile = null
+            isRecording = false
+        }
+    }
+
+    fun stopRecordingAndUpload() {
+        val file = recordingFile ?: return
+        val start = recordingStart
+        try {
+            mediaRecorder?.apply {
+                stop()
+                release()
+            }
+        } catch (e: Exception) {
+            Log.e("ChatDetailContent", "Failed to stop recording", e)
+        } finally {
+            mediaRecorder = null
+            isRecording = false
+        }
+
+        val duration = (SystemClock.elapsedRealtime() - start).coerceAtLeast(1L)
+        coroutineScope.launch {
+            val bytes = withContext(Dispatchers.IO) {
+                runCatching { file.readBytes() }.getOrNull()
+            } ?: return@launch
+            withContext(Dispatchers.IO) {
+                runCatching { file.delete() }
+            }
+            recordingFile = null
+            viewModel.uploadVoiceMessage(
+                conversationId = conversationId,
+                audioBytes = bytes,
+                durationMillis = duration,
+                mimeType = "audio/mp4",
+                extension = "mp4"
+            )
+        }
+    }
+
+    fun handlePickedFile(uri: Uri) {
+        coroutineScope.launch {
+            val (mimeType, extension) = resolveMimeType(uri, "application/octet-stream")
+            val bytes = withContext(Dispatchers.IO) {
+                contentResolver.openInputStream(uri)?.use { it.readBytes() }
+            } ?: return@launch
+
+            when {
+                mimeType.contains("pdf") -> {
+                    viewModel.uploadVoiceMessage(
+                        conversationId = conversationId,
+                        audioBytes = bytes,
+                        durationMillis = 1000L,
+                        mimeType = mimeType,
+                        extension = extension
+                    )
+                }
+                mimeType.contains("audio") || mimeType.contains("mp4") -> {
+                    viewModel.uploadVoiceMessage(
+                        conversationId = conversationId,
+                        audioBytes = bytes,
+                        durationMillis = 1000L,
+                        mimeType = mimeType,
+                        extension = extension
+                    )
+                }
+                else -> {
+                    viewModel.uploadVoiceMessage(
+                        conversationId = conversationId,
+                        audioBytes = bytes,
+                        durationMillis = 1000L,
+                        mimeType = mimeType,
+                        extension = extension
+                    )
+                }
+            }
+        }
+    }
+
+    val audioPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            startRecording()
+        }
+    }
+
+    fun requestAudioPermissionAndRecord() {
+        when (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO)) {
+            PackageManager.PERMISSION_GRANTED -> startRecording()
+            else -> audioPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+        }
+    }
+
+    val photoPicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia()
+    ) { uri ->
+        uri?.let { handlePickedMedia(it, isVideo = false) }
+    }
+    val videoPicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia()
+    ) { uri ->
+        uri?.let { handlePickedMedia(it, isVideo = true) }
+    }
+    val filePicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri ->
+        uri?.let { handlePickedFile(it) }
+    }
+
+    DisposableEffect(Unit) {
+        val tts = TextToSpeech(context) { status ->
+            ttsReady = status == TextToSpeech.SUCCESS
+        }
+        textToSpeech = tts
+
+        onDispose {
+            tts.stop()
+            tts.shutdown()
+            textToSpeech = null
+            ttsReady = false
+        }
+    }
+
+    fun speakMessage(text: String) {
+        if (text.isBlank() || !ttsReady) return
+        textToSpeech?.speak(
+            text,
+            TextToSpeech.QUEUE_FLUSH,
+            null,
+            "chat_message_tts_${text.hashCode()}"
+        )
+    }
 
     LaunchedEffect(messages.size) {
         if (messages.isNotEmpty()) {
@@ -1064,6 +1294,118 @@ fun ChatDetailContent(
     val backgroundColor = MaterialTheme.colorScheme.background
     val surfaceColorChat = MaterialTheme.colorScheme.surface
     val searchBackgroundChat = MaterialTheme.colorScheme.surfaceVariant
+    if (showActionSheet) {
+        ModalBottomSheet(
+            onDismissRequest = {
+                coroutineScope.launch {
+                    actionSheetState.hide()
+                    showActionSheet = false
+                }
+            },
+            sheetState = actionSheetState,
+            containerColor = surfaceColorChat,
+            dragHandle = { BottomSheetDefaults.DragHandle() }
+        ) {
+            data class SheetAction(val icon: ImageVector, val label: String, val onClick: () -> Unit)
+            val actions = listOf(
+                SheetAction(
+                    icon = Icons.Default.PhotoLibrary,
+                    label = stringResource(R.string.action_sheet_photos),
+                    onClick = {
+                        photoPicker.launch(
+                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                        )
+                    }
+                ),
+                SheetAction(
+                    icon = Icons.Filled.InsertDriveFile,
+                    label = stringResource(R.string.action_sheet_file),
+                    onClick = {
+                        filePicker.launch("*/*")
+                    }
+                ),
+                SheetAction(
+                    icon = Icons.Default.Videocam,
+                    label = stringResource(R.string.action_sheet_video),
+                    onClick = {
+                        videoPicker.launch(
+                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.VideoOnly)
+                        )
+                    }
+                ),
+                SheetAction(
+                    icon = Icons.Default.Mic,
+                    label = stringResource(R.string.action_sheet_voice),
+                    onClick = {
+                        if (isRecording) {
+                            stopRecordingAndUpload()
+                        } else {
+                            requestAudioPermissionAndRecord()
+                        }
+                    }
+                )
+            )
+
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(3),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                userScrollEnabled = false
+            ) {
+                items(actions) { action ->
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(80.dp)
+                                .clip(RoundedCornerShape(16.dp))
+                                .background(searchBackgroundChat)
+                                .clickable {
+                                    coroutineScope.launch {
+                                        actionSheetState.hide()
+                                        showActionSheet = false
+                                        action.onClick()
+                                    }
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = action.icon,
+                                contentDescription = action.label,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(32.dp)
+                            )
+                        }
+                        Text(
+                            text = action.label,
+                            color = primaryTextColor(),
+                            fontSize = 14.sp
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+        }
+    }
+    DisposableEffect(Unit) {
+        onDispose {
+            try {
+                mediaRecorder?.release()
+            } catch (_: Exception) {
+            }
+            mediaRecorder = null
+            recordingFile = null
+            isRecording = false
+        }
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -1102,15 +1444,17 @@ fun ChatDetailContent(
                 ) {
                     items(
                         items = messages,
-                        key = { message ->
-                            if (message.id.isNotBlank()) message.id
-                            else "${message.timestamp}_${message.senderId}_${message.content.hashCode()}"
-                        }
+                        key = { message -> messageKey(message) }
                     ) { message ->
                         com.example.cs501_micro_chat.ui.chat.MessageBubble(
                             message = message,
                             isSelf = message.senderId == currentUserId,
-                            onAvatarClick = onAvatarClick
+                            translationState = translationStates[messageKey(message)],
+                            transcriptionState = voiceTranscriptionStates[messageKey(message)],
+                            onAvatarClick = onAvatarClick,
+                            onTranslateClick = { messageAwaitingTranslation = message },
+                            onPlayClick = { speakMessage(message.content) },
+                            onTranscribeClick = { viewModel.transcribeVoiceMessage(it) }
                         )
                     }
                 }
@@ -1122,77 +1466,49 @@ fun ChatDetailContent(
             color = surfaceColorChat,
             shadowElevation = 8.dp
         ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 8.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.Bottom
-            ) {
-                IconButton(
-                    onClick = { /* TODO */ },
-                    modifier = Modifier.size(40.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Mic,
-                        contentDescription = stringResource(R.string.content_description_voice),
-                        tint = secondaryTextColor()
-                    )
-                }
-
-                Row(
-                    modifier = Modifier
-                        .weight(1f)
-                        .clip(RoundedCornerShape(20.dp))
-                        .background(searchBackgroundChat)
-                        .padding(horizontal = 12.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    TextField(
-                        value = inputText,
-                        onValueChange = { inputText = it },
-                        modifier = Modifier.weight(1f),
-                        placeholder = {
-                            Text(
-                                text = stringResource(R.string.chat_input_placeholder),
-                                color = secondaryTextColor(),
-                                fontSize = 14.sp
-                            )
-                        },
-                        colors = TextFieldDefaults.colors(
-                            focusedContainerColor = Color.Transparent,
-                            unfocusedContainerColor = Color.Transparent,
-                            focusedIndicatorColor = Color.Transparent,
-                            unfocusedIndicatorColor = Color.Transparent
-                        ),
-                        maxLines = 4
-                    )
-                }
-
-                Spacer(modifier = Modifier.width(4.dp))
-
-                if (inputText.trim().isNotEmpty()) {
-                    IconButton(
-                        onClick = {
-                            if (inputText.isNotBlank()) {
-                                viewModel.sendMessage(conversationId, inputText.trim())
-                                inputText = ""
-                            }
-                        },
+            Column {
+                if (isRecording) {
+                    Row(
                         modifier = Modifier
-                            .size(40.dp)
-                            .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.primary)
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Icon(
-                            imageVector = Icons.AutoMirrored.Filled.Send,
-                            contentDescription = stringResource(R.string.content_description_send),
-                            tint = MaterialTheme.colorScheme.onPrimary,
-                            modifier = Modifier.size(20.dp)
+                            imageVector = Icons.Default.Mic,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary
                         )
+                        Text(
+                            text = stringResource(R.string.voice_recording_hint),
+                            color = primaryTextColor(),
+                            fontSize = 14.sp,
+                            modifier = Modifier.weight(1f)
+                        )
+                        TextButton(onClick = { stopRecordingAndUpload() }) {
+                            Text(text = stringResource(R.string.voice_recording_stop))
+                        }
                     }
-                } else {
+                    HorizontalDivider()
+                }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.Bottom
+                ) {
                     IconButton(
-                        onClick = { /* TODO */ },
+                        onClick = {
+                            if (showActionSheet) {
+                                coroutineScope.launch {
+                                    actionSheetState.hide()
+                                    showActionSheet = false
+                                }
+                            } else {
+                                showActionSheet = true
+                            }
+                        },
                         modifier = Modifier.size(40.dp)
                     ) {
                         Icon(
@@ -1201,9 +1517,130 @@ fun ChatDetailContent(
                             tint = secondaryTextColor()
                         )
                     }
+
+                    Row(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(20.dp))
+                            .background(searchBackgroundChat)
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        TextField(
+                            value = inputText,
+                            onValueChange = { inputText = it },
+                            modifier = Modifier.weight(1f),
+                            placeholder = {
+                                Text(
+                                    text = stringResource(R.string.chat_input_placeholder),
+                                    color = secondaryTextColor(),
+                                    fontSize = 14.sp
+                                )
+                            },
+                            colors = TextFieldDefaults.colors(
+                                focusedContainerColor = Color.Transparent,
+                                unfocusedContainerColor = Color.Transparent,
+                                focusedIndicatorColor = Color.Transparent,
+                                unfocusedIndicatorColor = Color.Transparent
+                            ),
+                            maxLines = 4
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.width(4.dp))
+
+                    val hasMessage = inputText.trim().isNotEmpty()
+                    if (hasMessage) {
+                        IconButton(
+                            onClick = {
+                                if (inputText.isNotBlank()) {
+                                    viewModel.sendMessage(conversationId, inputText.trim())
+                                    inputText = ""
+                                }
+                            },
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.primary)
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.Send,
+                                contentDescription = stringResource(R.string.content_description_send),
+                                tint = MaterialTheme.colorScheme.onPrimary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    } else {
+                        IconButton(
+                            onClick = {},
+                            enabled = false,
+                            modifier = Modifier.size(40.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.Send,
+                                contentDescription = stringResource(R.string.content_description_send),
+                                tint = secondaryTextColor()
+                            )
+                        }
+                    }
                 }
             }
         }
+    }
+
+    messageAwaitingTranslation?.let { pendingMessage ->
+        AlertDialog(
+            onDismissRequest = { messageAwaitingTranslation = null },
+            title = { Text(text = stringResource(R.string.translate_dialog_title)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = stringResource(R.string.translate_dialog_subtitle),
+                        color = secondaryTextColor(),
+                        fontSize = 14.sp
+                    )
+                    languageOptions.forEach { option ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .selectable(
+                                    selected = selectedLanguage == option,
+                                    onClick = { selectedLanguage = option },
+                                    role = Role.RadioButton
+                                )
+                                .padding(horizontal = 4.dp, vertical = 2.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RadioButton(
+                                selected = selectedLanguage == option,
+                                onClick = { selectedLanguage = option }
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = option,
+                                color = primaryTextColor(),
+                                fontSize = 14.sp
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.translateMessage(pendingMessage, selectedLanguage)
+                        messageAwaitingTranslation = null
+                    }
+                ) {
+                    Text(text = stringResource(R.string.translate_dialog_confirm))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { messageAwaitingTranslation = null }) {
+                    Text(text = stringResource(R.string.translate_dialog_cancel))
+                }
+            }
+        )
     }
 }
 

@@ -15,9 +15,15 @@
  */
 package com.example.cs501_micro_chat.ui.chat
 
+import android.media.MediaPlayer
+import android.net.Uri
+import android.speech.tts.TextToSpeech
+import android.widget.MediaController
+import android.widget.VideoView
 import androidx.compose.foundation.background
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -37,10 +43,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
@@ -97,20 +106,49 @@ fun ChatDetailScreen(
     val error by viewModel.error.collectAsStateWithLifecycle()
     val currentUserId by viewModel.currentUserId.collectAsStateWithLifecycle()
     val isBlocked by viewModel.isConversationBlocked.collectAsStateWithLifecycle()
+    val translationStates by viewModel.translationStates.collectAsStateWithLifecycle()
+    val voiceTranscriptionStates by viewModel.voiceTranscriptionStates.collectAsStateWithLifecycle()
 
     var inputText by remember { mutableStateOf("") }
     var showAttachmentMenu by remember { mutableStateOf(false) }
+    var messageAwaitingTranslation by remember { mutableStateOf<Message?>(null) }
+    var selectedLanguage by remember { mutableStateOf("English") }
+    val languageOptions = remember { listOf("English", "Chinese", "French") }
+
+    val context = LocalContext.current
+    var textToSpeech by remember { mutableStateOf<TextToSpeech?>(null) }
+    var ttsReady by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
     val backgroundColor = chatBackgroundColor()
     val surfaceColor = chatSurfaceColor()
     val inputBackground = chatInputBackground()
     val inputEnabled = !isBlocked
 
-    LaunchedEffect(isBlocked) {
-        if (isBlocked) showAttachmentMenu = false
+    DisposableEffect(Unit) {
+        val tts = TextToSpeech(context) { status ->
+            ttsReady = status == TextToSpeech.SUCCESS
+        }
+        textToSpeech = tts
+
+        onDispose {
+            tts.stop()
+            tts.shutdown()
+            textToSpeech = null
+            ttsReady = false
+        }
     }
 
-    // Auto scroll to the latest message
+    fun speakMessage(text: String) {
+        if (text.isBlank() || !ttsReady) return
+        textToSpeech?.speak(
+            text,
+            TextToSpeech.QUEUE_FLUSH,
+            null,
+            "chat_message_tts_${text.hashCode()}"
+        )
+    }
+
+    // 自动滚动到最新消息
     LaunchedEffect(messages.size) {
         if (messages.isNotEmpty()) {
             listState.animateScrollToItem(messages.size - 1)
@@ -420,15 +458,76 @@ fun ChatDetailScreen(
                                 }
                             }
                         ) { message ->
-                            MessageBubble(
-                                message = message,
-                                isSelf = message.senderId == currentUserId
-                            )
+                        MessageBubble(
+                            message = message,
+                            isSelf = message.senderId == currentUserId,
+                            translationState = translationStates[messageKey(message)],
+                            transcriptionState = voiceTranscriptionStates[messageKey(message)],
+                            onAvatarClick = {},
+                            onTranslateClick = { messageAwaitingTranslation = message },
+                            onPlayClick = { speakMessage(message.content) },
+                            onTranscribeClick = { viewModel.transcribeVoiceMessage(it) }
+                        )
                         }
                     }
                 }
             }
         }
+    }
+
+    messageAwaitingTranslation?.let { pendingMessage ->
+        AlertDialog(
+            onDismissRequest = { messageAwaitingTranslation = null },
+            title = { Text(text = stringResource(R.string.translate_dialog_title)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = stringResource(R.string.translate_dialog_subtitle),
+                        color = chatSecondaryTextColor(),
+                        fontSize = 14.sp
+                    )
+                    languageOptions.forEach { option ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .selectable(
+                                    selected = selectedLanguage == option,
+                                    onClick = { selectedLanguage = option },
+                                    role = Role.RadioButton
+                                )
+                                .padding(horizontal = 4.dp, vertical = 2.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RadioButton(
+                                selected = selectedLanguage == option,
+                                onClick = { selectedLanguage = option }
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = option,
+                                color = chatPrimaryTextColor(),
+                                fontSize = 14.sp
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.translateMessage(pendingMessage, selectedLanguage)
+                        messageAwaitingTranslation = null
+                    }
+                ) {
+                    Text(text = stringResource(R.string.translate_dialog_confirm))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { messageAwaitingTranslation = null }) {
+                    Text(text = stringResource(R.string.translate_dialog_cancel))
+                }
+            }
+        )
     }
 }
 
@@ -457,8 +556,17 @@ private fun RemovalBanner() {
 internal fun MessageBubble(
     message: Message,
     isSelf: Boolean,
-    onAvatarClick: (String) -> Unit = {}
+    translationState: TranslationResultState? = null,
+    transcriptionState: VoiceTranscriptionState? = null,
+    onAvatarClick: (String) -> Unit = {},
+    onTranslateClick: (Message) -> Unit = {},
+    onPlayClick: (Message) -> Unit = {},
+    onTranscribeClick: (Message) -> Unit = {}
 ) {
+    val isTextMessage = message.type == MessageType.TEXT
+    val isVoiceMessage = message.type == MessageType.VOICE
+    var showActionMenu by remember { mutableStateOf(false) }
+
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = if (isSelf) Arrangement.End else Arrangement.Start
@@ -497,42 +605,222 @@ internal fun MessageBubble(
             modifier = Modifier.widthIn(max = 280.dp),
             horizontalAlignment = if (isSelf) Alignment.End else Alignment.Start
         ) {
-            // Message content
-            Surface(
-                shape = RoundedCornerShape(
-                    topStart = if (isSelf) 12.dp else 2.dp,
-                    topEnd = if (isSelf) 2.dp else 12.dp,
-                    bottomStart = 12.dp,
-                    bottomEnd = 12.dp
-                ),
-                color = if (isSelf) PrimaryBlue else chatSurfaceColor(),
-                shadowElevation = if (isSelf) 0.dp else 1.dp
-            ) {
-                when (message.type) {
-                    MessageType.TEXT -> {
-                        Text(
-                            text = message.content,
-                            color = if (isSelf) Color.White else chatPrimaryTextColor(),
-                            fontSize = 15.sp,
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
-                        )
+            // 消息内容
+            Box {
+                Surface(
+                    modifier = if (isTextMessage || isVoiceMessage) {
+                        Modifier.clickable { showActionMenu = true }
+                    } else {
+                        Modifier
+                    },
+                    shape = RoundedCornerShape(
+                        topStart = if (isSelf) 12.dp else 2.dp,
+                        topEnd = if (isSelf) 2.dp else 12.dp,
+                        bottomStart = 12.dp,
+                        bottomEnd = 12.dp
+                    ),
+                    color = if (isSelf) PrimaryBlue else chatSurfaceColor(),
+                    shadowElevation = if (isSelf) 0.dp else 1.dp
+                ) {
+                    when (message.type) {
+                        MessageType.TEXT -> {
+                            val baseTextColor = if (isSelf) Color.White else chatPrimaryTextColor()
+                            val secondaryTextColor = if (isSelf) {
+                                Color.White.copy(alpha = 0.85f)
+                            } else {
+                                chatSecondaryTextColor()
+                            }
+
+                            Column(
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Text(
+                                    text = message.content,
+                                    color = baseTextColor,
+                                    fontSize = 15.sp
+                                )
+
+                                translationState?.let { state ->
+                                    when {
+                                        state.isLoading -> {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                            ) {
+                                                CircularProgressIndicator(
+                                                    modifier = Modifier.size(14.dp),
+                                                    strokeWidth = 2.dp,
+                                                    color = if (isSelf) Color.White else PrimaryBlue
+                                                )
+                                                Text(
+                                                    text = stringResource(R.string.translate_status_loading),
+                                                    color = secondaryTextColor,
+                                                    fontSize = 13.sp
+                                                )
+                                            }
+                                        }
+
+                                        state.errorMessage != null -> {
+                                            Text(
+                                                text = state.errorMessage,
+                                                color = MaterialTheme.colorScheme.error,
+                                                fontSize = 13.sp
+                                            )
+                                        }
+
+                                        state.translatedText != null -> {
+                                            val label = state.targetLanguage?.let { target ->
+                                                stringResource(
+                                                    R.string.translate_result_label,
+                                                    target
+                                                )
+                                            } ?: stringResource(R.string.translate_result_fallback_label)
+
+                                            Text(
+                                                text = "$label: ${state.translatedText}",
+                                                color = secondaryTextColor,
+                                                fontSize = 13.sp
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        MessageType.IMAGE -> {
+                            if (message.mediaUrl.isNotBlank()) {
+                                AsyncImage(
+                                    model = message.mediaUrl,
+                                    contentDescription = stringResource(R.string.chat_media_image_label),
+                                    modifier = Modifier
+                                        .widthIn(max = 240.dp)
+                                        .heightIn(max = 240.dp)
+                                        .clip(RoundedCornerShape(8.dp)),
+                                    contentScale = ContentScale.Crop
+                                )
+                            } else {
+                                Text(
+                                    text = stringResource(R.string.chat_media_image_label),
+                                    color = if (isSelf) Color.White else chatPrimaryTextColor(),
+                                    fontSize = 15.sp,
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                                )
+                            }
+                        }
+                        MessageType.VOICE -> {
+                            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                VoiceMessageBubble(
+                                    mediaUrl = message.mediaUrl,
+                                    content = message.content,
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                                )
+
+                                transcriptionState?.let { state ->
+                                    when {
+                                        state.isLoading -> {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                                modifier = Modifier.padding(horizontal = 12.dp)
+                                            ) {
+                                                CircularProgressIndicator(
+                                                    modifier = Modifier.size(14.dp),
+                                                    strokeWidth = 2.dp,
+                                                    color = if (isSelf) Color.White else PrimaryBlue
+                                                )
+                                                Text(
+                                                    text = stringResource(R.string.transcribe_status_loading),
+                                                    color = if (isSelf) Color.White else chatSecondaryTextColor(),
+                                                    fontSize = 13.sp
+                                                )
+                                            }
+                                        }
+
+                                        state.errorMessage != null -> {
+                                            Text(
+                                                text = state.errorMessage,
+                                                color = MaterialTheme.colorScheme.error,
+                                                fontSize = 13.sp,
+                                                modifier = Modifier.padding(horizontal = 12.dp)
+                                            )
+                                        }
+
+                                        state.text != null -> {
+                                            val label = stringResource(R.string.transcribe_result_label)
+                                            Text(
+                                                text = "$label ${state.text}",
+                                                color = if (isSelf) Color.White else chatSecondaryTextColor(),
+                                                fontSize = 13.sp,
+                                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        MessageType.VIDEO -> {
+                            VideoMessageBubble(mediaUrl = message.mediaUrl)
+                        }
+                        else -> {
+                            Text(
+                                text = stringResource(R.string.chat_media_unknown_label, message.type.name),
+                                color = if (isSelf) Color.White else chatPrimaryTextColor(),
+                                fontSize = 15.sp,
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                            )
+                        }
                     }
-                    MessageType.IMAGE -> {
-                        // TODO: show image message
-                        Text(
-                            text = stringResource(R.string.chat_media_image_label),
-                            color = if (isSelf) Color.White else chatPrimaryTextColor(),
-                            fontSize = 15.sp,
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
-                        )
-                    }
-                    else -> {
-                        Text(
-                            text = stringResource(R.string.chat_media_unknown_label, message.type.name),
-                            color = if (isSelf) Color.White else chatPrimaryTextColor(),
-                            fontSize = 15.sp,
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
-                        )
+                }
+
+                if (isTextMessage || isVoiceMessage) {
+                    DropdownMenu(
+                        expanded = showActionMenu,
+                        onDismissRequest = { showActionMenu = false }
+                    ) {
+                        if (isTextMessage) {
+                            DropdownMenuItem(
+                                text = { Text(text = stringResource(R.string.translate_menu_action)) },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Default.Language,
+                                        contentDescription = null
+                                    )
+                                },
+                                onClick = {
+                                    showActionMenu = false
+                                    onTranslateClick(message)
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text(text = stringResource(R.string.translate_menu_play)) },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Default.VolumeUp,
+                                        contentDescription = null
+                                    )
+                                },
+                                onClick = {
+                                    showActionMenu = false
+                                    onPlayClick(message)
+                                }
+                            )
+                        }
+
+                        if (isVoiceMessage) {
+                            DropdownMenuItem(
+                                text = { Text(text = stringResource(R.string.transcribe_menu_action)) },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Default.Article,
+                                        contentDescription = null
+                                    )
+                                },
+                                onClick = {
+                                    showActionMenu = false
+                                    onTranscribeClick(message)
+                                }
+                            )
+                        }
                     }
                 }
             }
@@ -600,6 +888,148 @@ internal fun MessageBubble(
             }
         }
     }
+}
+
+@Composable
+private fun VoiceMessageBubble(
+    mediaUrl: String,
+    content: String,
+    contentPadding: PaddingValues = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+) {
+    var isPlaying by remember { mutableStateOf(false) }
+    var player by remember { mutableStateOf<MediaPlayer?>(null) }
+
+    DisposableEffect(mediaUrl) {
+        onDispose {
+            player?.release()
+            player = null
+            isPlaying = false
+        }
+    }
+
+    fun stopPlayback() {
+        player?.apply {
+            try {
+                stop()
+            } catch (_: Exception) {
+            }
+            release()
+        }
+        player = null
+        isPlaying = false
+    }
+
+    fun startPlayback() {
+        if (mediaUrl.isBlank()) return
+        stopPlayback()
+        val mediaPlayer = MediaPlayer()
+        player = mediaPlayer
+        try {
+            mediaPlayer.setDataSource(mediaUrl)
+            mediaPlayer.setOnPreparedListener {
+                isPlaying = true
+                it.start()
+            }
+            mediaPlayer.setOnCompletionListener {
+                stopPlayback()
+            }
+            mediaPlayer.setOnErrorListener { _, _, _ ->
+                stopPlayback()
+                true
+            }
+            mediaPlayer.prepareAsync()
+        } catch (_: Exception) {
+            stopPlayback()
+        }
+    }
+
+    Row(
+        modifier = Modifier.padding(contentPadding),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        IconButton(
+            onClick = {
+                if (isPlaying) {
+                    stopPlayback()
+                } else {
+                    startPlayback()
+                }
+            },
+            modifier = Modifier.size(40.dp)
+        ) {
+            Icon(
+                imageVector = if (isPlaying) Icons.Default.Stop else Icons.Default.PlayArrow,
+                contentDescription = if (isPlaying) {
+                    stringResource(R.string.content_description_voice_stop)
+                } else {
+                    stringResource(R.string.content_description_voice_play)
+                },
+                tint = chatPrimaryTextColor()
+            )
+        }
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = stringResource(R.string.voice_message_label),
+                color = chatPrimaryTextColor(),
+                fontSize = 15.sp
+            )
+            Text(
+                text = content.ifBlank { "" },
+                color = chatSecondaryTextColor(),
+                fontSize = 12.sp
+            )
+        }
+    }
+}
+
+@Composable
+private fun VideoMessageBubble(
+    mediaUrl: String
+) {
+    if (mediaUrl.isBlank()) {
+        Text(
+            text = stringResource(R.string.video_message_label),
+            color = chatPrimaryTextColor(),
+            fontSize = 15.sp,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+        )
+        return
+    }
+
+    val context = LocalContext.current
+    var videoView by remember { mutableStateOf<VideoView?>(null) }
+
+    DisposableEffect(mediaUrl) {
+        onDispose {
+            videoView?.stopPlayback()
+            videoView = null
+        }
+    }
+
+    AndroidView(
+        factory = { ctx ->
+            VideoView(ctx).apply {
+                val controller = MediaController(ctx)
+                controller.setAnchorView(this)
+                setMediaController(controller)
+                setVideoURI(Uri.parse(mediaUrl))
+                setOnPreparedListener { it.isLooping = false }
+                videoView = this
+            }
+        },
+        update = { view ->
+            if (view.tag != mediaUrl) {
+                view.stopPlayback()
+                view.setVideoURI(Uri.parse(mediaUrl))
+                view.tag = mediaUrl
+            }
+        },
+        modifier = Modifier
+            .widthIn(max = 260.dp)
+            .heightIn(min = 160.dp, max = 240.dp)
+            .clip(RoundedCornerShape(8.dp))
+    )
 }
 
 /**

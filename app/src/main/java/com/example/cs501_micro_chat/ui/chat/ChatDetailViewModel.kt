@@ -18,13 +18,29 @@ import com.example.cs501_micro_chat.data.model.MessageStatus
 import com.example.cs501_micro_chat.data.model.MessageType
 import com.example.cs501_micro_chat.data.repository.ChatRepository
 import com.example.cs501_micro_chat.data.repository.StorageRepository
+import com.example.cs501_micro_chat.data.repository.TranscriptionRepository
+import com.example.cs501_micro_chat.data.repository.TranslationRepository
 import com.google.firebase.auth.FirebaseAuth
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+
+data class TranslationResultState(
+    val translatedText: String? = null,
+    val targetLanguage: String? = null,
+    val isLoading: Boolean = false,
+    val errorMessage: String? = null
+)
+
+data class VoiceTranscriptionState(
+    val text: String? = null,
+    val isLoading: Boolean = false,
+    val errorMessage: String? = null
+)
 
 data class MediaUploadState(
     val isUploading: Boolean = false,
@@ -36,6 +52,8 @@ data class MediaUploadState(
 class ChatDetailViewModel @Inject constructor(
     private val chatRepository: ChatRepository,
     private val storageRepository: StorageRepository,
+    private val transcriptionRepository: TranscriptionRepository,
+    private val translationRepository: TranslationRepository,
     private val auth: FirebaseAuth
 ) : ViewModel() {
 
@@ -63,10 +81,13 @@ class ChatDetailViewModel @Inject constructor(
     private val _mediaUploadState = MutableStateFlow(MediaUploadState())
     val mediaUploadState: StateFlow<MediaUploadState> = _mediaUploadState.asStateFlow()
 
-    private val _isConversationBlocked = MutableStateFlow(false)
-    val isConversationBlocked: StateFlow<Boolean> = _isConversationBlocked.asStateFlow()
+    private val _translationStates = MutableStateFlow<Map<String, TranslationResultState>>(emptyMap())
+    val translationStates: StateFlow<Map<String, TranslationResultState>> = _translationStates.asStateFlow()
 
-    // User info cache: userId -> User
+    private val _voiceTranscriptionStates = MutableStateFlow<Map<String, VoiceTranscriptionState>>(emptyMap())
+    val voiceTranscriptionStates: StateFlow<Map<String, VoiceTranscriptionState>> = _voiceTranscriptionStates.asStateFlow()
+
+    // 用户信息缓存：userId -> User
     private val userCache = mutableMapOf<String, com.example.cs501_micro_chat.data.model.User>()
 
     private var currentConversationId: String? = null
@@ -84,7 +105,8 @@ class ChatDetailViewModel @Inject constructor(
         _conversationId.value = conversationId
         _isLoading.value = true
         _error.value = null
-        _isConversationBlocked.value = false
+        _translationStates.value = emptyMap()
+        _voiceTranscriptionStates.value = emptyMap()
 
         viewModelScope.launch {
             loadConversationMeta(conversationId)
@@ -333,7 +355,73 @@ class ChatDetailViewModel @Inject constructor(
     }
 
     /**
-     * Mark all messages as read.
+     * 上传视频并发送视频消息
+     */
+    fun uploadVideoMessage(
+        conversationId: String,
+        videoBytes: ByteArray,
+        mimeType: String = "video/mp4",
+        extension: String? = null
+    ) {
+        val userId = auth.currentUser?.uid ?: run {
+            _error.value = "用户未登录"
+            return
+        }
+
+        viewModelScope.launch {
+            _mediaUploadState.value = _mediaUploadState.value.copy(
+                isUploading = true,
+                uploadingType = MessageType.VIDEO
+            )
+
+            val uploadResult = storageRepository.uploadImage(
+                bytes = videoBytes,
+                conversationId = conversationId,
+                ownerId = userId,
+                mimeType = mimeType,
+                extension = extension
+            )
+
+            if (uploadResult.isFailure) {
+                val message = uploadResult.exceptionOrNull()?.message ?: "未知错误"
+                _error.value = "上传视频失败: $message"
+                _mediaUploadState.value = _mediaUploadState.value.copy(
+                    isUploading = false,
+                    uploadingType = null
+                )
+                return@launch
+            }
+
+            val media = uploadResult.getOrThrow()
+            val sendResult = chatRepository.sendMessage(
+                conversationId = conversationId,
+                content = "视频",
+                type = MessageType.VIDEO,
+                mediaUrl = media.downloadUrl
+            )
+
+            if (sendResult.isFailure) {
+                val message = sendResult.exceptionOrNull()?.message ?: "未知错误"
+                _error.value = "发送视频消息失败: $message"
+                storageRepository.deleteByPath(media.storagePath)
+                _mediaUploadState.value = _mediaUploadState.value.copy(
+                    isUploading = false,
+                    uploadingType = null
+                )
+                return@launch
+            }
+
+            _mediaUploadState.value = _mediaUploadState.value.copy(
+                isUploading = false,
+                uploadingType = null,
+                lastUploadedUrl = media.downloadUrl
+            )
+        }
+    }
+
+    /**
+     * 标记所有消息为已读
+     * Mark all messages as read
      */
     private fun markAllAsRead(conversationId: String) {
         val userId = auth.currentUser?.uid ?: return
@@ -372,6 +460,79 @@ class ChatDetailViewModel @Inject constructor(
             uploadingType = null,
             lastUploadedUrl = null
         )
+    }
+
+    fun translateMessage(message: Message, targetLanguage: String) {
+        val normalizedTarget = targetLanguage.trim()
+        if (message.type != MessageType.TEXT || normalizedTarget.isEmpty()) return
+
+        val key = messageKey(message)
+        _translationStates.update { current ->
+            current + (key to TranslationResultState(isLoading = true, targetLanguage = normalizedTarget))
+        }
+
+        viewModelScope.launch {
+            val result = translationRepository.translate(
+                text = message.content,
+                targetLanguage = normalizedTarget,
+                sourceLanguage = "auto",
+                instructions = "Sound professional"
+            )
+
+            _translationStates.update { current ->
+                val nextState = result.fold(
+                    onSuccess = { translated ->
+                        TranslationResultState(
+                            translatedText = translated,
+                            targetLanguage = normalizedTarget,
+                            isLoading = false,
+                            errorMessage = null
+                        )
+                    },
+                    onFailure = { error ->
+                        TranslationResultState(
+                            translatedText = null,
+                            targetLanguage = normalizedTarget,
+                            isLoading = false,
+                            errorMessage = error.message ?: "Translation failed"
+                        )
+                    }
+                )
+                current + (key to nextState)
+            }
+        }
+    }
+
+    fun transcribeVoiceMessage(message: Message) {
+        if (message.type != MessageType.VOICE || message.mediaUrl.isBlank()) return
+        val key = messageKey(message)
+
+        _voiceTranscriptionStates.update { current ->
+            current + (key to VoiceTranscriptionState(isLoading = true))
+        }
+
+        viewModelScope.launch {
+            val result = transcriptionRepository.transcribe(message.mediaUrl)
+            _voiceTranscriptionStates.update { current ->
+                val next = result.fold(
+                    onSuccess = { text ->
+                        VoiceTranscriptionState(text = text, isLoading = false, errorMessage = null)
+                    },
+                    onFailure = { error ->
+                        VoiceTranscriptionState(text = null, isLoading = false, errorMessage = error.message ?: "Transcription failed")
+                    }
+                )
+                current + (key to next)
+            }
+        }
+    }
+}
+
+internal fun messageKey(message: Message): String {
+    return if (message.id.isNotBlank()) {
+        message.id
+    } else {
+        "${message.timestamp}_${message.senderId}_${message.content.hashCode()}"
     }
 }
 
