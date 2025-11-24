@@ -78,6 +78,9 @@ class ChatDetailViewModel @Inject constructor(
     private val _conversationId = MutableStateFlow("")
     val conversationId: StateFlow<String> = _conversationId.asStateFlow()
 
+    private val _isConversationBlocked = MutableStateFlow(false)
+    val isConversationBlocked: StateFlow<Boolean> = _isConversationBlocked.asStateFlow()
+
     private val _mediaUploadState = MutableStateFlow(MediaUploadState())
     val mediaUploadState: StateFlow<MediaUploadState> = _mediaUploadState.asStateFlow()
 
@@ -105,6 +108,7 @@ class ChatDetailViewModel @Inject constructor(
         _conversationId.value = conversationId
         _isLoading.value = true
         _error.value = null
+        _isConversationBlocked.value = false
         _translationStates.value = emptyMap()
         _voiceTranscriptionStates.value = emptyMap()
 
@@ -535,6 +539,5 @@ internal fun messageKey(message: Message): String {
         "${message.timestamp}_${message.senderId}_${message.content.hashCode()}"
     }
 }
-
 
 
