@@ -22,17 +22,25 @@ package com.example.cs501_micro_chat.ui.main
  * @date 2025-11-04
  */
 
+import android.net.Uri
 import android.util.Log
+import android.webkit.MimeTypeMap
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.*
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-
-import androidx.compose.ui.draw.shadow
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -41,9 +49,13 @@ import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.runtime.*
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -52,6 +64,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -68,36 +82,31 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
-import androidx.compose.animation.*
-import androidx.compose.animation.core.tween
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.background
-import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.material3.TextField
-import androidx.compose.material3.TextFieldDefaults
-import java.net.URLEncoder
-import java.net.URLDecoder
-import java.nio.charset.StandardCharsets
 import coil.compose.AsyncImage
 import com.example.cs501_micro_chat.R
-import com.example.cs501_micro_chat.data.model.Conversation
 import com.example.cs501_micro_chat.data.model.Contact
+import com.example.cs501_micro_chat.data.model.Conversation
+import com.example.cs501_micro_chat.data.model.ConversationType
+import com.example.cs501_micro_chat.ui.chat.ChatDetailViewModel
 import com.example.cs501_micro_chat.ui.profile.GroupProfileScreen
 import com.example.cs501_micro_chat.ui.profile.UserProfileScreen
 import com.example.cs501_micro_chat.ui.settings.AboutScreen
 import com.example.cs501_micro_chat.ui.settings.PrivacySettingsScreen
 import com.example.cs501_micro_chat.ui.settings.ProfileEditScreen
 import com.example.cs501_micro_chat.ui.settings.SettingsScreen
-import com.example.cs501_micro_chat.ui.chat.ChatDetailViewModel
-import com.example.cs501_micro_chat.data.model.ConversationType
-import com.example.cs501_micro_chat.ui.main.ContactsViewModel
-import com.example.cs501_micro_chat.ui.main.HomeViewModel
-import com.example.cs501_micro_chat.ui.main.ProfileSettingsUiState
-import com.example.cs501_micro_chat.ui.main.ProfileSettingsViewModel
 import com.example.cs501_micro_chat.ui.theme.ThemeOption
 import com.example.cs501_micro_chat.ui.theme.ThemeViewModel
+import java.net.URLDecoder
+import java.net.URLEncoder
+import java.nio.charset.StandardCharsets
 import java.text.Collator
 import java.util.Locale
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import androidx.compose.ui.platform.LocalContext
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.launch
 
 // Figma Design Colors (still used for branding)
 private val PrimaryBlue = Color(0xFF3296FA)
@@ -277,7 +286,16 @@ fun HomeScreen(
                     else -> {
                         HomeTopBar(
                             currentRoute = route,
-                            homeViewModel = sharedHomeViewModel
+                            homeViewModel = sharedHomeViewModel,
+                            onNavigateToChat = { convoId, name, avatar ->
+                                val encodedName = URLEncoder.encode(name, StandardCharsets.UTF_8.toString())
+                                val encodedAvatar = URLEncoder.encode(avatar, StandardCharsets.UTF_8.toString())
+                                navController.navigate("chat_detail/$convoId/$encodedName/$encodedAvatar") {
+                                    popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                                    launchSingleTop = true
+                                    restoreState = true
+                                }
+                            }
                         )
                     }
                 }
@@ -532,12 +550,28 @@ fun HomeScreen(
 @Composable
 fun HomeTopBar(
     currentRoute: String?,
-    homeViewModel: HomeViewModel
+    homeViewModel: HomeViewModel,
+    onNavigateToChat: (String, String, String) -> Unit
 ) {
     // 控制下拉菜单的显示状态
     var showAddMenu by remember { mutableStateOf(false) }
     // 控制添加好友弹窗的显示状态
     var showAddFriendDialog by remember { mutableStateOf(false) }
+    var showCreateGroupDialog by remember { mutableStateOf(false) }
+    var createGroupError by remember { mutableStateOf<String?>(null) }
+    var groupName by remember { mutableStateOf("") }
+    val coroutineScope = rememberCoroutineScope()
+    val context = LocalContext.current
+    val addFriendResults by homeViewModel.addFriendSearchResults.collectAsStateWithLifecycle()
+    var groupSearchQuery by remember { mutableStateOf("") }
+    val selectedMemberIds = remember { mutableStateOf(setOf<String>()) }
+    var selectedAvatarUri by remember { mutableStateOf<Uri?>(null) }
+
+    val pickGroupAvatarLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia()
+    ) { uri ->
+        selectedAvatarUri = uri
+    }
 
     Row(
         modifier = Modifier
@@ -636,7 +670,9 @@ fun HomeTopBar(
                         },
                         onClick = {
                             showAddMenu = false
-                            // TODO: 实现新增群组功能
+                            createGroupError = null
+                            groupName = ""
+                            showCreateGroupDialog = true
                         }
                     )
                 }
@@ -653,6 +689,137 @@ fun HomeTopBar(
             onDismiss = {
                 showAddFriendDialog = false
                 homeViewModel.clearAddFriendSearch()
+            }
+        )
+    }
+
+    if (showCreateGroupDialog) {
+        AlertDialog(
+            onDismissRequest = { showCreateGroupDialog = false },
+            title = { Text(stringResource(R.string.add_option_new_group)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    OutlinedTextField(
+                        value = groupName,
+                        onValueChange = { groupName = it },
+                        label = { Text(stringResource(R.string.group_profile_name_label)) },
+                        singleLine = true
+                    )
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Button(onClick = { pickGroupAvatarLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }) {
+                            Text(text = if (selectedAvatarUri != null) stringResource(R.string.profile_edit_choose_photo) else stringResource(R.string.profile_edit_choose_photo))
+                        }
+                        if (selectedAvatarUri != null) {
+                            Text(text = context.getString(R.string.profile_edit_remove_avatar))
+                        }
+                    }
+                    OutlinedTextField(
+                        value = groupSearchQuery,
+                        onValueChange = {
+                            groupSearchQuery = it
+                            homeViewModel.searchUsersForAddFriend(it)
+                        },
+                        label = { Text(stringResource(R.string.add_friend_search_placeholder)) },
+                        singleLine = true,
+                        leadingIcon = { Icon(imageVector = Icons.Default.Search, contentDescription = null) }
+                    )
+                    if (groupSearchQuery.isNotBlank()) {
+                        val currentId = homeViewModel.currentUserId
+                        LazyColumn(
+                            modifier = Modifier
+                                .heightIn(max = 200.dp)
+                        ) {
+                            items(addFriendResults) { user ->
+                                if (user.id == currentId) return@items
+                                val checked = selectedMemberIds.value.contains(user.id)
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            selectedMemberIds.value =
+                                                if (checked) selectedMemberIds.value - user.id else selectedMemberIds.value + user.id
+                                        }
+                                        .padding(vertical = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Checkbox(
+                                        checked = checked,
+                                        onCheckedChange = {
+                                            selectedMemberIds.value =
+                                                if (it) selectedMemberIds.value + user.id else selectedMemberIds.value - user.id
+                                        }
+                                    )
+                                    Text(text = user.username.ifBlank { user.email.substringBefore("@") })
+                                }
+                            }
+                        }
+                        Text(
+                            text = "${selectedMemberIds.value.size} selected",
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                    createGroupError?.let {
+                        Text(text = it, color = MaterialTheme.colorScheme.error, fontSize = 13.sp)
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val name = groupName.trim()
+                        if (name.isEmpty()) {
+                            createGroupError = context.getString(R.string.group_profile_name_label)
+                            return@TextButton
+                        }
+                        coroutineScope.launch {
+                            createGroupError = null
+                            var avatarBytes: ByteArray? = null
+                            var mimeType = "image/jpeg"
+                            var extension: String? = null
+                            selectedAvatarUri?.let { uri ->
+                                try {
+                                    mimeType = context.contentResolver.getType(uri) ?: "image/jpeg"
+                                    extension = MimeTypeMap.getSingleton()
+                                        .getExtensionFromMimeType(mimeType)
+                                    avatarBytes = withContext(Dispatchers.IO) {
+                                        context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                                    }
+                                } catch (e: Exception) {
+                                    createGroupError = e.message ?: "Failed to read image"
+                                    return@launch
+                                }
+                            }
+
+                            val result = homeViewModel.createGroup(
+                                name = name,
+                                memberIds = selectedMemberIds.value.toList(),
+                                avatarBytes = avatarBytes,
+                                avatarMimeType = mimeType,
+                                avatarExtension = extension
+                            )
+                            result.onSuccess { groupId ->
+                                showCreateGroupDialog = false
+                                groupName = ""
+                                selectedMemberIds.value = emptySet()
+                                selectedAvatarUri = null
+                                onNavigateToChat(groupId, name, "")
+                            }.onFailure { error ->
+                                createGroupError = error.message ?: "Failed to create group"
+                            }
+                        }
+                    }
+                ) {
+                    Text(text = stringResource(R.string.profile_edit_save))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showCreateGroupDialog = false }) {
+                    Text(text = stringResource(R.string.user_profile_delete_confirm_cancel))
+                }
             }
         )
     }
@@ -2754,4 +2921,3 @@ fun UserSearchResultItem(
         }
     }
 }
-

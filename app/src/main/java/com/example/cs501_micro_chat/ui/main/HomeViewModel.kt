@@ -21,6 +21,7 @@ import com.example.cs501_micro_chat.data.model.Contact
 import com.example.cs501_micro_chat.data.model.Conversation
 import com.example.cs501_micro_chat.data.model.User
 import com.example.cs501_micro_chat.data.repository.ChatRepository
+import com.example.cs501_micro_chat.data.repository.StorageRepository
 import com.google.firebase.auth.FirebaseAuth
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -34,8 +35,12 @@ import javax.inject.Inject
 @HiltViewModel
 class HomeViewModel @Inject constructor(
     private val chatRepository: ChatRepository,
-    private val auth: FirebaseAuth
+    private val auth: FirebaseAuth,
+    private val storageRepository: StorageRepository
 ) : ViewModel() {
+
+    val currentUserId: String
+        get() = auth.currentUser?.uid.orEmpty()
 
     private val _conversations = MutableStateFlow<List<Conversation>>(emptyList())
     val conversations: StateFlow<List<Conversation>> = _conversations.asStateFlow()
@@ -365,6 +370,45 @@ class HomeViewModel @Inject constructor(
         _searchQuery.value = ""
         _searchResults.value = emptyList()
         _isSearching.value = false
+    }
+
+    suspend fun createGroup(
+        name: String,
+        memberIds: List<String>,
+        avatarBytes: ByteArray? = null,
+        avatarMimeType: String = "image/jpeg",
+        avatarExtension: String? = null
+    ): Result<String> {
+        val trimmed = name.trim()
+        if (trimmed.isEmpty()) return Result.failure(Exception("Group name cannot be empty"))
+        val creatorId = auth.currentUser?.uid ?: return Result.failure(Exception("User not logged in"))
+
+        val groupResult = chatRepository.createGroup(
+            name = trimmed,
+            description = "",
+            avatarUrl = "",
+            memberIds = memberIds
+        )
+        val group = groupResult.getOrElse { return Result.failure(it) }
+
+        if (avatarBytes != null) {
+            val upload = storageRepository.uploadImage(
+                bytes = avatarBytes,
+                conversationId = group.id,
+                ownerId = creatorId,
+                mimeType = avatarMimeType,
+                extension = avatarExtension
+            )
+            upload.onSuccess { media ->
+                chatRepository.updateGroup(group.copy(avatarUrl = media.downloadUrl))
+                chatRepository.getConversation(group.id).getOrNull()?.let { convo ->
+                    chatRepository.updateConversation(convo.copy(avatarUrl = media.downloadUrl))
+                }
+            }
+        }
+
+        loadConversations()
+        return Result.success(group.id)
     }
 
     /**
