@@ -29,8 +29,8 @@ import com.example.cs501_micro_chat.ui.auth.AuthProvider
 import com.example.cs501_micro_chat.ui.auth.LanguageOption
 
 data class LoginUiState(
-    val email: String = "",
-    val password: String = "",
+    val email: String = "lf1991@bu.edu",
+    val password: String = "123456",
     val loadingProvider: AuthProvider? = null,
     val errorMessage: String? = null,
     val agreementChecked: Boolean = false,

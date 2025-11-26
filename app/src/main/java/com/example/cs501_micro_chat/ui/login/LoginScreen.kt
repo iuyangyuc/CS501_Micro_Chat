@@ -1072,8 +1072,8 @@ private fun LoginScreenPreview() {
     CS501_Micro_ChatTheme(darkTheme = false) {
         LoginScreen(
             state = LoginUiState(
-                email = "user@example.com",
-                password = "password123",
+                email = "lf1991@bu.edu",
+                password = "123456",
                 agreementChecked = true,
                 activeProvider = AuthProvider.Email
             ),
@@ -1099,8 +1099,8 @@ private fun LoginScreenErrorPreview() {
     CS501_Micro_ChatTheme(darkTheme = false) {
         LoginScreen(
             state = LoginUiState(
-                email = "user@example.com",
-                password = "",
+                email = "lf1991@bu.edu",
+                password = "123456",
                 loadingProvider = AuthProvider.Email,
                 errorMessage = "Email or password is incorrect.",
                 agreementChecked = false,

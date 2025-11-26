@@ -27,6 +27,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.Job
 import javax.inject.Inject
 
 data class TranslationResultState(
@@ -63,6 +65,9 @@ class ChatDetailViewModel @Inject constructor(
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
+    private val _hasLoadedInitial = MutableStateFlow(false)
+    val hasLoadedInitial: StateFlow<Boolean> = _hasLoadedInitial.asStateFlow()
+
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error.asStateFlow()
 
@@ -94,23 +99,22 @@ class ChatDetailViewModel @Inject constructor(
     private val userCache = mutableMapOf<String, com.example.cs501_micro_chat.data.model.User>()
 
     private var currentConversationId: String? = null
+    private var initialEmptyJob: Job? = null
 
     /**
      * Load conversation messages and listen for real-time updates.
      */
     fun loadMessages(conversationId: String) {
-        if (currentConversationId == conversationId) {
-            // Already listening to this conversation
-            return
-        }
-
         currentConversationId = conversationId
         _conversationId.value = conversationId
         _isLoading.value = true
+        _hasLoadedInitial.value = false
         _error.value = null
         _isConversationBlocked.value = false
         _translationStates.value = emptyMap()
         _voiceTranscriptionStates.value = emptyMap()
+        initialEmptyJob?.cancel()
+        initialEmptyJob = null
 
         viewModelScope.launch {
             loadConversationMeta(conversationId)
@@ -122,9 +126,28 @@ class ChatDetailViewModel @Inject constructor(
                     // Fill missing user info
                     val enrichedMessages = enrichMessagesWithUserInfo(messageList)
 
-                    _messages.value = enrichedMessages.sortedBy { it.timestamp }
-                    _isLoading.value = false
-                    _error.value = null
+                    initialEmptyJob?.cancel()
+
+                    if (enrichedMessages.isEmpty()) {
+                        // Stay in loading until a small timeout to avoid flashing empty state
+                        _messages.value = emptyList()
+                        _error.value = null
+                        _isLoading.value = true
+                        _hasLoadedInitial.value = false
+
+                        initialEmptyJob = viewModelScope.launch {
+                            delay(1200)
+                            if (_messages.value.isEmpty()) {
+                                _hasLoadedInitial.value = true
+                                _isLoading.value = false
+                            }
+                        }
+                    } else {
+                        _messages.value = enrichedMessages.sortedBy { it.timestamp }
+                        _hasLoadedInitial.value = true
+                        _isLoading.value = false
+                        _error.value = null
+                    }
 
                     // Mark messages as read
                     markAllAsRead(conversationId)
@@ -539,5 +562,3 @@ internal fun messageKey(message: Message): String {
         "${message.timestamp}_${message.senderId}_${message.content.hashCode()}"
     }
 }
-
-

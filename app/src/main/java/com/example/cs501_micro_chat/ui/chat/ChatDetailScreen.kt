@@ -24,6 +24,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -42,6 +43,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.compositeOver
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -78,6 +81,16 @@ private fun chatPrimaryTextColor() = MaterialTheme.colorScheme.onSurface
 @Composable
 private fun chatSecondaryTextColor() = MaterialTheme.colorScheme.onSurfaceVariant
 
+@Composable
+private fun otherMessageBubbleColor(): Color {
+    val background = MaterialTheme.colorScheme.background
+    // Detect effective theme by luminance so custom in-app theme toggles are respected
+    val isDark = background.luminance() < 0.5f
+    if (!isDark) return MaterialTheme.colorScheme.surface
+    // Dark mode: match input background for consistency
+    return chatInputBackground()
+}
+
 /**
  * Chat detail main screen.
  *
@@ -103,6 +116,7 @@ fun ChatDetailScreen(
 
     val messages by viewModel.messages.collectAsStateWithLifecycle()
     val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
+    val hasLoadedInitial by viewModel.hasLoadedInitial.collectAsStateWithLifecycle()
     val error by viewModel.error.collectAsStateWithLifecycle()
     val currentUserId by viewModel.currentUserId.collectAsStateWithLifecycle()
     val isBlocked by viewModel.isConversationBlocked.collectAsStateWithLifecycle()
@@ -400,15 +414,18 @@ fun ChatDetailScreen(
                 }
             }
 
-            // Loading indicator
-            if (isLoading && messages.isEmpty()) {
+            val showInitialLoading = (!hasLoadedInitial && messages.isEmpty()) || (isLoading && messages.isEmpty())
+            val showEmptyState = hasLoadedInitial && !isLoading && messages.isEmpty()
+
+            // Loading indicator (before first load or while fetching with no messages yet)
+            if (showInitialLoading) {
                 CircularProgressIndicator(
                     modifier = Modifier.align(Alignment.Center),
                     color = PrimaryBlue
                 )
             }
-            // Empty state
-            else if (messages.isEmpty() && !isLoading) {
+            // Empty state only after loading finished
+            else if (showEmptyState) {
                 Column(
                     modifier = Modifier.align(Alignment.Center),
                     horizontalAlignment = Alignment.CenterHorizontally,
@@ -434,40 +451,53 @@ fun ChatDetailScreen(
             }
             // Message list
             else {
-                Column(
-                    modifier = Modifier.fillMaxSize()
-                ) {
-                    if (isBlocked) {
-                        RemovalBanner()
-                    }
-                    LazyColumn(
-                        state = listState,
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxWidth(),
-                        contentPadding = PaddingValues(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                Box(modifier = Modifier.fillMaxSize()) {
+                    Column(
+                        modifier = Modifier.fillMaxSize()
                     ) {
-                        items(
-                            items = messages,
-                            key = { message ->
-                                if (message.id.isNotBlank()) {
-                                    message.id
-                                } else {
-                                    "${message.timestamp}_${message.senderId}_${message.content.hashCode()}"
+                        if (isBlocked) {
+                            RemovalBanner()
+                        }
+                        LazyColumn(
+                            state = listState,
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxWidth(),
+                            contentPadding = PaddingValues(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            items(
+                                items = messages,
+                                key = { message ->
+                                    if (message.id.isNotBlank()) {
+                                        message.id
+                                    } else {
+                                        "${message.timestamp}_${message.senderId}_${message.content.hashCode()}"
+                                    }
                                 }
+                            ) { message ->
+                                MessageBubble(
+                                    message = message,
+                                    isSelf = message.senderId == currentUserId,
+                                    translationState = translationStates[messageKey(message)],
+                                    transcriptionState = voiceTranscriptionStates[messageKey(message)],
+                                    onAvatarClick = {},
+                                    onTranslateClick = { messageAwaitingTranslation = message },
+                                    onPlayClick = { speakMessage(message.content) },
+                                    onTranscribeClick = { viewModel.transcribeVoiceMessage(it) }
+                                )
                             }
-                        ) { message ->
-                        MessageBubble(
-                            message = message,
-                            isSelf = message.senderId == currentUserId,
-                            translationState = translationStates[messageKey(message)],
-                            transcriptionState = voiceTranscriptionStates[messageKey(message)],
-                            onAvatarClick = {},
-                            onTranslateClick = { messageAwaitingTranslation = message },
-                            onPlayClick = { speakMessage(message.content) },
-                            onTranscribeClick = { viewModel.transcribeVoiceMessage(it) }
-                        )
+                        }
+                    }
+
+                    if (isLoading) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(MaterialTheme.colorScheme.background.copy(alpha = 0.35f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            CircularProgressIndicator(color = PrimaryBlue)
                         }
                     }
                 }
@@ -619,7 +649,7 @@ internal fun MessageBubble(
                         bottomStart = 12.dp,
                         bottomEnd = 12.dp
                     ),
-                    color = if (isSelf) PrimaryBlue else chatSurfaceColor(),
+                    color = if (isSelf) PrimaryBlue else otherMessageBubbleColor(),
                     shadowElevation = if (isSelf) 0.dp else 1.dp
                 ) {
                     when (message.type) {
@@ -712,6 +742,7 @@ internal fun MessageBubble(
                                 VoiceMessageBubble(
                                     mediaUrl = message.mediaUrl,
                                     content = message.content,
+                                    isSelf = isSelf,
                                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
                                 )
 
@@ -894,6 +925,7 @@ internal fun MessageBubble(
 private fun VoiceMessageBubble(
     mediaUrl: String,
     content: String,
+    isSelf: Boolean,
     contentPadding: PaddingValues = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
 ) {
     var isPlaying by remember { mutableStateOf(false) }
@@ -948,6 +980,10 @@ private fun VoiceMessageBubble(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
+        val textColor = if (isSelf) Color.White else chatPrimaryTextColor()
+        val secondaryColor = if (isSelf) Color.White.copy(alpha = 0.85f) else chatSecondaryTextColor()
+        val iconColor = if (isSelf) Color.White else chatPrimaryTextColor()
+
         IconButton(
             onClick = {
                 if (isPlaying) {
@@ -965,18 +1001,18 @@ private fun VoiceMessageBubble(
                 } else {
                     stringResource(R.string.content_description_voice_play)
                 },
-                tint = chatPrimaryTextColor()
+                tint = iconColor
             )
         }
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = stringResource(R.string.voice_message_label),
-                color = chatPrimaryTextColor(),
+                color = textColor,
                 fontSize = 15.sp
             )
             Text(
                 text = content.ifBlank { "" },
-                color = chatSecondaryTextColor(),
+                color = secondaryColor,
                 fontSize = 12.sp
             )
         }

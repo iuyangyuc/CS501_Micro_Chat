@@ -1074,6 +1074,8 @@ fun ChatDetailContent(
     }
 
     val messages by viewModel.messages.collectAsStateWithLifecycle()
+    val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
+    val hasLoadedInitial by viewModel.hasLoadedInitial.collectAsStateWithLifecycle()
     val currentUserId by viewModel.currentUserId.collectAsStateWithLifecycle()
     val translationStates by viewModel.translationStates.collectAsStateWithLifecycle()
     val voiceTranscriptionStates by viewModel.voiceTranscriptionStates.collectAsStateWithLifecycle()
@@ -1417,7 +1419,15 @@ fun ChatDetailContent(
                 .weight(1f)
                 .fillMaxWidth()
         ) {
-            if (messages.isEmpty()) {
+            val showInitialLoading = (!hasLoadedInitial && messages.isEmpty()) || (isLoading && messages.isEmpty())
+            val showEmptyState = hasLoadedInitial && !isLoading && messages.isEmpty()
+
+            if (showInitialLoading) {
+                CircularProgressIndicator(
+                    modifier = Modifier.align(Alignment.Center),
+                    color = PrimaryBlue
+                )
+            } else if (showEmptyState) {
                 Column(
                     modifier = Modifier.align(Alignment.Center),
                     horizontalAlignment = Alignment.CenterHorizontally,
@@ -1655,6 +1665,8 @@ fun ChatListScreen(
 ) {
     val conversations by viewModel.conversations.collectAsStateWithLifecycle()
     val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
+    val isUsersLoading by viewModel.isUsersLoading.collectAsStateWithLifecycle()
+    val areContactsReady by viewModel.isContactsReady.collectAsStateWithLifecycle()
 
     // 搜索相关状态
     val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
@@ -1668,106 +1680,119 @@ fun ChatListScreen(
     val surfaceColor = MaterialTheme.colorScheme.surface
     val searchBarColor = MaterialTheme.colorScheme.surfaceVariant
 
+    val showLoading = isLoading || isUsersLoading || !areContactsReady
+
     Box(modifier = Modifier.fillMaxSize()) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(backgroundColor)
-        ) {
-            // 搜索栏
-            Surface(
-                color = surfaceColor,
-                shadowElevation = 2.dp
+        if (showLoading) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(backgroundColor),
+                contentAlignment = Alignment.Center
             ) {
-                Column {
-                    if (isSearchActive) {
-                        // 激活状态：可编辑的搜索框
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(16.dp)
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(searchBarColor)
-                                .padding(horizontal = 12.dp, vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.Search,
-                                contentDescription = stringResource(R.string.content_description_search),
-                                tint = secondaryTextColor(),
-                                modifier = Modifier.size(20.dp)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            TextField(
-                                value = searchQuery,
-                                onValueChange = { viewModel.updateSearchQuery(it) },
-                                modifier = Modifier.weight(1f),
-                                placeholder = {
-                                    Text(
-                                        text = stringResource(R.string.search_hint),
-                                        color = secondaryTextColor(),
-                                        fontSize = 15.sp
-                                    )
-                                },
-                                colors = TextFieldDefaults.colors(
-                                    focusedContainerColor = Color.Transparent,
-                                    unfocusedContainerColor = Color.Transparent,
-                                    focusedIndicatorColor = Color.Transparent,
-                                    unfocusedIndicatorColor = Color.Transparent
-                                ),
-                                maxLines = 4
-                            )
-                        }
-                    } else {
-                        // 默认状态：占位符搜索框
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(16.dp)
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(searchBarColor)
-                                .clickable { isSearchActive = true }
-                                .padding(horizontal = 12.dp, vertical = 10.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.Search,
-                                contentDescription = stringResource(R.string.content_description_search),
-                                tint = secondaryTextColor(),
-                                modifier = Modifier.size(20.dp)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = stringResource(R.string.search_hint),
-                                color = secondaryTextColor(),
-                                fontSize = 15.sp
-                            )
+                CircularProgressIndicator(color = PrimaryBlue)
+            }
+        } else {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(backgroundColor)
+            ) {
+                // 搜索栏
+                Surface(
+                    color = surfaceColor,
+                    shadowElevation = 2.dp
+                ) {
+                    Column {
+                        if (isSearchActive) {
+                            // 激活状态：可编辑的搜索框
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(searchBarColor)
+                                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.Search,
+                                    contentDescription = stringResource(R.string.content_description_search),
+                                    tint = secondaryTextColor(),
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                TextField(
+                                    value = searchQuery,
+                                    onValueChange = { viewModel.updateSearchQuery(it) },
+                                    modifier = Modifier.weight(1f),
+                                    placeholder = {
+                                        Text(
+                                            text = stringResource(R.string.search_hint),
+                                            color = secondaryTextColor(),
+                                            fontSize = 15.sp
+                                        )
+                                    },
+                                    colors = TextFieldDefaults.colors(
+                                        focusedContainerColor = Color.Transparent,
+                                        unfocusedContainerColor = Color.Transparent,
+                                        focusedIndicatorColor = Color.Transparent,
+                                        unfocusedIndicatorColor = Color.Transparent
+                                    ),
+                                    maxLines = 4
+                                )
+                            }
+                        } else {
+                            // 默认状态：占位符搜索框
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(searchBarColor)
+                                    .clickable { isSearchActive = true }
+                                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.Search,
+                                    contentDescription = stringResource(R.string.content_description_search),
+                                    tint = secondaryTextColor(),
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = stringResource(R.string.search_hint),
+                                    color = secondaryTextColor(),
+                                    fontSize = 15.sp
+                                )
+                            }
                         }
                     }
                 }
-            }
 
-            // 显示搜索结果或对话列表
-            if (isSearchActive && searchQuery.isNotBlank()) {
-                // 搜索结果
-                ConversationSearchResultsList(
-                    searchResults = searchResults,
-                    isSearching = isSearching,
-                    viewModel = viewModel,
-                    onChatClick = { conversation ->
-                        viewModel.clearSearch()
-                        isSearchActive = false
-                        onChatClick(conversation)
-                    }
-                )
-            } else {
-                // 正常对话列表
-                ConversationsList(
-                    conversations = conversations,
-                    isLoading = isLoading,
-                    viewModel = viewModel,
-                    onChatClick = onChatClick
-                )
+                // 显示搜索结果或对话列表
+                if (isSearchActive && searchQuery.isNotBlank()) {
+                    // 搜索结果
+                    ConversationSearchResultsList(
+                        searchResults = searchResults,
+                        isSearching = isSearching,
+                        viewModel = viewModel,
+                        onChatClick = { conversation ->
+                            viewModel.clearSearch()
+                            isSearchActive = false
+                            onChatClick(conversation)
+                        }
+                    )
+                } else {
+                    // 正常对话列表
+                    ConversationsList(
+                        conversations = conversations,
+                        isLoading = isLoading,
+                        viewModel = viewModel,
+                        onChatClick = onChatClick
+                    )
+                }
             }
         }
     }

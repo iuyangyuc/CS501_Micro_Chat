@@ -54,6 +54,10 @@ class HomeViewModel @Inject constructor(
     // 用户信息缓存：userId -> User
     private val _userCache = MutableStateFlow<Map<String, com.example.cs501_micro_chat.data.model.User>>(emptyMap())
     val userCache: StateFlow<Map<String, com.example.cs501_micro_chat.data.model.User>> = _userCache.asStateFlow()
+    private val _isUsersLoading = MutableStateFlow(false)
+    val isUsersLoading: StateFlow<Boolean> = _isUsersLoading.asStateFlow()
+    private val _isContactsReady = MutableStateFlow(false)
+    val isContactsReady: StateFlow<Boolean> = _isContactsReady.asStateFlow()
 
     // 搜索相关状态
     private val _searchQuery = MutableStateFlow("")
@@ -156,6 +160,7 @@ class HomeViewModel @Inject constructor(
      */
     private fun loadUsersForConversations(conversations: List<Conversation>) {
         viewModelScope.launch {
+            _isUsersLoading.value = true
             try {
                 // 收集所有需要加载的用户 ID
                 val userIds = conversations.flatMap { it.participants }.toSet()
@@ -168,6 +173,7 @@ class HomeViewModel @Inject constructor(
 
                 if (uncachedUserIds.isEmpty()) {
                     Log.d(TAG, "All users already cached")
+                    _isUsersLoading.value = false
                     return@launch
                 }
 
@@ -184,6 +190,8 @@ class HomeViewModel @Inject constructor(
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Error loading users for conversations", e)
+            } finally {
+                _isUsersLoading.value = false
             }
         }
     }
@@ -465,6 +473,7 @@ class HomeViewModel @Inject constructor(
         val userId = auth.currentUser?.uid
         if (userId == null) {
             Log.e(TAG, "User not logged in, cannot load contacts")
+            _isContactsReady.value = true
             return
         }
 
@@ -474,6 +483,7 @@ class HomeViewModel @Inject constructor(
                 val flow = chatRepository.observeContacts()
                 if (flow == null) {
                     Log.e(TAG, "Cannot observe contacts")
+                    _isContactsReady.value = true
                     return@launch
                 }
 
@@ -500,9 +510,12 @@ class HomeViewModel @Inject constructor(
                     // 统计已发送的请求数量（我发给别人的，isPending = true）
                     val sentRequests = contacts.filter { it.isPending && it.type == "PRIVATE" }
                     Log.d(TAG, "Loaded ${sentRequests.size} sent friend requests")
+
+                    _isContactsReady.value = true
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Error loading existing contacts", e)
+                _isContactsReady.value = true
             }
         }
     }
