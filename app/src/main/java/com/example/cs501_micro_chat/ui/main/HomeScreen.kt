@@ -86,7 +86,6 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -110,6 +109,8 @@ import com.example.cs501_micro_chat.data.model.Conversation
 import com.example.cs501_micro_chat.data.model.ConversationType
 import com.example.cs501_micro_chat.data.model.Message
 import com.example.cs501_micro_chat.ui.chat.ChatDetailViewModel
+import com.example.cs501_micro_chat.ui.auth.LanguageOption
+import com.example.cs501_micro_chat.ui.chat.TranslationLanguageChooser
 import com.example.cs501_micro_chat.ui.chat.messageKey
 import com.example.cs501_micro_chat.ui.profile.GroupProfileScreen
 import com.example.cs501_micro_chat.ui.profile.UserProfileScreen
@@ -1079,12 +1080,13 @@ fun ChatDetailContent(
     val currentUserId by viewModel.currentUserId.collectAsStateWithLifecycle()
     val translationStates by viewModel.translationStates.collectAsStateWithLifecycle()
     val voiceTranscriptionStates by viewModel.voiceTranscriptionStates.collectAsStateWithLifecycle()
+    val preferredTranslationLanguage by viewModel.preferredTranslationLanguage.collectAsStateWithLifecycle()
 
     var inputText by remember { mutableStateOf("") }
     var showActionSheet by remember { mutableStateOf(false) }
     var messageAwaitingTranslation by remember { mutableStateOf<Message?>(null) }
-    var selectedLanguage by remember { mutableStateOf("English") }
-    val languageOptions = remember { listOf("English", "Chinese", "French") }
+    var selectedLanguage by remember(preferredTranslationLanguage) { mutableStateOf(preferredTranslationLanguage) }
+    val languageOptions = remember { LanguageOption.entries }
     var textToSpeech by remember { mutableStateOf<TextToSpeech?>(null) }
     var ttsReady by remember { mutableStateOf(false) }
     val actionSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -1456,18 +1458,20 @@ fun ChatDetailContent(
                         items = messages,
                         key = { message -> messageKey(message) }
                     ) { message ->
-                        com.example.cs501_micro_chat.ui.chat.MessageBubble(
-                            message = message,
-                            isSelf = message.senderId == currentUserId,
-                            translationState = translationStates[messageKey(message)],
-                            transcriptionState = voiceTranscriptionStates[messageKey(message)],
-                            onAvatarClick = onAvatarClick,
-                            onTranslateClick = { messageAwaitingTranslation = message },
-                            onPlayClick = { speakMessage(message.content) },
-                            onTranscribeClick = { viewModel.transcribeVoiceMessage(it) }
-                        )
+                            com.example.cs501_micro_chat.ui.chat.MessageBubble(
+                                message = message,
+                                isSelf = message.senderId == currentUserId,
+                                translationState = translationStates[messageKey(message)],
+                                transcriptionState = voiceTranscriptionStates[messageKey(message)],
+                                onAvatarClick = onAvatarClick,
+                                onTranslateClick = { messageAwaitingTranslation = message },
+                                onClearTranslation = { viewModel.clearTranslationFor(it) },
+                                onPlayClick = { speakMessage(message.content) },
+                                onTranscribeClick = { viewModel.transcribeVoiceMessage(it) },
+                                onClearTranscription = { viewModel.clearTranscriptionFor(it) }
+                            )
+                        }
                     }
-                }
             }
         }
 
@@ -1609,36 +1613,17 @@ fun ChatDetailContent(
                         color = secondaryTextColor(),
                         fontSize = 14.sp
                     )
-                    languageOptions.forEach { option ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .selectable(
-                                    selected = selectedLanguage == option,
-                                    onClick = { selectedLanguage = option },
-                                    role = Role.RadioButton
-                                )
-                                .padding(horizontal = 4.dp, vertical = 2.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            RadioButton(
-                                selected = selectedLanguage == option,
-                                onClick = { selectedLanguage = option }
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = option,
-                                color = primaryTextColor(),
-                                fontSize = 14.sp
-                            )
-                        }
-                    }
+                    TranslationLanguageChooser(
+                        options = languageOptions,
+                        selected = selectedLanguage,
+                        onSelect = { selectedLanguage = it }
+                    )
                 }
             },
             confirmButton = {
                 TextButton(
                     onClick = {
-                        viewModel.translateMessage(pendingMessage, selectedLanguage)
+                        viewModel.translateMessage(pendingMessage, selectedLanguage.displayName)
                         messageAwaitingTranslation = null
                     }
                 ) {
