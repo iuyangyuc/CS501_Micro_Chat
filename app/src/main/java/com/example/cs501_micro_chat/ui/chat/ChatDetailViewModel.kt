@@ -17,14 +17,17 @@ import com.example.cs501_micro_chat.data.model.Message
 import com.example.cs501_micro_chat.data.model.MessageStatus
 import com.example.cs501_micro_chat.data.model.MessageType
 import com.example.cs501_micro_chat.data.repository.ChatRepository
+import com.example.cs501_micro_chat.data.preferences.LanguagePreferencesRepository
 import com.example.cs501_micro_chat.data.repository.StorageRepository
 import com.example.cs501_micro_chat.data.repository.TranscriptionRepository
 import com.example.cs501_micro_chat.data.repository.TranslationRepository
+import com.example.cs501_micro_chat.ui.auth.LanguageOption
 import com.google.firebase.auth.FirebaseAuth
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
@@ -40,8 +43,12 @@ data class TranslationResultState(
 
 data class VoiceTranscriptionState(
     val text: String? = null,
+    val translatedText: String? = null,
+    val translatedLanguage: String? = null,
     val isLoading: Boolean = false,
-    val errorMessage: String? = null
+    val isTranslating: Boolean = false,
+    val errorMessage: String? = null,
+    val translationError: String? = null
 )
 
 data class MediaUploadState(
@@ -56,6 +63,7 @@ class ChatDetailViewModel @Inject constructor(
     private val storageRepository: StorageRepository,
     private val transcriptionRepository: TranscriptionRepository,
     private val translationRepository: TranslationRepository,
+    private val languagePreferencesRepository: LanguagePreferencesRepository,
     private val auth: FirebaseAuth
 ) : ViewModel() {
 
@@ -95,11 +103,37 @@ class ChatDetailViewModel @Inject constructor(
     private val _voiceTranscriptionStates = MutableStateFlow<Map<String, VoiceTranscriptionState>>(emptyMap())
     val voiceTranscriptionStates: StateFlow<Map<String, VoiceTranscriptionState>> = _voiceTranscriptionStates.asStateFlow()
 
+    private val _preferredTranslationLanguage = MutableStateFlow(LanguageOption.English)
+    val preferredTranslationLanguage: StateFlow<LanguageOption> = _preferredTranslationLanguage.asStateFlow()
+
+    private val _autoTranslateEnabled = MutableStateFlow(false)
+    val autoTranslateEnabled: StateFlow<Boolean> = _autoTranslateEnabled.asStateFlow()
+
+    private val _suppressedTranslationKeys = MutableStateFlow<Set<String>>(emptySet())
+    private val _suppressedTranscriptionKeys = MutableStateFlow<Set<String>>(emptySet())
+
     // 用户信息缓存：userId -> User
     private val userCache = mutableMapOf<String, com.example.cs501_micro_chat.data.model.User>()
 
     private var currentConversationId: String? = null
     private var initialEmptyJob: Job? = null
+
+    init {
+        viewModelScope.launch {
+            combine(
+                languagePreferencesRepository.translationLanguage,
+                languagePreferencesRepository.autoTranslateEnabled
+            ) { translationLanguage, autoTranslate ->
+                translationLanguage to autoTranslate
+            }.collect { (translationLanguage, autoTranslate) ->
+                _preferredTranslationLanguage.value = translationLanguage
+                _autoTranslateEnabled.value = autoTranslate
+                if (autoTranslate) {
+                    maybeAutoTranslate(_messages.value)
+                }
+            }
+        }
+    }
 
     /**
      * Load conversation messages and listen for real-time updates.
@@ -113,6 +147,8 @@ class ChatDetailViewModel @Inject constructor(
         _isConversationBlocked.value = false
         _translationStates.value = emptyMap()
         _voiceTranscriptionStates.value = emptyMap()
+        _suppressedTranslationKeys.value = emptySet()
+        _suppressedTranscriptionKeys.value = emptySet()
         initialEmptyJob?.cancel()
         initialEmptyJob = null
 
@@ -147,6 +183,8 @@ class ChatDetailViewModel @Inject constructor(
                         _hasLoadedInitial.value = true
                         _isLoading.value = false
                         _error.value = null
+
+                        maybeAutoTranslate(enrichedMessages)
                     }
 
                     // Mark messages as read
@@ -494,6 +532,7 @@ class ChatDetailViewModel @Inject constructor(
         if (message.type != MessageType.TEXT || normalizedTarget.isEmpty()) return
 
         val key = messageKey(message)
+        _suppressedTranslationKeys.update { it - key }
         _translationStates.update { current ->
             current + (key to TranslationResultState(isLoading = true, targetLanguage = normalizedTarget))
         }
@@ -530,26 +569,115 @@ class ChatDetailViewModel @Inject constructor(
         }
     }
 
+    private fun maybeAutoTranslate(messages: List<Message>) {
+        if (!_autoTranslateEnabled.value) return
+        val targetLanguage = _preferredTranslationLanguage.value.displayName
+        val currentUser = _currentUserId.value
+
+        messages.forEach { message ->
+            if (message.type == MessageType.TEXT && message.senderId != currentUser) {
+                val key = messageKey(message)
+                if (_suppressedTranslationKeys.value.contains(key)) return@forEach
+                val existing = _translationStates.value[key]
+                if (existing == null) {
+                    translateMessage(message, targetLanguage)
+                }
+            }
+        }
+    }
+
+    fun clearTranslationFor(message: Message) {
+        val key = messageKey(message)
+        _translationStates.update { current -> current - key }
+        _suppressedTranslationKeys.update { it + key }
+    }
+
+    fun clearTranscriptionFor(message: Message) {
+        val key = messageKey(message)
+        _voiceTranscriptionStates.update { current -> current - key }
+        _suppressedTranscriptionKeys.update { it + key }
+        _suppressedTranslationKeys.update { it + key }
+    }
+
     fun transcribeVoiceMessage(message: Message) {
         if (message.type != MessageType.VOICE || message.mediaUrl.isBlank()) return
         val key = messageKey(message)
 
+        _suppressedTranscriptionKeys.update { it - key }
+        _suppressedTranslationKeys.update { it - key }
         _voiceTranscriptionStates.update { current ->
             current + (key to VoiceTranscriptionState(isLoading = true))
         }
 
         viewModelScope.launch {
             val result = transcriptionRepository.transcribe(message.mediaUrl)
+            val shouldTranslate = _autoTranslateEnabled.value && message.senderId != _currentUserId.value
+            val targetLanguage = _preferredTranslationLanguage.value.displayName
+
             _voiceTranscriptionStates.update { current ->
                 val next = result.fold(
                     onSuccess = { text ->
-                        VoiceTranscriptionState(text = text, isLoading = false, errorMessage = null)
+                        VoiceTranscriptionState(
+                            text = text,
+                            translatedLanguage = if (shouldTranslate) targetLanguage else null,
+                            isLoading = false,
+                            isTranslating = shouldTranslate,
+                            errorMessage = null
+                        )
                     },
                     onFailure = { error ->
-                        VoiceTranscriptionState(text = null, isLoading = false, errorMessage = error.message ?: "Transcription failed")
+                        VoiceTranscriptionState(
+                            text = null,
+                            translatedLanguage = null,
+                            isLoading = false,
+                            isTranslating = false,
+                            errorMessage = "transcription_failed"
+                        )
                     }
                 )
                 current + (key to next)
+            }
+
+            if (result.isSuccess && shouldTranslate && !_suppressedTranslationKeys.value.contains(key)) {
+                val text = result.getOrThrow()
+                val translationResult = translationRepository.translate(
+                    text = text,
+                    targetLanguage = targetLanguage,
+                    sourceLanguage = "auto",
+                    instructions = "Sound professional"
+                )
+
+                _voiceTranscriptionStates.update { current ->
+                    val existing = current[key]
+                    val next = translationResult.fold(
+                        onSuccess = { translated ->
+                            existing?.copy(
+                                translatedText = translated,
+                                isTranslating = false,
+                                translationError = null,
+                                translatedLanguage = targetLanguage
+                            ) ?: VoiceTranscriptionState(
+                                text = text,
+                                translatedText = translated,
+                                translatedLanguage = targetLanguage,
+                                isTranslating = false
+                            )
+                        },
+                        onFailure = { error ->
+                            existing?.copy(
+                                isTranslating = false,
+                                translationError = "translation_failed",
+                                translatedLanguage = targetLanguage
+                            ) ?: VoiceTranscriptionState(
+                                text = text,
+                                isTranslating = false,
+                                translationError = "translation_failed",
+                                translatedLanguage = targetLanguage
+                            )
+                        }
+                    )
+                    current + (key to next)
+                }
             }
         }
     }

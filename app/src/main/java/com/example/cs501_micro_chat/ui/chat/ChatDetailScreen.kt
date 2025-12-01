@@ -20,12 +20,15 @@ import android.net.Uri
 import android.speech.tts.TextToSpeech
 import android.widget.MediaController
 import android.widget.VideoView
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -49,7 +52,6 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -60,6 +62,7 @@ import com.example.cs501_micro_chat.R
 import com.example.cs501_micro_chat.data.model.Message
 import com.example.cs501_micro_chat.data.model.MessageStatus
 import com.example.cs501_micro_chat.data.model.MessageType
+import com.example.cs501_micro_chat.ui.auth.LanguageOption
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -122,12 +125,13 @@ fun ChatDetailScreen(
     val isBlocked by viewModel.isConversationBlocked.collectAsStateWithLifecycle()
     val translationStates by viewModel.translationStates.collectAsStateWithLifecycle()
     val voiceTranscriptionStates by viewModel.voiceTranscriptionStates.collectAsStateWithLifecycle()
+    val preferredTranslationLanguage by viewModel.preferredTranslationLanguage.collectAsStateWithLifecycle()
 
     var inputText by remember { mutableStateOf("") }
     var showAttachmentMenu by remember { mutableStateOf(false) }
     var messageAwaitingTranslation by remember { mutableStateOf<Message?>(null) }
-    var selectedLanguage by remember { mutableStateOf("English") }
-    val languageOptions = remember { listOf("English", "Chinese", "French") }
+    var selectedLanguage by remember(preferredTranslationLanguage) { mutableStateOf(preferredTranslationLanguage) }
+    val languageOptions = remember { LanguageOption.entries }
 
     val context = LocalContext.current
     var textToSpeech by remember { mutableStateOf<TextToSpeech?>(null) }
@@ -483,8 +487,10 @@ fun ChatDetailScreen(
                                     transcriptionState = voiceTranscriptionStates[messageKey(message)],
                                     onAvatarClick = {},
                                     onTranslateClick = { messageAwaitingTranslation = message },
+                                    onClearTranslation = { viewModel.clearTranslationFor(it) },
                                     onPlayClick = { speakMessage(message.content) },
-                                    onTranscribeClick = { viewModel.transcribeVoiceMessage(it) }
+                                    onTranscribeClick = { viewModel.transcribeVoiceMessage(it) },
+                                    onClearTranscription = { viewModel.clearTranscriptionFor(it) }
                                 )
                             }
                         }
@@ -516,36 +522,17 @@ fun ChatDetailScreen(
                         color = chatSecondaryTextColor(),
                         fontSize = 14.sp
                     )
-                    languageOptions.forEach { option ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .selectable(
-                                    selected = selectedLanguage == option,
-                                    onClick = { selectedLanguage = option },
-                                    role = Role.RadioButton
-                                )
-                                .padding(horizontal = 4.dp, vertical = 2.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            RadioButton(
-                                selected = selectedLanguage == option,
-                                onClick = { selectedLanguage = option }
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = option,
-                                color = chatPrimaryTextColor(),
-                                fontSize = 14.sp
-                            )
-                        }
-                    }
+                    TranslationLanguageChooser(
+                        options = languageOptions,
+                        selected = selectedLanguage,
+                        onSelect = { selectedLanguage = it }
+                    )
                 }
             },
             confirmButton = {
                 TextButton(
                     onClick = {
-                        viewModel.translateMessage(pendingMessage, selectedLanguage)
+                        viewModel.translateMessage(pendingMessage, selectedLanguage.displayName)
                         messageAwaitingTranslation = null
                     }
                 ) {
@@ -582,6 +569,7 @@ private fun RemovalBanner() {
 /**
  * Message bubble component (Based on Figma design)
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 internal fun MessageBubble(
     message: Message,
@@ -590,8 +578,10 @@ internal fun MessageBubble(
     transcriptionState: VoiceTranscriptionState? = null,
     onAvatarClick: (String) -> Unit = {},
     onTranslateClick: (Message) -> Unit = {},
+    onClearTranslation: (Message) -> Unit = {},
     onPlayClick: (Message) -> Unit = {},
-    onTranscribeClick: (Message) -> Unit = {}
+    onTranscribeClick: (Message) -> Unit = {},
+    onClearTranscription: (Message) -> Unit = {}
 ) {
     val isTextMessage = message.type == MessageType.TEXT
     val isVoiceMessage = message.type == MessageType.VOICE
@@ -639,7 +629,10 @@ internal fun MessageBubble(
             Box {
                 Surface(
                     modifier = if (isTextMessage || isVoiceMessage) {
-                        Modifier.clickable { showActionMenu = true }
+                        Modifier.combinedClickable(
+                            onClick = { showActionMenu = true },
+                            onDoubleClick = { showActionMenu = true }
+                        )
                     } else {
                         Modifier
                     },
@@ -693,7 +686,7 @@ internal fun MessageBubble(
 
                                         state.errorMessage != null -> {
                                             Text(
-                                                text = state.errorMessage,
+                                                text = stringResource(R.string.translate_status_failed),
                                                 color = MaterialTheme.colorScheme.error,
                                                 fontSize = 13.sp
                                             )
@@ -769,7 +762,7 @@ internal fun MessageBubble(
 
                                         state.errorMessage != null -> {
                                             Text(
-                                                text = state.errorMessage,
+                                                text = stringResource(R.string.transcribe_status_failed),
                                                 color = MaterialTheme.colorScheme.error,
                                                 fontSize = 13.sp,
                                                 modifier = Modifier.padding(horizontal = 12.dp)
@@ -777,13 +770,57 @@ internal fun MessageBubble(
                                         }
 
                                         state.text != null -> {
+                                            val baseColor = if (isSelf) Color.White else chatSecondaryTextColor()
                                             val label = stringResource(R.string.transcribe_result_label)
-                                            Text(
-                                                text = "$label ${state.text}",
-                                                color = if (isSelf) Color.White else chatSecondaryTextColor(),
-                                                fontSize = 13.sp,
+                                            Column(
+                                                verticalArrangement = Arrangement.spacedBy(4.dp),
                                                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
-                                            )
+                                            ) {
+                                                Text(
+                                                    text = "$label ${state.text}",
+                                                    color = baseColor,
+                                                    fontSize = 13.sp
+                                                )
+
+                                                when {
+                                                    state.isTranslating -> {
+                                                        Row(
+                                                            verticalAlignment = Alignment.CenterVertically,
+                                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                                        ) {
+                                                            CircularProgressIndicator(
+                                                                modifier = Modifier.size(12.dp),
+                                                                strokeWidth = 2.dp,
+                                                                color = if (isSelf) Color.White else PrimaryBlue
+                                                            )
+                                                            Text(
+                                                                text = stringResource(R.string.translate_status_loading),
+                                                                color = baseColor,
+                                                                fontSize = 12.sp
+                                                            )
+                                                        }
+                                                    }
+
+                                                    state.translationError != null -> {
+                                                        Text(
+                                                            text = stringResource(R.string.translate_status_failed),
+                                                            color = MaterialTheme.colorScheme.error,
+                                                            fontSize = 12.sp
+                                                        )
+                                                    }
+
+                                                    state.translatedText != null -> {
+                                                        val translatedLabel = state.translatedLanguage?.let { lang ->
+                                                            stringResource(R.string.translate_result_label, lang)
+                                                        } ?: stringResource(R.string.translate_result_fallback_label)
+                                                        Text(
+                                                            text = "$translatedLabel: ${state.translatedText}",
+                                                            color = baseColor,
+                                                            fontSize = 12.sp
+                                                        )
+                                                    }
+                                                }
+                                            }
                                         }
                                     }
                                 }
@@ -809,8 +846,17 @@ internal fun MessageBubble(
                         onDismissRequest = { showActionMenu = false }
                     ) {
                         if (isTextMessage) {
+                            val hasTranslation = translationState != null
                             DropdownMenuItem(
-                                text = { Text(text = stringResource(R.string.translate_menu_action)) },
+                                text = {
+                                    Text(
+                                        text = if (hasTranslation) {
+                                            stringResource(R.string.translate_menu_hide)
+                                        } else {
+                                            stringResource(R.string.translate_menu_action)
+                                        }
+                                    )
+                                },
                                 leadingIcon = {
                                     Icon(
                                         imageVector = Icons.Default.Language,
@@ -819,7 +865,11 @@ internal fun MessageBubble(
                                 },
                                 onClick = {
                                     showActionMenu = false
-                                    onTranslateClick(message)
+                                    if (hasTranslation) {
+                                        onClearTranslation(message)
+                                    } else {
+                                        onTranslateClick(message)
+                                    }
                                 }
                             )
                             DropdownMenuItem(
@@ -838,8 +888,17 @@ internal fun MessageBubble(
                         }
 
                         if (isVoiceMessage) {
+                            val hasTranscription = transcriptionState != null
                             DropdownMenuItem(
-                                text = { Text(text = stringResource(R.string.transcribe_menu_action)) },
+                                text = {
+                                    Text(
+                                        text = if (hasTranscription) {
+                                            stringResource(R.string.transcribe_menu_hide)
+                                        } else {
+                                            stringResource(R.string.transcribe_menu_action)
+                                        }
+                                    )
+                                },
                                 leadingIcon = {
                                     Icon(
                                         imageVector = Icons.Default.Article,
@@ -848,7 +907,11 @@ internal fun MessageBubble(
                                 },
                                 onClick = {
                                     showActionMenu = false
-                                    onTranscribeClick(message)
+                                    if (hasTranscription) {
+                                        onClearTranscription(message)
+                                    } else {
+                                        onTranscribeClick(message)
+                                    }
                                 }
                             )
                         }
@@ -917,6 +980,51 @@ internal fun MessageBubble(
                     )
                 }
             }
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+fun TranslationLanguageChooser(
+    options: List<LanguageOption>,
+    selected: LanguageOption,
+    onSelect: (LanguageOption) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    FlowRow(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        options.forEach { option ->
+            FilterChip(
+                selected = option == selected,
+                onClick = { onSelect(option) },
+                label = {
+                    Column {
+                        Text(
+                            text = option.displayName,
+                            fontWeight = if (option == selected) FontWeight.SemiBold else FontWeight.Normal,
+                            fontSize = 14.sp
+                        )
+                        Text(
+                            text = option.languageTag.uppercase(Locale.ROOT),
+                            fontSize = 12.sp,
+                            color = chatSecondaryTextColor()
+                        )
+                    }
+                },
+                leadingIcon = if (option == selected) {
+                    {
+                        Icon(
+                            imageVector = Icons.Filled.Check,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                } else null
+            )
         }
     }
 }
