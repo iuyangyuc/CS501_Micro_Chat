@@ -144,6 +144,12 @@ app/src/main/java/com/example/cs501_micro_chat/
 4. Follow `DEPENDENCIES_SETUP.md` for library configuration, then sync Gradle.
 5. Run `./gradlew :app:assembleDebug` or use Android Studio to install on a device or emulator.
 
+## Test Strategy
+
+- **Android UI**: Instrumented Compose tests live under `app/src/androidTest/`. Current coverage focuses on the signup flow (error banner dismissal, loading states, input plumbing). Run on an attached device/emulator with `./gradlew :app:connectedAndroidTest` (or `:app:compileDebugAndroidTestKotlin` for a quick compile check).
+- **Backend (Java)**: Unit tests for the translation server helpers live in `backend_java/src/test/`. They validate prompt construction, JSON parsing, and error wrapping. Execute with `mvn -f backend_java/pom.xml test`.
+- **When to run**: Run backend tests after changes to translation prompt logic; run Android UI tests after modifying Compose signup UI or authentication flows. Prefer emulator API 34+ to match the project setup.
+
 ## Documentation
 
 - `FIREBASE_STRUCTURE.md` – Firestore schema and collection layout.
