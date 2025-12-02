@@ -30,24 +30,26 @@ class UserProfileViewModel @Inject constructor(
 
     private val initialUserId: String? = savedStateHandle["userId"]
     private val currentUserId: String? = savedStateHandle["currentUserId"]
+    private val initialConversationId: String? = savedStateHandle["conversationId"]
 
     init {
         initialUserId?.let { loadProfile(it) }
     }
 
     fun loadProfile(userId: String) {
+        val initialConversationId = initialConversationId.orEmpty()
         viewModelScope.launch {
             _uiState.update {
                 it.copy(
                     isLoading = true,
                     errorMessage = null,
                     userId = userId,
-                    conversationId = "",
+                    conversationId = initialConversationId,
                     alias = "",
                     aliasInput = "",
                     canEditAlias = false,
                     isAliasEditing = false,
-                    canPin = false,
+                    canPin = initialConversationId.isNotBlank(),
                     isPinned = false,
                     isPinUpdating = false,
                     contactFavorite = false,
@@ -78,7 +80,12 @@ class UserProfileViewModel @Inject constructor(
 
             chatRepository.getContact(userId).onSuccess { contact ->
                 val alias = contact?.alias?.trim().orEmpty()
-                val conversationId = contact?.conversationId.orEmpty()
+                val conversationIdFromContact = contact?.conversationId.orEmpty()
+                val conversationId = if (conversationIdFromContact.isNotBlank()) {
+                    conversationIdFromContact
+                } else {
+                    initialConversationId
+                }
                 val canPin = conversationId.isNotBlank()
                 val favorite = contact?.isFavorite == true
                 _uiState.update { state ->
@@ -105,26 +112,41 @@ class UserProfileViewModel @Inject constructor(
     }
 
     fun startChat() {
-        val userId = _uiState.value.userId
-        if (userId.isBlank()) return
+        val current = _uiState.value
+        val userId = current.userId
+        if (userId.isBlank() || current.isChatting) return
+
+        val preferredName = current.alias.takeIf { it.isNotBlank() } ?: current.originalName.ifBlank { current.displayName }
+        if (current.conversationId.isNotBlank()) {
+            viewModelScope.launch {
+                _events.send(
+                    UserProfileEvent.OpenChat(
+                        conversationId = current.conversationId,
+                        displayName = preferredName,
+                        avatarUrl = current.avatarUrl
+                    )
+                )
+            }
+            return
+        }
+
         viewModelScope.launch {
             _uiState.update { it.copy(isChatting = true, errorMessage = null) }
-            val result = chatRepository.createOrGetPrivateConversation(userId)
-            result.onSuccess { conversation ->
+            chatRepository.createOrGetPrivateConversation(userId).onSuccess { conversation ->
                 val convo = conversation ?: return@onSuccess
-                val preferredName = _uiState.value.alias.takeIf { it.isNotBlank() } ?: _uiState.value.originalName
+                val displayName = preferredName.ifBlank { convo.name.ifBlank { _uiState.value.displayName } }
                 _events.send(
                     UserProfileEvent.OpenChat(
                         conversationId = convo.id,
-                        displayName = preferredName.ifBlank { convo.name.ifBlank { _uiState.value.displayName } },
+                        displayName = displayName,
                         avatarUrl = convo.avatarUrl
                     )
                 )
                 _uiState.update { it.copy(conversationId = convo.id, canPin = true) }
                 refreshPinnedState(convo.id)
             }.onFailure { error ->
-                    _events.send(UserProfileEvent.ShowError(error.message ?: "Failed to start chat"))
-                }
+                _events.send(UserProfileEvent.ShowError(error.message ?: "Failed to start chat"))
+            }
             _uiState.update { it.copy(isChatting = false) }
         }
     }

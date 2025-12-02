@@ -129,11 +129,19 @@ fun GroupProfileScreen(
             if (state.isLoading) {
                 CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
             } else {
+                val openChat: () -> Unit = {
+                    val conversationId = state.conversationId
+                    if (conversationId.isNotBlank()) {
+                        onStartChat(conversationId, state.name, state.avatarUrl)
+                    } else {
+                        viewModel.startChat()
+                    }
+                }
                 GroupProfileContent(
                     state = state,
                     onNameChange = viewModel::onNameChange,
                     onSaveName = viewModel::saveName,
-                    onStartChat = viewModel::startChat,
+                    onStartChat = openChat,
                     onSearchHistory = viewModel::searchHistory,
                     onTogglePinned = viewModel::togglePinned,
                     onClearHistory = viewModel::clearHistory,
@@ -248,7 +256,7 @@ private fun GroupProfileContent(
             },
             isPinned = state.isPinned,
             enabled = state.canPin && !state.isRemoved,
-            isLoading = false,
+            isLoading = state.isPinUpdating,
             onToggle = onTogglePinned
         )
 
@@ -279,15 +287,15 @@ private fun GroupProfileContent(
                     icon = Icons.Outlined.Clear,
                     label = stringResource(R.string.user_profile_clear_history),
                     onClick = onClearHistory,
-                    enabled = !state.isRemoved && state.conversationId.isNotBlank()
+                    enabled = !state.isRemoved && state.conversationId.isNotBlank(),
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant
                 )
                 ActionButton(
                     icon = Icons.Filled.Delete,
                     label = if (state.isLeaving) stringResource(R.string.group_profile_leaving) else stringResource(R.string.group_profile_leave),
                     onClick = onLeaveGroup,
                     enabled = !state.isLeaving && !state.isRemoved,
-                    containerColor = MaterialTheme.colorScheme.error,
-                    contentColor = MaterialTheme.colorScheme.onError
+                    containerColor = Color(0xFFEF4444)
                 )
             }
         }
@@ -439,8 +447,8 @@ private fun ActionButton(
     label: String,
     onClick: () -> Unit,
     enabled: Boolean = true,
-    containerColor: Color = MaterialTheme.colorScheme.surfaceVariant,
-    contentColor: Color = MaterialTheme.colorScheme.onSurface
+    containerColor: Color = MaterialTheme.colorScheme.primary,
+    contentColor: Color = MaterialTheme.colorScheme.onPrimary
 ) {
     Button(
         onClick = onClick,
