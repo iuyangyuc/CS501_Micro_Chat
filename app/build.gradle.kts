@@ -21,6 +21,17 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        buildConfigField(
+            "String",
+            "TRANSLATION_BASE_URL",
+            "\"https://cs501-micro-chat-728068207217.us-east4.run.app\""
+        )
+        buildConfigField(
+            "String",
+            "TRANSCRIPTION_BASE_URL",
+            "\"https://cs501-micro-chat-728068207217.us-east4.run.app\""
+        )
     }
 
     buildTypes {
@@ -40,6 +51,7 @@ android {
         jvmTarget = "11"
     }
     buildFeatures {
+        buildConfig = true
         compose = true
     }
 }

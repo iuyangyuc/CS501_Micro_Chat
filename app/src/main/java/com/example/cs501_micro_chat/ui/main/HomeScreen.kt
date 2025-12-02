@@ -24,12 +24,14 @@ package com.example.cs501_micro_chat.ui.main
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.media.MediaMetadataRetriever
 import android.media.MediaRecorder
 import android.net.Uri
 import android.os.SystemClock
 import android.speech.tts.TextToSpeech
 import android.util.Log
 import android.webkit.MimeTypeMap
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -1195,9 +1197,42 @@ fun ChatDetailContent(
         }
     }
 
+    fun readDurationMillis(uri: Uri): Long? {
+        // Try direct read via content resolver
+        val direct = runCatching {
+            val retriever = MediaMetadataRetriever()
+            try {
+                retriever.setDataSource(context, uri)
+                retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull()
+            } finally {
+                retriever.release()
+            }
+        }.getOrNull()
+        if (direct != null) return direct
+
+        // Fallback: copy to temp file then read
+        return runCatching {
+            val temp = File.createTempFile("voice_meta_", ".tmp", context.cacheDir)
+            context.contentResolver.openInputStream(uri)?.use { input ->
+                temp.outputStream().use { output ->
+                    input.copyTo(output)
+                }
+            } ?: return null
+            val retriever = MediaMetadataRetriever()
+            try {
+                retriever.setDataSource(temp.absolutePath)
+                retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull()
+            } finally {
+                retriever.release()
+                temp.delete()
+            }
+        }.getOrNull()
+    }
+
     fun handlePickedFile(uri: Uri) {
         coroutineScope.launch {
             val (mimeType, extension) = resolveMimeType(uri, "application/octet-stream")
+            val durationGuess = readDurationMillis(uri) ?: 1000L
             val bytes = withContext(Dispatchers.IO) {
                 contentResolver.openInputStream(uri)?.use { it.readBytes() }
             } ?: return@launch
@@ -1207,7 +1242,7 @@ fun ChatDetailContent(
                     viewModel.uploadVoiceMessage(
                         conversationId = conversationId,
                         audioBytes = bytes,
-                        durationMillis = 1000L,
+                        durationMillis = durationGuess,
                         mimeType = mimeType,
                         extension = extension
                     )
@@ -1216,7 +1251,7 @@ fun ChatDetailContent(
                     viewModel.uploadVoiceMessage(
                         conversationId = conversationId,
                         audioBytes = bytes,
-                        durationMillis = 1000L,
+                        durationMillis = durationGuess,
                         mimeType = mimeType,
                         extension = extension
                     )
@@ -1225,7 +1260,7 @@ fun ChatDetailContent(
                     viewModel.uploadVoiceMessage(
                         conversationId = conversationId,
                         audioBytes = bytes,
-                        durationMillis = 1000L,
+                        durationMillis = durationGuess,
                         mimeType = mimeType,
                         extension = extension
                     )
@@ -1889,7 +1924,7 @@ fun ConversationListItem(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = conversation.lastMessage,
+                    text = formatLastMessagePreview(conversation.lastMessage),
                     color = secondaryTextColor(),
                     fontSize = 14.sp,
                     maxLines = 1,
@@ -1900,6 +1935,36 @@ fun ConversationListItem(
             }
         }
     }
+}
+
+@Composable
+private fun formatLastMessagePreview(lastMessage: String): String {
+    val imageLabel = stringResource(R.string.last_message_image)
+    val videoLabel = stringResource(R.string.last_message_video)
+    val voiceSeconds = extractVoiceSeconds(lastMessage)
+
+    return when {
+        lastMessage.equals("IMAGE", ignoreCase = true) ||
+            lastMessage.contains("图片") -> imageLabel
+        lastMessage.equals("VIDEO", ignoreCase = true) ||
+            lastMessage.contains("视频") -> videoLabel
+        lastMessage.startsWith("VOICE_", ignoreCase = true) -> {
+            voiceSeconds?.let { stringResource(R.string.last_message_voice, it) }
+                ?: stringResource(R.string.last_message_voice_no_duration)
+        }
+        lastMessage.contains("语音消息") || lastMessage.contains("voice", ignoreCase = true) -> {
+            voiceSeconds?.let { stringResource(R.string.last_message_voice, it) }
+                ?: stringResource(R.string.last_message_voice_no_duration)
+        }
+        else -> lastMessage
+    }
+}
+
+private fun extractVoiceSeconds(text: String): String? {
+    val regex = Regex("(\\d+)\\s*s", RegexOption.IGNORE_CASE)
+    regex.find(text)?.groupValues?.getOrNull(1)?.let { return it }
+    val digits = text.filter { it.isDigit() }
+    return digits.takeIf { it.isNotBlank() }
 }
 
 /**

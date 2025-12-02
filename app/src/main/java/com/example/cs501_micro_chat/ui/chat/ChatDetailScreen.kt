@@ -125,6 +125,7 @@ fun ChatDetailScreen(
     val isBlocked by viewModel.isConversationBlocked.collectAsStateWithLifecycle()
     val translationStates by viewModel.translationStates.collectAsStateWithLifecycle()
     val voiceTranscriptionStates by viewModel.voiceTranscriptionStates.collectAsStateWithLifecycle()
+    val snackbarHostState = remember { SnackbarHostState() }
     val preferredTranslationLanguage by viewModel.preferredTranslationLanguage.collectAsStateWithLifecycle()
 
     var inputText by remember { mutableStateOf("") }
@@ -156,6 +157,12 @@ fun ChatDetailScreen(
         }
     }
 
+    LaunchedEffect(Unit) {
+        viewModel.uiMessages.collect { message ->
+            snackbarHostState.showSnackbar(message)
+        }
+    }
+
     fun speakMessage(text: String) {
         if (text.isBlank() || !ttsReady) return
         textToSpeech?.speak(
@@ -174,6 +181,7 @@ fun ChatDetailScreen(
     }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             Surface(
                 color = Color.Transparent
@@ -1113,18 +1121,46 @@ private fun VoiceMessageBubble(
             )
         }
         Column(modifier = Modifier.weight(1f)) {
+            val durationLabel = formatVoiceLabel(content)
             Text(
                 text = stringResource(R.string.voice_message_label),
                 color = textColor,
                 fontSize = 15.sp
             )
             Text(
-                text = content.ifBlank { "" },
+                text = durationLabel,
                 color = secondaryColor,
                 fontSize = 12.sp
             )
         }
     }
+}
+
+@Composable
+private fun formatVoiceLabel(raw: String): String {
+    val seconds = extractVoiceSecondsFromContent(raw)
+
+    return seconds?.let { secs ->
+        stringResource(R.string.last_message_voice, secs)
+    } ?: stringResource(R.string.last_message_voice_no_duration)
+}
+
+private fun extractVoiceSecondsFromContent(raw: String): String? {
+    // Match VOICE_12s token
+    raw.removePrefix("VOICE_")
+        .removePrefix("voice_")
+        .removeSuffix("s")
+        .trim()
+        .takeIf { it.all { ch -> ch.isDigit() } }
+        ?.let { return it }
+
+    // Match any "{number}s" pattern
+    val regex = Regex("(\\d+)\\s*s", RegexOption.IGNORE_CASE)
+    regex.find(raw)?.groupValues?.getOrNull(1)?.let { return it }
+
+    // Fallback: extract first digit run anywhere
+    val digits = raw.filter { it.isDigit() }
+    return digits.takeIf { it.isNotBlank() }
 }
 
 @Composable

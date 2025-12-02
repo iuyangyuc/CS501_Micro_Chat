@@ -126,6 +126,10 @@
     <string name="action_sheet_photos">Photos</string>
     <string name="action_sheet_video">Video</string>
     <string name="action_sheet_voice">Voice</string>
+    <string name="last_message_image">[Image]</string>
+    <string name="last_message_video">[Video]</string>
+    <string name="last_message_voice">Voice(%1$ss)</string>
+    <string name="last_message_voice_no_duration">Voice</string>
     <string name="voice_message_label">Voice message</string>
     <string name="voice_recording_hint">Recording... tap stop to send</string>
     <string name="voice_recording_stop">Stop</string>

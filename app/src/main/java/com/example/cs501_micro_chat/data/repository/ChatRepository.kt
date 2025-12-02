@@ -110,7 +110,12 @@ class ChatRepository @Inject constructor(
             status = if (isBlocked) MessageStatus.FAILED else MessageStatus.SENT
         )
 
-        return firebaseDataSource.sendMessage(message)
+        return runCatching {
+            Log.d("ChatRepository", "sendMessage convo=$conversationId type=${type.name} media=${mediaUrl.isNotBlank()}")
+            firebaseDataSource.sendMessage(message).getOrThrow()
+        }.onFailure {
+            Log.e("ChatRepository", "sendMessage failed convo=$conversationId type=${type.name}", it)
+        }
     }
 
     /**

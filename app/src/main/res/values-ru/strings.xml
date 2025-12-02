@@ -111,6 +111,16 @@
     <string name="content_description_send">Отправить сообщение</string>
     <string name="content_description_close">Закрыть</string>
     <string name="content_description_attachment">Добавить вложение</string>
+    <string name="action_sheet_file">Файл</string>
+    <string name="action_sheet_photos">Фото</string>
+    <string name="action_sheet_video">Видео</string>
+    <string name="action_sheet_voice">Голос</string>
+    <string name="last_message_image">[Изображение]</string>
+    <string name="last_message_video">[Видео]</string>
+    <string name="last_message_voice">Голос(%1$ss)</string>
+    <string name="last_message_voice_no_duration">Голос</string>
+    <string name="voice_recording_hint">Запись... нажмите стоп, чтобы отправить</string>
+    <string name="voice_recording_stop">Стоп</string>
     <string name="content_description_search">Поиск</string>
     <string name="content_description_avatar">Аватар %s</string>
     <string name="content_description_my_avatar">Мой аватар</string>

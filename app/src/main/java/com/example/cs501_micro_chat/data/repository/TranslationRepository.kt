@@ -1,5 +1,7 @@
 package com.example.cs501_micro_chat.data.repository
 
+import android.util.Log
+import com.example.cs501_micro_chat.BuildConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
@@ -12,7 +14,8 @@ import javax.inject.Singleton
 @Singleton
 class TranslationRepository @Inject constructor() {
 
-    private val endpoint = "https://cs501-micro-chat-728068207217.us-east4.run.app/translate"
+    private val endpoint: String = "${BuildConfig.TRANSLATION_BASE_URL.trimEnd('/')}/translate"
+    private val tag = "TranslationRepository"
 
     suspend fun translate(
         text: String,
@@ -21,6 +24,7 @@ class TranslationRepository @Inject constructor() {
         instructions: String = "Sound professional"
     ): Result<String> = withContext(Dispatchers.IO) {
         runCatching {
+            Log.d(tag, "translate start target=$targetLanguage len=${text.length}")
             val payload = JSONObject().apply {
                 put("text", text)
                 put("targetLanguage", targetLanguage)
@@ -45,6 +49,7 @@ class TranslationRepository @Inject constructor() {
                 }
 
                 val code = connection.responseCode
+                Log.d(tag, "translate responseCode=$code")
                 val responseText = (if (code in 200..299) connection.inputStream else connection.errorStream)
                     ?.bufferedReader()
                     ?.use { it.readText() }
@@ -59,10 +64,13 @@ class TranslationRepository @Inject constructor() {
                 if (translation.isNullOrBlank()) {
                     throw IOException("Translation service returned empty content")
                 }
+                Log.d(tag, "translate success target=$targetLanguage")
                 translation
             } finally {
                 connection.disconnect()
             }
         }
+    }.onFailure { error ->
+        Log.e(tag, "translate failed target=$targetLanguage reason=${error.message}", error)
     }
 }
