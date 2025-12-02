@@ -265,11 +265,11 @@ fun HomeScreen(
                             onProfileClick = {
                                 when (conversationType) {
                                     ConversationType.PRIVATE -> if (otherUserId.isNotBlank()) {
-                                        navController.navigate("$USER_PROFILE_ROUTE/$otherUserId")
+                                        navController.navigate("$USER_PROFILE_ROUTE/$otherUserId?conversationId=$convoId&source=chat")
                                     }
 
-                                    ConversationType.GROUP -> if (convoId.isNotBlank()) {
-                                        navController.navigate("$GROUP_PROFILE_ROUTE/$convoId")
+                                ConversationType.GROUP -> if (convoId.isNotBlank()) {
+                                        navController.navigate("$GROUP_PROFILE_ROUTE/$convoId?source=chat")
                                     }
 
                                     else -> {}
@@ -370,16 +370,16 @@ fun HomeScreen(
                         viewModel = contactsViewModel,
                         onContactClick = { contact ->
                             if (contact.isGroup() && contact.conversationId.isNotBlank()) {
-                                navController.navigate("$GROUP_PROFILE_ROUTE/${contact.conversationId}")
+                                navController.navigate("$GROUP_PROFILE_ROUTE/${contact.conversationId}?source=contacts")
                             } else if (!contact.isGroup() && contact.contactId.isNotBlank()) {
-                                navController.navigate("$USER_PROFILE_ROUTE/${contact.contactId}")
+                                navController.navigate("$USER_PROFILE_ROUTE/${contact.contactId}?conversationId=${contact.conversationId}&source=contacts")
                             }
                         },
                         onAvatarClick = { contact ->
                             if (contact.isGroup() && contact.conversationId.isNotBlank()) {
-                                navController.navigate("$GROUP_PROFILE_ROUTE/${contact.conversationId}")
+                                navController.navigate("$GROUP_PROFILE_ROUTE/${contact.conversationId}?source=contacts")
                             } else if (!contact.isGroup() && contact.contactId.isNotBlank()) {
-                                navController.navigate("$USER_PROFILE_ROUTE/${contact.contactId}")
+                                navController.navigate("$USER_PROFILE_ROUTE/${contact.contactId}?conversationId=${contact.conversationId}&source=contacts")
                             }
                         }
                     )
@@ -466,28 +466,41 @@ fun HomeScreen(
                     ChatDetailContent(
                         conversationId = conversationId,
                         onAvatarClick = { userId ->
-                            navController.navigate("$USER_PROFILE_ROUTE/$userId")
+                            navController.navigate("$USER_PROFILE_ROUTE/$userId?conversationId=$conversationId&source=chat")
                         }
                     )
                 }
 
                 composable(
-                    route = "$GROUP_PROFILE_ROUTE/{conversationId}",
-                    arguments = listOf(navArgument("conversationId") { type = NavType.StringType })
+                    route = "$GROUP_PROFILE_ROUTE/{conversationId}?source={source}",
+                    arguments = listOf(
+                        navArgument("conversationId") { type = NavType.StringType },
+                        navArgument("source") {
+                            type = NavType.StringType
+                            defaultValue = ""
+                        }
+                    )
                 ) { backStackEntry ->
                     val conversationId = backStackEntry.arguments?.getString("conversationId") ?: return@composable
+                    val sourceArg = backStackEntry.arguments?.getString("source").orEmpty()
+                    val onStartChatHandler: (String, String, String) -> Unit =
+                        if (sourceArg == "chat") {
+                            { _, _, _ -> navController.popBackStack() }
+                        } else {
+                            { convoId, name, avatar ->
+                                val encodedName = URLEncoder.encode(name, StandardCharsets.UTF_8.toString())
+                                val encodedAvatar = URLEncoder.encode(avatar, StandardCharsets.UTF_8.toString())
+                                navController.navigate("chat_detail/$convoId/$encodedName/$encodedAvatar") {
+                                    popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                                    launchSingleTop = true
+                                    restoreState = true
+                                }
+                            }
+                        }
                     GroupProfileScreen(
                         conversationId = conversationId,
                         onBack = { navController.popBackStack() },
-                        onStartChat = { convoId, name, avatar ->
-                            val encodedName = URLEncoder.encode(name, StandardCharsets.UTF_8.toString())
-                            val encodedAvatar = URLEncoder.encode(avatar, StandardCharsets.UTF_8.toString())
-                            navController.navigate("chat_detail/$convoId/$encodedName/$encodedAvatar") {
-                                popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                                launchSingleTop = true
-                                restoreState = true
-                            }
-                        },
+                        onStartChat = onStartChatHandler,
                         onLeftGroup = { navController.popBackStack() },
                         onOpenSearch = { /* TODO: hook up search history */ },
                         onMemberClick = { userId ->
@@ -500,22 +513,45 @@ fun HomeScreen(
                 }
 
                 composable(
-                    route = "$USER_PROFILE_ROUTE/{userId}",
-                    arguments = listOf(navArgument("userId") { type = NavType.StringType })
+                    route = "$USER_PROFILE_ROUTE/{userId}?conversationId={conversationId}&source={source}",
+                    arguments = listOf(
+                        navArgument("userId") { type = NavType.StringType },
+                        navArgument("conversationId") {
+                            type = NavType.StringType
+                            defaultValue = ""
+                        },
+                        navArgument("source") {
+                            type = NavType.StringType
+                            defaultValue = ""
+                        }
+                    )
                 ) { backStackEntry ->
                     val userId = backStackEntry.arguments?.getString("userId") ?: return@composable
-                    UserProfileScreen(
-                        userId = userId,
-                        onBack = { navController.popBackStack() },
-                        onStartChat = { conversationId, name, avatarUrl ->
-                            val encodedName = URLEncoder.encode(name, StandardCharsets.UTF_8.toString())
-                            val encodedAvatar = URLEncoder.encode(avatarUrl, StandardCharsets.UTF_8.toString())
-                            navController.navigate("chat_detail/$conversationId/$encodedName/$encodedAvatar") {
+                    val conversationIdArg = backStackEntry.arguments?.getString("conversationId").orEmpty()
+                    val sourceArg = backStackEntry.arguments?.getString("source").orEmpty()
+                    val onBackHandler: () -> Unit = {
+                        val popped = navController.popBackStack()
+                        if (!popped && sourceArg == "contacts") {
+                            navController.navigate(HomeDestination.Contacts.route) {
                                 popUpTo(navController.graph.findStartDestination().id) { saveState = true }
                                 launchSingleTop = true
                                 restoreState = true
                             }
-                        },
+                        }
+                    }
+                    val startChatHandler: (String, String, String) -> Unit = { conversationId, name, avatarUrl ->
+                        val encodedName = URLEncoder.encode(name, StandardCharsets.UTF_8.toString())
+                        val encodedAvatar = URLEncoder.encode(avatarUrl, StandardCharsets.UTF_8.toString())
+                        navController.navigate("chat_detail/$conversationId/$encodedName/$encodedAvatar") {
+                            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    }
+                    UserProfileScreen(
+                        userId = userId,
+                        onBack = onBackHandler,
+                        onStartChat = startChatHandler,
                         onSearchHistory = { /* TODO: open chat history search */ },
                         onDeleted = { navController.popBackStack() }
                     )
