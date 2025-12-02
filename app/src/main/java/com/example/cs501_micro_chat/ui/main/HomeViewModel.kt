@@ -391,12 +391,18 @@ class HomeViewModel @Inject constructor(
         if (trimmed.isEmpty()) return Result.failure(Exception("Group name cannot be empty"))
         val creatorId = auth.currentUser?.uid ?: return Result.failure(Exception("User not logged in"))
 
-        val groupResult = chatRepository.createGroup(
-            name = trimmed,
-            description = "",
-            avatarUrl = "",
-            memberIds = memberIds
-        )
+        Log.d(TAG, "createGroup start name=$trimmed members=${memberIds.size}")
+
+        val groupResult = runCatching {
+            chatRepository.createGroup(
+                name = trimmed,
+                description = "",
+                avatarUrl = "",
+                memberIds = memberIds
+            ).getOrThrow()
+        }.onFailure {
+            Log.e(TAG, "createGroup failed name=$trimmed", it)
+        }
         val group = groupResult.getOrElse { return Result.failure(it) }
 
         if (avatarBytes != null) {
@@ -408,10 +414,13 @@ class HomeViewModel @Inject constructor(
                 extension = avatarExtension
             )
             upload.onSuccess { media ->
+                Log.d(TAG, "createGroup avatar uploaded url=${media.downloadUrl}")
                 chatRepository.updateGroup(group.copy(avatarUrl = media.downloadUrl))
                 chatRepository.getConversation(group.id).getOrNull()?.let { convo ->
                     chatRepository.updateConversation(convo.copy(avatarUrl = media.downloadUrl))
                 }
+            }.onFailure {
+                Log.e(TAG, "createGroup avatar upload failed group=${group.id}", it)
             }
         }
 

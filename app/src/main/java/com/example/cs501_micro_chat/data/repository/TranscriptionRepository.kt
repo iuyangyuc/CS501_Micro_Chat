@@ -1,5 +1,7 @@
 package com.example.cs501_micro_chat.data.repository
 
+import android.util.Log
+import com.example.cs501_micro_chat.BuildConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
@@ -13,10 +15,12 @@ import javax.inject.Singleton
 @Singleton
 class TranscriptionRepository @Inject constructor() {
 
-    private val endpoint = "https://cs501-micro-chat-728068207217.us-east4.run.app/transcribe"
+    private val endpoint: String = "${BuildConfig.TRANSCRIPTION_BASE_URL.trimEnd('/')}/transcribe"
+    private val tag = "TranscriptionRepo"
 
     suspend fun transcribe(mediaUrl: String): Result<String> = withContext(Dispatchers.IO) {
         runCatching {
+            Log.d(tag, "transcribe start url=$mediaUrl")
             val audioBytes = downloadBytes(mediaUrl)
             if (audioBytes.isEmpty()) throw IOException("Empty audio content")
 
@@ -69,6 +73,8 @@ class TranscriptionRepository @Inject constructor() {
                 connection.disconnect()
             }
         }
+    }.onFailure { error ->
+        Log.e(tag, "transcribe failed url=$mediaUrl reason=${error.message}", error)
     }
 
     private fun downloadBytes(url: String): ByteArray {

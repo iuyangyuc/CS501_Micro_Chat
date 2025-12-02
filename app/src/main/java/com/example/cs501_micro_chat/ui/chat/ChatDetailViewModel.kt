@@ -24,14 +24,18 @@ import com.example.cs501_micro_chat.data.repository.TranslationRepository
 import com.example.cs501_micro_chat.ui.auth.LanguageOption
 import com.google.firebase.auth.FirebaseAuth
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.Job
+import kotlin.math.ceil
 import javax.inject.Inject
 
 data class TranslationResultState(
@@ -112,6 +116,9 @@ class ChatDetailViewModel @Inject constructor(
     private val _suppressedTranslationKeys = MutableStateFlow<Set<String>>(emptySet())
     private val _suppressedTranscriptionKeys = MutableStateFlow<Set<String>>(emptySet())
 
+    private val _uiMessages = MutableSharedFlow<String>(extraBufferCapacity = 4)
+    val uiMessages: SharedFlow<String> = _uiMessages.asSharedFlow()
+
     // 用户信息缓存：userId -> User
     private val userCache = mutableMapOf<String, com.example.cs501_micro_chat.data.model.User>()
 
@@ -191,8 +198,14 @@ class ChatDetailViewModel @Inject constructor(
                     markAllAsRead(conversationId)
                 }
             } catch (e: Exception) {
-                Log.e("ChatDetailViewModel", "Error loading messages", e)
-                _error.value = "加载消息失败: ${e.message}"
+                logEvent(
+                    event = "load_messages_failed",
+                    extra = "reason=${e.message.orEmpty()}",
+                    error = e
+                )
+                val msg = friendlyMessage(UserMessage.LoadMessages)
+                _error.value = msg
+                _uiMessages.tryEmit(msg)
                 _isLoading.value = false
             }
         }
@@ -268,6 +281,11 @@ class ChatDetailViewModel @Inject constructor(
 
         viewModelScope.launch {
             try {
+                logEvent(
+                    event = "send_text_start",
+                    messageId = content.hashCode().toString(),
+                    extra = "len=${content.length}"
+                )
                 chatRepository.sendMessage(
                     conversationId = conversationId,
                     content = content,
@@ -277,12 +295,26 @@ class ChatDetailViewModel @Inject constructor(
                         _isConversationBlocked.value = true
                     }
                 }.onFailure { error ->
-                    Log.e("ChatDetailViewModel", "Error sending message", error)
-                    _error.value = "发送消息失败: ${error.message}"
+                    logEvent(
+                        event = "send_message_failed",
+                        messageId = content.hashCode().toString(),
+                        extra = "reason=${error.message.orEmpty()}",
+                        error = error
+                    )
+                    val msg = friendlyMessage(UserMessage.SendMessage)
+                    _error.value = msg
+                    _uiMessages.tryEmit(msg)
                 }
             } catch (e: Exception) {
-                Log.e("ChatDetailViewModel", "Exception sending message", e)
-                _error.value = "发送消息失败: ${e.message}"
+                logEvent(
+                    event = "send_message_exception",
+                    messageId = content.hashCode().toString(),
+                    extra = "reason=${e.message.orEmpty()}",
+                    error = e
+                )
+                val msg = friendlyMessage(UserMessage.SendMessage)
+                _error.value = msg
+                _uiMessages.tryEmit(msg)
             }
         }
     }
@@ -297,7 +329,9 @@ class ChatDetailViewModel @Inject constructor(
         extension: String? = null
     ) {
         val userId = auth.currentUser?.uid ?: run {
-            _error.value = "用户未登录"
+            val msg = friendlyMessage(UserMessage.AuthRequired)
+            _error.value = msg
+            _uiMessages.tryEmit(msg)
             return
         }
 
@@ -306,6 +340,7 @@ class ChatDetailViewModel @Inject constructor(
                 isUploading = true,
                 uploadingType = MessageType.IMAGE
             )
+            logEvent(event ="upload_image_start", conversationId = conversationId, extra = "bytes=${imageBytes.size}")
 
             val uploadResult = storageRepository.uploadImage(
                 bytes = imageBytes,
@@ -316,11 +351,18 @@ class ChatDetailViewModel @Inject constructor(
             )
 
             if (uploadResult.isFailure) {
-                val message = uploadResult.exceptionOrNull()?.message ?: "未知错误"
-                _error.value = "上传图片失败: $message"
+                val msg = friendlyMessage(UserMessage.UploadImage)
+                _error.value = msg
+                _uiMessages.tryEmit(msg)
                 _mediaUploadState.value = _mediaUploadState.value.copy(
                     isUploading = false,
                     uploadingType = null
+                )
+                logEvent(
+                    event = "upload_image_failed",
+                    messageId = "image_${imageBytes.size}",
+                    extra = "mime=$mimeType reason=${uploadResult.exceptionOrNull()?.message.orEmpty()}",
+                    error = uploadResult.exceptionOrNull()
                 )
                 return@launch
             }
@@ -328,18 +370,25 @@ class ChatDetailViewModel @Inject constructor(
             val media = uploadResult.getOrThrow()
             val sendResult = chatRepository.sendMessage(
                 conversationId = conversationId,
-                content = "图片",
+                content = "IMAGE",
                 type = MessageType.IMAGE,
                 mediaUrl = media.downloadUrl
             )
 
             if (sendResult.isFailure) {
-                val message = sendResult.exceptionOrNull()?.message ?: "未知错误"
-                _error.value = "发送图片消息失败: $message"
+                val msg = friendlyMessage(UserMessage.UploadImage)
+                _error.value = msg
+                _uiMessages.tryEmit(msg)
                 storageRepository.deleteByPath(media.storagePath)
                 _mediaUploadState.value = _mediaUploadState.value.copy(
                     isUploading = false,
                     uploadingType = null
+                )
+                logEvent(
+                    event = "send_image_failed",
+                    messageId = media.downloadUrl,
+                    extra = "reason=${sendResult.exceptionOrNull()?.message.orEmpty()}",
+                    error = sendResult.exceptionOrNull()
                 )
                 return@launch
             }
@@ -363,7 +412,9 @@ class ChatDetailViewModel @Inject constructor(
         extension: String? = null
     ) {
         val userId = auth.currentUser?.uid ?: run {
-            _error.value = "用户未登录"
+            val msg = friendlyMessage(UserMessage.AuthRequired)
+            _error.value = msg
+            _uiMessages.tryEmit(msg)
             return
         }
 
@@ -372,6 +423,7 @@ class ChatDetailViewModel @Inject constructor(
                 isUploading = true,
                 uploadingType = MessageType.VOICE
             )
+            logEvent(event = "upload_voice_start", conversationId = conversationId, extra = "bytes=${audioBytes.size}")
 
             val uploadResult = storageRepository.uploadVoiceMessage(
                 bytes = audioBytes,
@@ -382,31 +434,45 @@ class ChatDetailViewModel @Inject constructor(
             )
 
             if (uploadResult.isFailure) {
-                val message = uploadResult.exceptionOrNull()?.message ?: "未知错误"
-                _error.value = "上传语音失败: $message"
+                val msg = friendlyMessage(UserMessage.UploadVoice)
+                _error.value = msg
+                _uiMessages.tryEmit(msg)
                 _mediaUploadState.value = _mediaUploadState.value.copy(
                     isUploading = false,
                     uploadingType = null
+                )
+                logEvent(
+                    event = "upload_voice_failed",
+                    messageId = "voice_${audioBytes.size}",
+                    extra = "reason=${uploadResult.exceptionOrNull()?.message.orEmpty()}",
+                    error = uploadResult.exceptionOrNull()
                 )
                 return@launch
             }
 
             val media = uploadResult.getOrThrow()
-            val seconds = (durationMillis / 1000).coerceAtLeast(1)
+            val seconds = ceil(durationMillis / 1000.0).toLong().coerceAtLeast(1)
             val sendResult = chatRepository.sendMessage(
                 conversationId = conversationId,
-                content = "语音消息 (${seconds}s)",
+                content = "VOICE_${seconds}s",
                 type = MessageType.VOICE,
                 mediaUrl = media.downloadUrl
             )
 
             if (sendResult.isFailure) {
-                val message = sendResult.exceptionOrNull()?.message ?: "未知错误"
-                _error.value = "发送语音消息失败: $message"
+                val msg = friendlyMessage(UserMessage.UploadVoice)
+                _error.value = msg
+                _uiMessages.tryEmit(msg)
                 storageRepository.deleteByPath(media.storagePath)
                 _mediaUploadState.value = _mediaUploadState.value.copy(
                     isUploading = false,
                     uploadingType = null
+                )
+                logEvent(
+                    event = "send_voice_failed",
+                    messageId = media.downloadUrl,
+                    extra = "reason=${sendResult.exceptionOrNull()?.message.orEmpty()}",
+                    error = sendResult.exceptionOrNull()
                 )
                 return@launch
             }
@@ -429,7 +495,9 @@ class ChatDetailViewModel @Inject constructor(
         extension: String? = null
     ) {
         val userId = auth.currentUser?.uid ?: run {
-            _error.value = "用户未登录"
+            val msg = friendlyMessage(UserMessage.AuthRequired)
+            _error.value = msg
+            _uiMessages.tryEmit(msg)
             return
         }
 
@@ -438,6 +506,7 @@ class ChatDetailViewModel @Inject constructor(
                 isUploading = true,
                 uploadingType = MessageType.VIDEO
             )
+            logEvent(event = "upload_video_start", conversationId = conversationId, extra = "bytes=${videoBytes.size}")
 
             val uploadResult = storageRepository.uploadImage(
                 bytes = videoBytes,
@@ -448,11 +517,18 @@ class ChatDetailViewModel @Inject constructor(
             )
 
             if (uploadResult.isFailure) {
-                val message = uploadResult.exceptionOrNull()?.message ?: "未知错误"
-                _error.value = "上传视频失败: $message"
+                val msg = friendlyMessage(UserMessage.UploadVideo)
+                _error.value = msg
+                _uiMessages.tryEmit(msg)
                 _mediaUploadState.value = _mediaUploadState.value.copy(
                     isUploading = false,
                     uploadingType = null
+                )
+                logEvent(
+                    event = "upload_video_failed",
+                    messageId = "video_${videoBytes.size}",
+                    extra = "reason=${uploadResult.exceptionOrNull()?.message.orEmpty()}",
+                    error = uploadResult.exceptionOrNull()
                 )
                 return@launch
             }
@@ -460,18 +536,25 @@ class ChatDetailViewModel @Inject constructor(
             val media = uploadResult.getOrThrow()
             val sendResult = chatRepository.sendMessage(
                 conversationId = conversationId,
-                content = "视频",
+                content = "VIDEO",
                 type = MessageType.VIDEO,
                 mediaUrl = media.downloadUrl
             )
 
             if (sendResult.isFailure) {
-                val message = sendResult.exceptionOrNull()?.message ?: "未知错误"
-                _error.value = "发送视频消息失败: $message"
+                val msg = friendlyMessage(UserMessage.UploadVideo)
+                _error.value = msg
+                _uiMessages.tryEmit(msg)
                 storageRepository.deleteByPath(media.storagePath)
                 _mediaUploadState.value = _mediaUploadState.value.copy(
                     isUploading = false,
                     uploadingType = null
+                )
+                logEvent(
+                    event = "send_video_failed",
+                    messageId = media.downloadUrl,
+                    extra = "reason=${sendResult.exceptionOrNull()?.message.orEmpty()}",
+                    error = sendResult.exceptionOrNull()
                 )
                 return@launch
             }
@@ -556,6 +639,13 @@ class ChatDetailViewModel @Inject constructor(
                         )
                     },
                     onFailure = { error ->
+                        logEvent(
+                            event = "translate_failed",
+                            messageId = messageKey(message),
+                            extra = "reason=${error.message.orEmpty()}",
+                            error = error
+                        )
+                        _uiMessages.tryEmit(friendlyMessage(UserMessage.Translation))
                         TranslationResultState(
                             translatedText = null,
                             targetLanguage = normalizedTarget,
@@ -569,7 +659,7 @@ class ChatDetailViewModel @Inject constructor(
         }
     }
 
-    private fun maybeAutoTranslate(messages: List<Message>) {
+    internal fun maybeAutoTranslate(messages: List<Message>) {
         if (!_autoTranslateEnabled.value) return
         val targetLanguage = _preferredTranslationLanguage.value.displayName
         val currentUser = _currentUserId.value
@@ -638,6 +728,16 @@ class ChatDetailViewModel @Inject constructor(
                 current + (key to next)
             }
 
+            if (result.isFailure) {
+                logEvent(
+                    event = "transcription_failed",
+                    messageId = key,
+                    extra = "reason=${result.exceptionOrNull()?.message.orEmpty()}",
+                    error = result.exceptionOrNull()
+                )
+                _uiMessages.tryEmit(friendlyMessage(UserMessage.Transcription))
+            }
+
             if (result.isSuccess && shouldTranslate && !_suppressedTranslationKeys.value.contains(key)) {
                 val text = result.getOrThrow()
                 val translationResult = translationRepository.translate(
@@ -664,6 +764,13 @@ class ChatDetailViewModel @Inject constructor(
                             )
                         },
                         onFailure = { error ->
+                            logEvent(
+                                event = "transcription_translation_failed",
+                                messageId = key,
+                                extra = "reason=${error.message.orEmpty()}",
+                                error = error
+                            )
+                            _uiMessages.tryEmit(friendlyMessage(UserMessage.Translation))
                             existing?.copy(
                                 isTranslating = false,
                                 translationError = "translation_failed",
@@ -680,6 +787,51 @@ class ChatDetailViewModel @Inject constructor(
                 }
             }
         }
+    }
+}
+
+private enum class UserMessage {
+    LoadMessages,
+    SendMessage,
+    UploadImage,
+    UploadVoice,
+    UploadVideo,
+    AuthRequired,
+    Transcription,
+    Translation
+}
+
+private fun ChatDetailViewModel.friendlyMessage(kind: UserMessage): String {
+    return when (kind) {
+        UserMessage.LoadMessages -> "加载消息失败，请稍后再试"
+        UserMessage.SendMessage -> "发送消息失败，请稍后再试"
+        UserMessage.UploadImage -> "发送图片失败，请稍后再试"
+        UserMessage.UploadVoice -> "发送语音失败，请稍后再试"
+        UserMessage.UploadVideo -> "发送视频失败，请稍后再试"
+        UserMessage.AuthRequired -> "请先登录再继续操作"
+        UserMessage.Transcription -> "语音转文字失败，请稍后再试"
+        UserMessage.Translation -> "翻译失败，请稍后再试"
+    }
+}
+
+private fun ChatDetailViewModel.logEvent(
+    event: String,
+    messageId: String? = null,
+    conversationId: String? = null,
+    extra: String? = null,
+    error: Throwable? = null
+) {
+    val parts = buildList {
+        add("event=$event")
+        add("conversation=${conversationId ?: this@logEvent.conversationId.value}")
+        messageId?.let { add("message=$it") }
+        extra?.takeIf { it.isNotBlank() }?.let { add(it) }
+    }
+    val line = parts.joinToString(" ")
+    if (error != null) {
+        Log.e("ChatDetailViewModel", line, error)
+    } else {
+        Log.d("ChatDetailViewModel", line)
     }
 }
 

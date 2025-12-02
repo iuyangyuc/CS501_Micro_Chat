@@ -111,6 +111,16 @@
     <string name="content_description_send">Envoyer le message</string>
     <string name="content_description_close">Fermer</string>
     <string name="content_description_attachment">Ajouter une pièce jointe</string>
+    <string name="action_sheet_file">Fichier</string>
+    <string name="action_sheet_photos">Photos</string>
+    <string name="action_sheet_video">Vidéo</string>
+    <string name="action_sheet_voice">Voix</string>
+    <string name="last_message_image">[Image]</string>
+    <string name="last_message_video">[Vidéo]</string>
+    <string name="last_message_voice">Voix(%1$ss)</string>
+    <string name="last_message_voice_no_duration">Voix</string>
+    <string name="voice_recording_hint">Enregistrement... touchez stop pour envoyer</string>
+    <string name="voice_recording_stop">Arrêter</string>
     <string name="content_description_search">Rechercher</string>
     <string name="content_description_avatar">Avatar de %s</string>
     <string name="content_description_my_avatar">Mon avatar</string>

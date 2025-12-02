@@ -111,6 +111,16 @@
     <string name="content_description_send">发送消息</string>
     <string name="content_description_close">关闭</string>
     <string name="content_description_attachment">添加附件</string>
+    <string name="action_sheet_file">文件</string>
+    <string name="action_sheet_photos">照片</string>
+    <string name="action_sheet_video">视频</string>
+    <string name="action_sheet_voice">语音</string>
+    <string name="last_message_image">[图片]</string>
+    <string name="last_message_video">[视频]</string>
+    <string name="last_message_voice">语音(%1$s秒)</string>
+    <string name="last_message_voice_no_duration">语音</string>
+    <string name="voice_recording_hint">正在录音… 点击停止发送</string>
+    <string name="voice_recording_stop">停止</string>
     <string name="content_description_search">搜索</string>
     <string name="content_description_avatar">%s 头像</string>
     <string name="content_description_my_avatar">我的头像</string>
