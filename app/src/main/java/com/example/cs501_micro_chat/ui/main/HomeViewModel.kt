@@ -141,11 +141,12 @@ class HomeViewModel @Inject constructor(
 
                 flow.collect { conversations ->
                     Log.d(TAG, "Received ${conversations.size} conversations")
-                    _conversations.value = applyPinnedSorting(conversations)
+                    val adjusted = applyUserClears(conversations)
+                    _conversations.value = applyPinnedSorting(adjusted)
                     _isLoading.value = false
 
                     // 加载会话中所有参与者的用户信息
-                    loadUsersForConversations(conversations)
+                    loadUsersForConversations(adjusted)
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Error loading conversations", e)
@@ -166,24 +167,20 @@ class HomeViewModel @Inject constructor(
                 val userIds = conversations.flatMap { it.participants }.toSet()
                 val currentUserId = auth.currentUser?.uid
 
-                // 过滤掉已缓存的和当前用户
-                val uncachedUserIds = userIds.filter {
-                    it != currentUserId && !_userCache.value.containsKey(it)
-                }
-
-                if (uncachedUserIds.isEmpty()) {
-                    Log.d(TAG, "All users already cached")
+                // 过滤掉当前用户自己，其余全部刷新，避免头像缓存过期
+                val idsToLoad = userIds.filter { it != currentUserId }
+                if (idsToLoad.isEmpty()) {
                     _isUsersLoading.value = false
                     return@launch
                 }
 
-                Log.d(TAG, "Loading ${uncachedUserIds.size} users: $uncachedUserIds")
+                Log.d(TAG, "Loading ${idsToLoad.size} users (refreshing cache): $idsToLoad")
 
-                // 批量获取用户信息
-                val result = chatRepository.getUsers(uncachedUserIds)
+                // 批量获取用户信息（即便已缓存也强制刷新，保证头像同步）
+                val result = chatRepository.getUsers(idsToLoad)
                 result.onSuccess { users ->
-                    Log.d(TAG, "Loaded ${users.size} users")
-                    // 更新缓存
+                    Log.d(TAG, "Loaded/updated ${users.size} users")
+                    // 覆盖式合并，确保头像等字段使用最新值
                     _userCache.value = _userCache.value + users
                 }.onFailure { error ->
                     Log.e(TAG, "Failed to load users", error)
@@ -215,7 +212,20 @@ class HomeViewModel @Inject constructor(
                 SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(timestamp))
             }
             // 昨天
-            diff < 2 * 24 * 60 * 60 * 1000 -> "Yesterday"
+            diff < 2 * 24 * 60 * 60 * 1000 -> {
+                // Localized "Yesterday"
+                java.text.DateFormat.getDateInstance(java.text.DateFormat.MEDIUM, Locale.getDefault())
+                    .format(Date(now - diff + 24 * 60 * 60 * 1000))
+                    .let { formatted ->
+                        // If the medium date for yesterday still shows the date, prefer a manual string
+                        // fallback for languages that expect a word.
+                        if (formatted.contains("/")) {
+                            java.text.SimpleDateFormat("MMM dd", Locale.getDefault()).format(Date(timestamp))
+                        } else {
+                            formatted
+                        }
+                    }
+            }
             // 一周内 - 显示星期
             diff < 7 * 24 * 60 * 60 * 1000 -> {
                 SimpleDateFormat("EEEE", Locale.getDefault()).format(Date(timestamp))
@@ -296,20 +306,32 @@ class HomeViewModel @Inject constructor(
     fun getAvatarUrl(conversation: Conversation): String {
         // 对于群聊，使用 conversation.avatarUrl
         if (conversation.type == com.example.cs501_micro_chat.data.model.ConversationType.GROUP) {
-            return conversation.avatarUrl
+            if (conversation.avatarUrl.isNotBlank()) return conversation.avatarUrl
+            // 兜底：从联系人缓存读取群头像
+            val contact = _allContacts.value.firstOrNull { it.conversationId == conversation.id || it.contactId == conversation.id }
+            if (contact != null && contact.contactAvatarUrl.isNotBlank()) {
+                return contact.contactAvatarUrl
+            }
+            return ""
         }
 
         // 对于私聊，从缓存中获取对方用户的真实头像
         val otherUserId = getOtherUserId(conversation)
         if (otherUserId != null) {
+            // 优先使用联系人里的头像（联系人的头像更新最快）
+            val contactAvatar = _allContacts.value.firstOrNull { it.contactId == otherUserId }?.contactAvatarUrl
+            if (!contactAvatar.isNullOrBlank()) {
+                return contactAvatar
+            }
+
             val otherUser = _userCache.value[otherUserId]
             if (otherUser != null) {
                 return otherUser.avatarUrl
             }
         }
 
-        // 如果缓存中没有，返回空字符串
-        return ""
+        // 如果缓存中没有，回退到会话内置头像或空
+        return conversation.avatarUrl
     }
 
     /**
@@ -742,5 +764,22 @@ class HomeViewModel @Inject constructor(
             compareByDescending<Conversation> { pinnedConversationIds.contains(it.id) }
                 .thenByDescending { it.lastMessageTime }
         )
+    }
+
+    /**
+     * Apply per-user clear timestamp: hide last message and time if it was cleared.
+     */
+    private fun applyUserClears(conversations: List<Conversation>): List<Conversation> {
+        val userId = currentUserId
+        if (userId.isBlank()) return conversations
+        return conversations.map { convo ->
+            val clearedAt = convo.clearedAt[userId] ?: 0L
+            if (clearedAt > 0 && convo.lastMessageTime <= clearedAt) {
+                // Hide last message preview for this user, but keep timestamp for sorting
+                convo.copy(lastMessage = "")
+            } else {
+                convo
+            }
+        }
     }
 }

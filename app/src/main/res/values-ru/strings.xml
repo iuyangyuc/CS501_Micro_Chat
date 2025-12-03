@@ -185,6 +185,7 @@
     <string name="user_profile_not_provided">Не указано</string>
     <string name="user_profile_search_history">Поиск в истории чата</string>
     <string name="user_profile_clear_history">Очистить историю чата</string>
+    <string name="user_profile_clear_history_success">История чата очищена</string>
     <string name="user_profile_alias_label">Прозвище контакта</string>
     <string name="user_profile_alias_placeholder">Введите прозвище</string>
     <string name="user_profile_alias_save">Сохранить прозвище</string>
@@ -198,6 +199,15 @@
     <string name="user_profile_pin_enabled">Чат закреплен</string>
     <string name="user_profile_pin_disabled">Чат откреплен</string>
     <string name="user_profile_pin_unavailable">Сначала добавьте пользователя в контакты, чтобы закрепить чат.</string>
+    <string name="user_profile_error_start_chat">Не удалось открыть чат</string>
+    <string name="user_profile_error_search_empty">Нет беседы для поиска</string>
+    <string name="user_profile_error_clear_history">Не удалось очистить историю чата</string>
+    <string name="user_profile_error_delete_contact">Не удалось удалить контакт</string>
+    <string name="user_profile_error_pin_update">Не удалось обновить закрепление</string>
+    <string name="user_profile_error_pin_status">Не удалось загрузить статус закрепления</string>
+    <string name="user_profile_error_load_profile">Не удалось загрузить профиль</string>
+    <string name="user_profile_error_not_found">Пользователь не найден</string>
+    <string name="user_profile_error_update_alias">Не удалось обновить псевдоним</string>
     <string name="user_profile_delete_confirm_title">Удалить контакт?</string>
     <string name="user_profile_delete_confirm_message">Этот контакт исчезнет из списка.</string>
     <string name="user_profile_delete_confirm_confirm">Удалить</string>
@@ -223,6 +233,22 @@
     <string name="group_profile_leaving">Выход...</string>
     <string name="group_profile_no_members">Нет участников</string>
     <string name="group_profile_title_with_count">Группа (%1$d)</string>
+    <string name="group_profile_clear_history_success">История группового чата очищена</string>
+    <string name="group_profile_error_clear_history">Не удалось очистить историю группового чата</string>
+    <string name="group_profile_error_pin_status">Не удалось загрузить статус закрепления группы</string>
+    <string name="group_profile_error_pin_update">Не удалось обновить закрепление группы</string>
+    <string name="group_profile_error_leave">Не удалось выйти из группы</string>
+    <string name="group_profile_error_update_name">Не удалось обновить название группы</string>
+    <string name="search_placeholder">Поиск</string>
+    <string name="search_cancel">Отмена</string>
+    <string name="search_header_title">Поиск</string>
+    <string name="search_this_chat_title">Поиск в этом чате</string>
+    <string name="search_chip_group_members">Участники группы</string>
+    <string name="search_chip_date">Дата</string>
+    <string name="search_chip_photos_videos">Фото и видео</string>
+    <string name="search_chip_files">Файлы</string>
+    <string name="search_chip_audio">Аудио</string>
+    <string name="search_chip_links">Ссылки</string>
     <!-- HomeScreen additional strings -->
     <string name="no_results_found">Результатов не найдено</string>
     <string name="try_different_search_keyword">Попробуйте другой поисковый запрос</string>

@@ -155,6 +155,14 @@ class ChatRepository @Inject constructor(
         return firebaseDataSource.deleteMessage(conversationId, messageId)
     }
 
+    /**
+     * 记录当前用户清空聊天的时间戳（单向清除）
+     */
+    suspend fun clearConversationForCurrentUser(conversationId: String): Result<Unit> {
+        val userId = currentUserId ?: return Result.failure(Exception("User not logged in"))
+        return firebaseDataSource.clearConversationForUser(conversationId, userId, System.currentTimeMillis())
+    }
+
     // ==================== 群组相关 Group Operations ====================
 
     /**

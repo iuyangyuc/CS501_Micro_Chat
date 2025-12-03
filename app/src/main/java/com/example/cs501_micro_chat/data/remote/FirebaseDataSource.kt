@@ -1115,6 +1115,16 @@ class FirebaseDataSource @Inject constructor(
             .await()
     }
 
+    /**
+     * 记录当前用户清空聊天的时间戳（单向清除）
+     */
+    suspend fun clearConversationForUser(conversationId: String, userId: String, clearedAt: Long): Result<Unit> = runCatching {
+        conversationsCollection
+            .document(conversationId)
+            .update("clearedAt.$userId", clearedAt)
+            .await()
+    }
+
     // ==================== 群组相关 Group Operations ====================
 
     /**

@@ -116,6 +116,7 @@ import com.example.cs501_micro_chat.ui.chat.TranslationLanguageChooser
 import com.example.cs501_micro_chat.ui.chat.messageKey
 import com.example.cs501_micro_chat.ui.profile.GroupProfileScreen
 import com.example.cs501_micro_chat.ui.profile.UserProfileScreen
+import com.example.cs501_micro_chat.ui.search.ChatSearchScreen
 import com.example.cs501_micro_chat.ui.settings.AboutScreen
 import com.example.cs501_micro_chat.ui.settings.PrivacySettingsScreen
 import com.example.cs501_micro_chat.ui.settings.ProfileEditScreen
@@ -149,6 +150,7 @@ private const val ABOUT_ROUTE = "about"
 private const val PROFILE_EDIT_ROUTE = "profile_edit"
 private const val USER_PROFILE_ROUTE = "user_profile"
 private const val GROUP_PROFILE_ROUTE = "group_profile"
+private const val CHAT_SEARCH_ROUTE = "chat_search"
 private const val PROFILE_UPDATED_KEY = "profile_updated"
 
 
@@ -305,6 +307,10 @@ fun HomeScreen(
                             memberCount = groupState.members.size,
                             onBack = { navController.popBackStack() }
                         )
+                    }
+
+                    route?.startsWith(CHAT_SEARCH_ROUTE) == true -> {
+                        ChatSearchTopBar(onBack = { navController.popBackStack() })
                     }
 
                     else -> {
@@ -552,8 +558,27 @@ fun HomeScreen(
                         userId = userId,
                         onBack = onBackHandler,
                         onStartChat = startChatHandler,
-                        onSearchHistory = { /* TODO: open chat history search */ },
+                        onSearchHistory = { conversationId ->
+                            val encodedId = URLEncoder.encode(conversationId, StandardCharsets.UTF_8.toString())
+                            navController.navigate("$CHAT_SEARCH_ROUTE/$encodedId")
+                        },
                         onDeleted = { navController.popBackStack() }
+                    )
+                }
+
+                composable(
+                    route = "$CHAT_SEARCH_ROUTE/{conversationId}",
+                    arguments = listOf(
+                        navArgument("conversationId") {
+                            type = NavType.StringType
+                            defaultValue = ""
+                        }
+                    )
+                ) { backStackEntry ->
+                    val conversationId = backStackEntry.arguments?.getString("conversationId").orEmpty()
+                    ChatSearchScreen(
+                        conversationId = conversationId,
+                        onBack = { navController.popBackStack() }
                     )
                 }
             }
@@ -882,6 +907,34 @@ fun HomeTopBar(
                     Text(text = stringResource(R.string.user_profile_delete_confirm_cancel))
                 }
             }
+        )
+    }
+}
+
+@Composable
+fun ChatSearchTopBar(onBack: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(56.dp)
+    ) {
+        IconButton(
+            onClick = onBack,
+            modifier = Modifier.align(Alignment.CenterStart)
+        ) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                contentDescription = stringResource(R.string.content_description_back),
+                tint = Color.White
+            )
+        }
+
+        Text(
+            text = stringResource(R.string.search_this_chat_title),
+            color = Color.White,
+            fontSize = 18.sp,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.align(Alignment.Center)
         )
     }
 }
@@ -1866,8 +1919,14 @@ fun ConversationListItem(
 ) {
     // 监听 userCache 的变化，确保用户信息加载后界面会更新
     val userCache by viewModel.userCache.collectAsStateWithLifecycle()
+    // 监听联系人变化，确保头像/备注更新能反映到列表
+    val contacts by viewModel.allContacts.collectAsStateWithLifecycle()
 
-    val formattedTime = viewModel.formatTime(conversation.lastMessageTime)
+    val formattedTime = if (conversation.lastMessage.isNotBlank()) {
+        viewModel.formatTime(conversation.lastMessageTime)
+    } else {
+        ""
+    }
 
     // 使用新的方法获取显示名称和头像
     val displayName = viewModel.getDisplayName(conversation)
@@ -1945,11 +2004,13 @@ fun ConversationListItem(
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f)
                 )
-                Text(
-                    text = formattedTime,
-                    color = secondaryTextColor(),
-                    fontSize = 12.sp
-                )
+                if (formattedTime.isNotBlank()) {
+                    Text(
+                        text = formattedTime,
+                        color = secondaryTextColor(),
+                        fontSize = 12.sp
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(4.dp))

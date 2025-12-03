@@ -1,8 +1,10 @@
 package com.example.cs501_micro_chat.ui.profile
 
+import androidx.annotation.StringRes
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.cs501_micro_chat.R
 import com.example.cs501_micro_chat.data.model.ConversationType
 import com.example.cs501_micro_chat.data.repository.ChatRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -114,7 +116,12 @@ class GroupProfileViewModel @Inject constructor(
                     )
                 }
             }.onFailure { error ->
-                _events.send(GroupProfileEvent.ShowMessage(error.message ?: "Failed to load pin status"))
+                _events.send(
+                    GroupProfileEvent.ShowMessage(
+                        messageRes = R.string.group_profile_error_pin_status,
+                        message = error.message
+                    )
+                )
             }
         }
     }
@@ -134,7 +141,12 @@ class GroupProfileViewModel @Inject constructor(
                 conversation?.let {
                     chatRepository.updateConversation(it.copy(name = newName))
                         .onFailure { error ->
-                            _events.trySend(GroupProfileEvent.ShowMessage(error.message ?: "Failed to update conversation name"))
+                            _events.trySend(
+                                GroupProfileEvent.ShowMessage(
+                                    messageRes = R.string.group_profile_error_update_name,
+                                    message = error.message
+                                )
+                            )
                         }
                 }
             }
@@ -142,7 +154,12 @@ class GroupProfileViewModel @Inject constructor(
             chatRepository.getGroup(conversationId).onSuccess { group ->
                 val existing = group ?: return@onSuccess
                 chatRepository.updateGroup(existing.copy(name = newName)).onFailure { error ->
-                    _events.trySend(GroupProfileEvent.ShowMessage(error.message ?: "Failed to update group name"))
+                    _events.trySend(
+                        GroupProfileEvent.ShowMessage(
+                            messageRes = R.string.group_profile_error_update_name,
+                            message = error.message
+                        )
+                    )
                 }
             }
 
@@ -183,7 +200,12 @@ class GroupProfileViewModel @Inject constructor(
                     )
                 }
             }.onFailure { error ->
-                _events.send(GroupProfileEvent.ShowMessage(error.message ?: "Failed to leave group"))
+                _events.send(
+                    GroupProfileEvent.ShowMessage(
+                        messageRes = R.string.group_profile_error_leave,
+                        message = error.message
+                    )
+                )
                 _uiState.update { it.copy(isLeaving = false) }
             }
         }
@@ -208,7 +230,12 @@ class GroupProfileViewModel @Inject constructor(
                 _events.send(GroupProfileEvent.PinStatusChanged(newStatus))
             }.onFailure { error ->
                 _uiState.update { it.copy(isPinUpdating = false) }
-                _events.send(GroupProfileEvent.ShowMessage(error.message ?: "Failed to update pin status"))
+                _events.send(
+                    GroupProfileEvent.ShowMessage(
+                        messageRes = R.string.group_profile_error_pin_update,
+                        message = error.message
+                    )
+                )
             }
         }
     }
@@ -222,8 +249,21 @@ class GroupProfileViewModel @Inject constructor(
     }
 
     fun clearHistory() {
+        val conversationId = _uiState.value.conversationId
+        if (conversationId.isBlank()) return
         viewModelScope.launch {
-            _events.send(GroupProfileEvent.ShowMessage("Clear chat history is not implemented yet"))
+            _uiState.update { it.copy(isLoading = true, errorMessage = null) }
+            chatRepository.clearConversationForCurrentUser(conversationId).onSuccess {
+                _events.send(GroupProfileEvent.ShowStatus(R.string.group_profile_clear_history_success, true))
+            }.onFailure { error ->
+                _events.send(
+                    GroupProfileEvent.ShowMessage(
+                        messageRes = R.string.group_profile_error_clear_history,
+                        message = error.message
+                    )
+                )
+            }
+            _uiState.update { it.copy(isLoading = false) }
         }
     }
 }
@@ -256,6 +296,7 @@ sealed interface GroupProfileEvent {
     data class SearchHistory(val conversationId: String) : GroupProfileEvent
     data object LeftGroup : GroupProfileEvent
     data class Renamed(val name: String) : GroupProfileEvent
-    data class ShowMessage(val message: String) : GroupProfileEvent
+    data class ShowMessage(val message: String? = null, @StringRes val messageRes: Int? = null) : GroupProfileEvent
     data class PinStatusChanged(val isPinned: Boolean) : GroupProfileEvent
+    data class ShowStatus(@StringRes val messageRes: Int, val success: Boolean) : GroupProfileEvent
 }

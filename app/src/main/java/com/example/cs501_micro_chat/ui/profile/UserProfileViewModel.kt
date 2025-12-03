@@ -59,11 +59,20 @@ class UserProfileViewModel @Inject constructor(
 
             val user = chatRepository.getUser(userId).getOrElse { error ->
                 _uiState.update { state -> state.copy(isLoading = false, errorMessage = error.message) }
-                _events.send(UserProfileEvent.ShowError(error.message ?: "Failed to load profile"))
+                _events.send(
+                    UserProfileEvent.ShowError(
+                        messageRes = R.string.user_profile_error_load_profile,
+                        message = error.message
+                    )
+                )
                 return@launch
             } ?: run {
                 _uiState.update { state -> state.copy(isLoading = false, errorMessage = "User not found") }
-                _events.send(UserProfileEvent.ShowError("User not found"))
+                _events.send(
+                    UserProfileEvent.ShowError(
+                        messageRes = R.string.user_profile_error_not_found
+                    )
+                )
                 return@launch
             }
 
@@ -145,7 +154,12 @@ class UserProfileViewModel @Inject constructor(
                 _uiState.update { it.copy(conversationId = convo.id, canPin = true) }
                 refreshPinnedState(convo.id)
             }.onFailure { error ->
-                _events.send(UserProfileEvent.ShowError(error.message ?: "Failed to start chat"))
+                _events.send(
+                    UserProfileEvent.ShowError(
+                        messageRes = R.string.user_profile_error_start_chat,
+                        message = error.message
+                    )
+                )
             }
             _uiState.update { it.copy(isChatting = false) }
         }
@@ -162,7 +176,12 @@ class UserProfileViewModel @Inject constructor(
                 _events.send(UserProfileEvent.Deleted)
                 _uiState.update { it.copy(isDeleting = false, isDeleted = true, canPin = false, isPinned = false, contactFavorite = false, conversationId = "") }
             }.onFailure { error ->
-                _events.send(UserProfileEvent.ShowError(error.message ?: "Failed to delete contact"))
+                _events.send(
+                    UserProfileEvent.ShowError(
+                        messageRes = R.string.user_profile_error_delete_contact,
+                        message = error.message
+                    )
+                )
                 _uiState.update { it.copy(isDeleting = false) }
             }
         }
@@ -172,7 +191,11 @@ class UserProfileViewModel @Inject constructor(
         val convoId = _uiState.value.conversationId
         if (convoId.isBlank()) {
             viewModelScope.launch {
-                _events.send(UserProfileEvent.ShowError("No conversation to search"))
+            _events.send(
+                UserProfileEvent.ShowError(
+                    messageRes = R.string.user_profile_error_search_empty
+                )
+            )
             }
         } else {
             viewModelScope.launch {
@@ -182,8 +205,21 @@ class UserProfileViewModel @Inject constructor(
     }
 
     fun clearHistory() {
+        val conversationId = _uiState.value.conversationId
+        if (conversationId.isBlank()) return
         viewModelScope.launch {
-            _events.send(UserProfileEvent.ShowError("Clear chat history is not implemented yet"))
+            _uiState.update { it.copy(isLoading = true, errorMessage = null) }
+            chatRepository.clearConversationForCurrentUser(conversationId).onSuccess {
+                _events.send(UserProfileEvent.ShowStatus(R.string.user_profile_clear_history_success, true))
+            }.onFailure { error ->
+                _events.send(
+                    UserProfileEvent.ShowError(
+                        messageRes = R.string.user_profile_error_clear_history,
+                        message = error.message
+                    )
+                )
+            }
+            _uiState.update { it.copy(isLoading = false) }
         }
     }
 
@@ -235,7 +271,12 @@ class UserProfileViewModel @Inject constructor(
                 _events.send(UserProfileEvent.AliasSaved)
             }.onFailure { error ->
                 _uiState.update { it.copy(isAliasSaving = false) }
-                _events.send(UserProfileEvent.ShowError(error.message ?: "Failed to update alias"))
+                _events.send(
+                    UserProfileEvent.ShowError(
+                        messageRes = R.string.user_profile_error_update_alias,
+                        message = error.message
+                    )
+                )
             }
         }
     }
@@ -261,7 +302,12 @@ class UserProfileViewModel @Inject constructor(
                 _events.send(UserProfileEvent.PinStatusChanged(newPinned))
             }.onFailure { error ->
                 _uiState.update { it.copy(isPinUpdating = false) }
-                _events.send(UserProfileEvent.ShowError(error.message ?: "Failed to update pin status"))
+                _events.send(
+                    UserProfileEvent.ShowError(
+                        messageRes = R.string.user_profile_error_pin_update,
+                        message = error.message
+                    )
+                )
             }
         }
     }
@@ -286,7 +332,12 @@ class UserProfileViewModel @Inject constructor(
                     )
                 }
             }.onFailure { error ->
-                _events.send(UserProfileEvent.ShowError(error.message ?: "Failed to load pin status"))
+                _events.send(
+                    UserProfileEvent.ShowError(
+                        messageRes = R.string.user_profile_error_pin_status,
+                        message = error.message
+                    )
+                )
             }
         }
     }
@@ -320,7 +371,7 @@ sealed interface UserProfileEvent {
     data class OpenChat(val conversationId: String, val displayName: String, val avatarUrl: String) : UserProfileEvent
     data object Deleted : UserProfileEvent
     data class SearchHistory(val conversationId: String) : UserProfileEvent
-    data class ShowError(val message: String) : UserProfileEvent
+    data class ShowError(@StringRes val messageRes: Int? = null, val message: String? = null) : UserProfileEvent
     data object AliasSaved : UserProfileEvent
     data class PinStatusChanged(val isPinned: Boolean) : UserProfileEvent
     data class ShowStatus(@StringRes val messageRes: Int, val success: Boolean) : UserProfileEvent

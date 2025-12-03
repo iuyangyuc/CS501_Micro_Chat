@@ -185,6 +185,7 @@
     <string name="user_profile_not_provided">No proporcionado</string>
     <string name="user_profile_search_history">Buscar historial de chat</string>
     <string name="user_profile_clear_history">Borrar historial de chat</string>
+    <string name="user_profile_clear_history_success">Historial de chat borrado</string>
     <string name="user_profile_alias_label">Apodo del contacto</string>
     <string name="user_profile_alias_placeholder">Ingresa un apodo</string>
     <string name="user_profile_alias_save">Guardar apodo</string>
@@ -198,6 +199,15 @@
     <string name="user_profile_pin_enabled">Chat fijado</string>
     <string name="user_profile_pin_disabled">Chat desfijado</string>
     <string name="user_profile_pin_unavailable">Agrega este contacto antes de fijarlo.</string>
+    <string name="user_profile_error_start_chat">No se pudo abrir el chat</string>
+    <string name="user_profile_error_search_empty">No hay conversación para buscar</string>
+    <string name="user_profile_error_clear_history">No se pudo borrar el historial</string>
+    <string name="user_profile_error_delete_contact">No se pudo eliminar el contacto</string>
+    <string name="user_profile_error_pin_update">No se pudo actualizar el estado de fijación</string>
+    <string name="user_profile_error_pin_status">No se pudo cargar el estado de fijación</string>
+    <string name="user_profile_error_load_profile">No se pudo cargar el perfil</string>
+    <string name="user_profile_error_not_found">Usuario no encontrado</string>
+    <string name="user_profile_error_update_alias">No se pudo actualizar el apodo</string>
     <string name="user_profile_delete_confirm_title">¿Eliminar este contacto?</string>
     <string name="user_profile_delete_confirm_message">La persona desaparecerá de tu lista.</string>
     <string name="user_profile_delete_confirm_confirm">Eliminar</string>
@@ -223,6 +233,22 @@
     <string name="group_profile_leaving">Saliendo...</string>
     <string name="group_profile_no_members">Sin miembros</string>
     <string name="group_profile_title_with_count">Grupo (%1$d)</string>
+    <string name="group_profile_clear_history_success">Historial del grupo borrado</string>
+    <string name="group_profile_error_clear_history">No se pudo borrar el historial del grupo</string>
+    <string name="group_profile_error_pin_status">No se pudo cargar el estado de fijación del grupo</string>
+    <string name="group_profile_error_pin_update">No se pudo actualizar el estado de fijación del grupo</string>
+    <string name="group_profile_error_leave">No se pudo salir del grupo</string>
+    <string name="group_profile_error_update_name">No se pudo actualizar el nombre del grupo</string>
+    <string name="search_placeholder">Buscar</string>
+    <string name="search_cancel">Cancelar</string>
+    <string name="search_header_title">Buscar</string>
+    <string name="search_this_chat_title">Buscar en este chat</string>
+    <string name="search_chip_group_members">Miembros del grupo</string>
+    <string name="search_chip_date">Fecha</string>
+    <string name="search_chip_photos_videos">Fotos y videos</string>
+    <string name="search_chip_files">Archivos</string>
+    <string name="search_chip_audio">Audio</string>
+    <string name="search_chip_links">Enlaces</string>
     <!-- HomeScreen additional strings -->
     <string name="no_results_found">No se encontraron resultados</string>
     <string name="try_different_search_keyword">Prueba con otro término de búsqueda</string>
