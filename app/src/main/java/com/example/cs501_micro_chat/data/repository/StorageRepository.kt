@@ -67,11 +67,12 @@ class StorageRepository @Inject constructor(
         cdnRootRef.child(storagePath).delete().await()
     }
 
+
     /**
-     * Resolve a download URL again (useful if the client cached just the path).
+     * Get download URL from Firebase Storage root (for avatars stored in root/Avatars folder).
      */
-    suspend fun getDownloadUrl(storagePath: String): Result<String> = runCatching {
-        cdnRootRef.child(storagePath).downloadUrl.await().toString()
+    suspend fun getDownloadUrlFromRoot(storagePath: String): Result<String> = runCatching {
+        firebaseStorage.reference.child(storagePath).downloadUrl.await().toString()
     }
 
     private suspend fun uploadBinary(

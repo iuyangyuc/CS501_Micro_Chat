@@ -225,29 +225,44 @@ fun ChatDetailScreen(
                             "conversationParam"
                         }
 
-                        LaunchedEffect(topAvatarUrl, topAvatarSource, conversationName) {
+                        LaunchedEffect(conversationType, otherUserAvatarUrl, conversationAvatar, conversationName) {
                             Log.d(
                                 "ChatDetailTopBar",
-                                "Top avatar resolved: url=$topAvatarUrl source=$topAvatarSource convo=$conversationName"
+                                "🎨 TopBar State: " +
+                                "conversationType=$conversationType, " +
+                                "otherUserAvatarUrl='$otherUserAvatarUrl', " +
+                                "conversationAvatar='$conversationAvatar', " +
+                                "topAvatarUrl='$topAvatarUrl', " +
+                                "topAvatarSource=$topAvatarSource, " +
+                                "conversationName='$conversationName'"
                             )
                         }
 
-                        // Conversation avatar and name
+                        // Conversation avatar and name - 使用与聊天列表相同的头像加载逻辑
+                        Log.d("ChatDetailTopBar", "chatDetailTopBar: Preparing to load avatar for $conversationName from $topAvatarSource")
                         if (topAvatarUrl.isNotBlank()) {
+                            Log.d("ChatDetailTopBar", "📸 Loading avatar image for $conversationName: $topAvatarUrl")
                             AsyncImage(
                                 model = topAvatarUrl,
                                 contentDescription = stringResource(R.string.content_description_avatar, conversationName),
                                 modifier = Modifier
                                     .size(36.dp)
                                     .clip(CircleShape),
-                                contentScale = ContentScale.Crop
+                                contentScale = ContentScale.Crop,
+                                onError = { error ->
+                                    Log.e("ChatDetailTopBar", "Failed to load avatar for $conversationName: ${error.result.throwable}")
+                                },
+                                onSuccess = {
+                                    Log.d("ChatDetailTopBar", "Successfully loaded avatar for $conversationName")
+                                }
                             )
                         } else {
-            Box(
-                modifier = Modifier
-                    .size(36.dp)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)),
+                            Log.d("ChatDetailTopBar", "No avatarUrl for $conversationName, showing initials")
+                            Box(
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .clip(CircleShape)
+                                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Text(
@@ -629,13 +644,21 @@ internal fun MessageBubble(
                 .clickable { if (message.senderId.isNotBlank()) onAvatarClick(message.senderId) }
 
             if (message.senderAvatarUrl.isNotBlank()) {
+                Log.d("MessageBubble", "Loading avatar for ${message.senderName}: ${message.senderAvatarUrl}")
                 AsyncImage(
                     model = message.senderAvatarUrl,
                     contentDescription = stringResource(R.string.content_description_avatar, message.senderName),
                     modifier = avatarModifier,
-                    contentScale = ContentScale.Crop
+                    contentScale = ContentScale.Crop,
+                    onError = { error ->
+                        Log.e("MessageBubble", "Failed to load avatar for ${message.senderName}: ${error.result.throwable}")
+                    },
+                    onSuccess = {
+                        Log.d("MessageBubble", "Successfully loaded avatar for ${message.senderName}")
+                    }
                 )
             } else {
+                Log.d("MessageBubble", "No avatarUrl for ${message.senderName}, showing initials")
                 Box(
                     modifier = avatarModifier.background(PrimaryBlue),
                     contentAlignment = Alignment.Center
@@ -987,15 +1010,23 @@ internal fun MessageBubble(
             Spacer(modifier = Modifier.width(8.dp))
             // Own avatar
             if (message.senderAvatarUrl.isNotBlank()) {
+                Log.d("MessageBubble", "Loading self avatar: ${message.senderAvatarUrl}")
                 AsyncImage(
                     model = message.senderAvatarUrl,
                     contentDescription = stringResource(R.string.content_description_my_avatar),
                     modifier = Modifier
                         .size(40.dp)
                         .clip(CircleShape),
-                    contentScale = ContentScale.Crop
+                    contentScale = ContentScale.Crop,
+                    onError = { error ->
+                        Log.e("MessageBubble", "Failed to load self avatar: ${error.result.throwable}")
+                    },
+                    onSuccess = {
+                        Log.d("MessageBubble", "Successfully loaded self avatar")
+                    }
                 )
             } else {
+                Log.d("MessageBubble", "No self avatarUrl, showing initials")
                 Box(
                     modifier = Modifier
                         .size(40.dp)
