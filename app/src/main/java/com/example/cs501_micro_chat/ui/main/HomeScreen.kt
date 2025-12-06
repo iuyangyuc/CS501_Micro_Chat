@@ -115,6 +115,7 @@ import com.example.cs501_micro_chat.ui.chat.messageKey
 import com.example.cs501_micro_chat.ui.profile.GroupProfileScreen
 import com.example.cs501_micro_chat.ui.profile.UserProfileScreen
 import com.example.cs501_micro_chat.ui.search.ChatSearchScreen
+import com.example.cs501_micro_chat.ui.search.GroupMemberSearchScreen
 import com.example.cs501_micro_chat.ui.settings.AboutScreen
 import com.example.cs501_micro_chat.ui.settings.PrivacySettingsScreen
 import com.example.cs501_micro_chat.ui.settings.ProfileEditScreen
@@ -130,6 +131,7 @@ import java.util.Locale
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import android.widget.Toast
 
 // Figma Design Colors (still used for branding)
 private val PrimaryBlue = Color(0xFF3296FA)
@@ -149,6 +151,7 @@ private const val PROFILE_EDIT_ROUTE = "profile_edit"
 private const val USER_PROFILE_ROUTE = "user_profile"
 private const val GROUP_PROFILE_ROUTE = "group_profile"
 private const val CHAT_SEARCH_ROUTE = "chat_search"
+private const val GROUP_MEMBER_SEARCH_ROUTE = "group_member_search"
 private const val PROFILE_UPDATED_KEY = "profile_updated"
 
 
@@ -213,7 +216,9 @@ fun HomeScreen(
                 it == ABOUT_ROUTE ||
                 it == PROFILE_EDIT_ROUTE ||
                 it.startsWith(USER_PROFILE_ROUTE) ||
-                it.startsWith(GROUP_PROFILE_ROUTE)
+                it.startsWith(GROUP_PROFILE_ROUTE) ||
+                it.startsWith(CHAT_SEARCH_ROUTE) ||
+                it.startsWith(GROUP_MEMBER_SEARCH_ROUTE)
     } == true
     val surfaceColor = MaterialTheme.colorScheme.surface
 
@@ -314,6 +319,13 @@ fun HomeScreen(
                                 )
                             }
 
+                    route?.startsWith(GROUP_MEMBER_SEARCH_ROUTE) == true -> {
+                        GroupMemberSearchTopBar(onBack = { navController.popBackStack() })
+                    }
+
+                    route?.startsWith(CHAT_SEARCH_ROUTE) == true -> {
+                        ChatSearchTopBar(onBack = { navController.popBackStack() })
+                    }
                             route?.startsWith(CHAT_SEARCH_ROUTE) == true -> {
                                 ChatSearchTopBar(onBack = { navController.popBackStack() })
                             }
@@ -442,6 +454,7 @@ fun HomeScreen(
                     val themeOption by themeViewModel.themeOption.collectAsStateWithLifecycle()
                     val profileViewModel: ProfileSettingsViewModel = hiltViewModel()
                     val profileState by profileViewModel.uiState.collectAsStateWithLifecycle()
+                    val context = LocalContext.current
                     val savedStateHandle = backStackEntry.savedStateHandle
                     val profileUpdatedFlow = remember(savedStateHandle) {
                         savedStateHandle.getStateFlow(PROFILE_UPDATED_KEY, false)
@@ -458,7 +471,19 @@ fun HomeScreen(
                     ProfileScreen(
                         onLogout = onLogout,
                         onLanguageClick = { navController.navigate(LANGUAGE_SETTINGS_ROUTE) },
-                        onPrivacyClick = { navController.navigate(PRIVACY_SETTINGS_ROUTE) },
+                        onPrivacyClick = {
+                            if (profileState.isGoogleSignIn) {
+                                Toast
+                                    .makeText(
+                                        context,
+                                        context.getString(R.string.privacy_google_sign_in_blocked),
+                                        Toast.LENGTH_SHORT
+                                    )
+                                    .show()
+                            } else {
+                                navController.navigate(PRIVACY_SETTINGS_ROUTE)
+                            }
+                        },
                         onAboutClick = { navController.navigate(ABOUT_ROUTE) },
                         onProfileClick = { navController.navigate(PROFILE_EDIT_ROUTE) },
                         themeOption = themeOption,
@@ -623,6 +648,23 @@ fun HomeScreen(
                     val conversationId = backStackEntry.arguments?.getString("conversationId").orEmpty()
                     ChatSearchScreen(
                         conversationId = conversationId,
+                        onBack = { navController.popBackStack() },
+                        onGroupMembersClick = {
+                            val encodedId = URLEncoder.encode(conversationId, StandardCharsets.UTF_8.toString())
+                            navController.navigate("$GROUP_MEMBER_SEARCH_ROUTE/$encodedId")
+                        }
+                    )
+                }
+                composable(
+                    route = "$GROUP_MEMBER_SEARCH_ROUTE/{conversationId}",
+                    arguments = listOf(
+                        navArgument("conversationId") {
+                            type = NavType.StringType
+                            defaultValue = ""
+                        }
+                    )
+                ) {
+                    GroupMemberSearchScreen(
                         onBack = { navController.popBackStack() }
                     )
                 }
@@ -991,6 +1033,34 @@ fun GroupHeaderTopBar(memberCount: Int, onBack: () -> Unit) {
 
         Text(
             text = stringResource(R.string.group_profile_title_with_count, memberCount),
+            color = Color.White,
+            fontSize = 18.sp,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.align(Alignment.Center)
+        )
+    }
+}
+
+@Composable
+fun GroupMemberSearchTopBar(onBack: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(56.dp)
+    ) {
+        IconButton(
+            onClick = onBack,
+            modifier = Modifier.align(Alignment.CenterStart)
+        ) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                contentDescription = stringResource(R.string.content_description_back),
+                tint = Color.White
+            )
+        }
+
+        Text(
+            text = stringResource(R.string.search_by_member_title),
             color = Color.White,
             fontSize = 18.sp,
             fontWeight = FontWeight.SemiBold,

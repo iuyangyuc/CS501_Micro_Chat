@@ -27,6 +27,7 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
+import com.google.firebase.firestore.DocumentSnapshot
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
@@ -46,6 +47,45 @@ class FirebaseDataSource @Inject constructor(
 
     companion object {
         private const val TAG = "FirebaseDataSource"
+    }
+
+    private fun parseUser(doc: DocumentSnapshot): User? {
+        val data = doc.data ?: return null
+        return try {
+            val createdAt = when (val created = data["createdAt"]) {
+                is Long -> created
+                is com.google.firebase.Timestamp -> created.toDate().time
+                else -> System.currentTimeMillis()
+            }
+
+            val lastSeenAt = when (val lastSeen = data["lastSeenAt"]) {
+                is Long -> lastSeen
+                is com.google.firebase.Timestamp -> lastSeen.toDate().time
+                else -> System.currentTimeMillis()
+            }
+
+        val displayName = (data["displayName"] as? String)?.takeIf { it.isNotBlank() }
+            ?: data["username"] as? String
+            ?: ""
+
+        User(
+            id = doc.id,
+            username = displayName,
+            email = data["email"] as? String ?: "",
+            avatarUrl = data["avatarUrl"] as? String ?: "",
+            status = try {
+                UserStatus.valueOf(data["status"] as? String ?: "OFFLINE")
+            } catch (_: Exception) {
+                    UserStatus.OFFLINE
+                },
+                statusMessage = data["statusMessage"] as? String ?: "",
+                createdAt = createdAt,
+                lastSeenAt = lastSeenAt
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "Error parsing user ${doc.id}: ${e.message}")
+            null
+        }
     }
 
     // ==================== 用户相关 User Operations ====================
@@ -149,7 +189,7 @@ class FirebaseDataSource @Inject constructor(
                 .await()
 
             snapshot.documents.forEach { doc ->
-                doc.toObject(User::class.java)?.let { user ->
+                parseUser(doc)?.let { user ->
                     users[doc.id] = user.copy(id = doc.id)
                 }
             }
@@ -168,7 +208,7 @@ class FirebaseDataSource @Inject constructor(
                     close(error)
                     return@addSnapshotListener
                 }
-                val user = snapshot?.toObject(User::class.java)
+                val user = snapshot?.let { parseUser(it)?.copy(id = it.id) }
                 user?.let { trySend(it.status) }
             }
         awaitClose { listener.remove() }
@@ -208,9 +248,7 @@ class FirebaseDataSource @Inject constructor(
                 .get()
                 .await()
                 .documents
-                .mapNotNull { doc ->
-                    doc.toObject(User::class.java)?.copy(id = doc.id)
-                }
+                .mapNotNull { doc -> parseUser(doc)?.copy(id = doc.id) }
             results.addAll(byUsername)
         } catch (e: Exception) {
             Log.d(TAG, "Username search (original case) failed: ${e.message}")
@@ -225,10 +263,8 @@ class FirebaseDataSource @Inject constructor(
                     .limit(20)
                     .get()
                     .await()
-                    .documents
-                    .mapNotNull { doc ->
-                        doc.toObject(User::class.java)?.copy(id = doc.id)
-                    }
+                .documents
+                .mapNotNull { doc -> parseUser(doc)?.copy(id = doc.id) }
                 results.addAll(byUsernameLower)
             } catch (e: Exception) {
                 Log.d(TAG, "Username search (lowercase) failed: ${e.message}")
@@ -244,9 +280,7 @@ class FirebaseDataSource @Inject constructor(
                 .get()
                 .await()
                 .documents
-                .mapNotNull { doc ->
-                    doc.toObject(User::class.java)?.copy(id = doc.id)
-                }
+                .mapNotNull { doc -> parseUser(doc)?.copy(id = doc.id) }
             results.addAll(byEmail)
         } catch (e: Exception) {
             Log.d(TAG, "Email search failed: ${e.message}")
@@ -259,7 +293,7 @@ class FirebaseDataSource @Inject constructor(
                     .document(trimmedQuery)
                     .get()
                     .await()
-                byId.toObject(User::class.java)?.let { user ->
+                parseUser(byId)?.let { user ->
                     results.add(user.copy(id = byId.id))
                 }
             } catch (e: Exception) {
@@ -276,45 +310,7 @@ class FirebaseDataSource @Inject constructor(
                     .get()
                     .await()
                     .documents
-                    .mapNotNull { doc ->
-                        try {
-                            // 手动构造 User 对象，处理 Timestamp 类型
-                            val data = doc.data
-                            if (data != null) {
-                                val createdAt = when (val created = data["createdAt"]) {
-                                    is Long -> created
-                                    is com.google.firebase.Timestamp -> created.toDate().time
-                                    else -> System.currentTimeMillis()
-                                }
-
-                                val lastSeenAt = when (val lastSeen = data["lastSeenAt"]) {
-                                    is Long -> lastSeen
-                                    is com.google.firebase.Timestamp -> lastSeen.toDate().time
-                                    else -> System.currentTimeMillis()
-                                }
-
-                                User(
-                                    id = doc.id,
-                                    username = data["username"] as? String ?: "",
-                                    email = data["email"] as? String ?: "",
-                                    avatarUrl = data["avatarUrl"] as? String ?: "",
-                                    status = try {
-                                        UserStatus.valueOf(data["status"] as? String ?: "OFFLINE")
-                                    } catch (e: Exception) {
-                                        UserStatus.OFFLINE
-                                    },
-                                    statusMessage = data["statusMessage"] as? String ?: "",
-                                    createdAt = createdAt,
-                                    lastSeenAt = lastSeenAt
-                                )
-                            } else {
-                                null
-                            }
-                        } catch (e: Exception) {
-                            Log.e(TAG, "Error parsing user ${doc.id}: ${e.message}")
-                            null
-                        }
-                    }
+                    .mapNotNull { doc -> parseUser(doc)?.copy(id = doc.id) }
 
                 Log.d(TAG, "Client-side search: Retrieved ${allUsers.size} users")
 

@@ -118,6 +118,7 @@ class ChatDetailViewModel @Inject constructor(
 
     private val _suppressedTranslationKeys = MutableStateFlow<Set<String>>(emptySet())
     private val _suppressedTranscriptionKeys = MutableStateFlow<Set<String>>(emptySet())
+    private val _clearedAt = MutableStateFlow(0L)
 
     private val _uiMessages = MutableSharedFlow<String>(extraBufferCapacity = 4)
     val uiMessages: SharedFlow<String> = _uiMessages.asSharedFlow()
@@ -160,6 +161,7 @@ class ChatDetailViewModel @Inject constructor(
         _voiceTranscriptionStates.value = emptyMap()
         _suppressedTranslationKeys.value = emptySet()
         _suppressedTranscriptionKeys.value = emptySet()
+        _clearedAt.value = 0L
         initialEmptyJob?.cancel()
         initialEmptyJob = null
 
@@ -170,8 +172,15 @@ class ChatDetailViewModel @Inject constructor(
                 chatRepository.observeMessages(conversationId).collect { messageList ->
                     Log.d("ChatDetailViewModel", "Received ${messageList.size} messages")
 
+                    val clearTs = _clearedAt.value
+                    val visibleMessages = if (clearTs > 0) {
+                        messageList.filter { it.timestamp > clearTs }
+                    } else {
+                        messageList
+                    }
+
                     // Fill missing user info
-                    val enrichedMessages = enrichMessagesWithUserInfo(messageList)
+                    val enrichedMessages = enrichMessagesWithUserInfo(visibleMessages)
 
                     initialEmptyJob?.cancel()
 
@@ -232,6 +241,8 @@ class ChatDetailViewModel @Inject constructor(
             }
             val blocked = convo.blockedParticipants[_currentUserId.value] == true
             _isConversationBlocked.value = blocked
+            val clearedTs = convo.clearedAt[_currentUserId.value] ?: 0L
+            _clearedAt.value = clearedTs
         }.onFailure { error ->
             Log.e("ChatDetailViewModel", "Failed to load conversation meta", error)
         }

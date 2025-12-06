@@ -67,6 +67,7 @@ import coil.compose.AsyncImage
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.sp
 import com.example.cs501_micro_chat.R
+import com.example.cs501_micro_chat.ui.common.ConfirmDialog
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -87,6 +88,7 @@ fun UserProfileScreen(
     val context = LocalContext.current
     var snackbarStyle by remember { mutableStateOf(SnackbarStyle.INFO) }
     var showDeleteDialog by remember { mutableStateOf(false) }
+    var showClearHistoryDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         viewModel.events.collect { event ->
@@ -146,6 +148,20 @@ fun UserProfileScreen(
         )
     }
 
+    if (showClearHistoryDialog) {
+        ConfirmDialog(
+            title = stringResource(R.string.clear_history_title),
+            description = stringResource(R.string.clear_history_description),
+            confirmText = stringResource(R.string.clear_history_confirm),
+            cancelText = stringResource(R.string.user_profile_delete_confirm_cancel),
+            onConfirm = {
+                showClearHistoryDialog = false
+                viewModel.clearHistory()
+            },
+            onDismiss = { showClearHistoryDialog = false }
+        )
+    }
+
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         snackbarHost = {
@@ -169,7 +185,7 @@ fun UserProfileScreen(
                     onStartChat = viewModel::startChat,
                     onDeleteContact = { showDeleteDialog = true },
                     onSearchHistory = viewModel::searchHistory,
-                    onClearHistory = viewModel::clearHistory,
+                    onClearHistory = { showClearHistoryDialog = true },
                     onAliasChange = viewModel::onAliasChange,
                     onSaveAlias = viewModel::saveAlias,
                     onBeginAliasEdit = viewModel::startAliasEdit,
