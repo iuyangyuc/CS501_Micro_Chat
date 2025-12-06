@@ -110,51 +110,9 @@ class GroupMemberSearchViewModel @Inject constructor(
         val filtered = if (trimmed.isBlank()) {
             members
         } else {
-            members.filter { fuzzyMatch(it.name, trimmed) }
+            members.filter { it.name.contains(trimmed, ignoreCase = true) }
         }
         return sortMembers(filtered)
-    }
-
-    private fun fuzzyMatch(name: String, query: String): Boolean {
-        val needle = query.lowercase(Locale.getDefault())
-        val haystack = name.lowercase(Locale.getDefault())
-
-        if (haystack.contains(needle)) return true
-
-        val maxDistance = when {
-            needle.length <= 3 -> 1
-            needle.length <= 6 -> 2
-            else -> 3
-        }
-        return levenshteinDistance(needle, haystack) <= maxDistance
-    }
-
-    private fun levenshteinDistance(a: String, b: String): Int {
-        if (a == b) return 0
-        if (a.isEmpty()) return b.length
-        if (b.isEmpty()) return a.length
-
-        val aChars = a.toCharArray()
-        val bChars = b.toCharArray()
-        val previous = IntArray(bChars.size + 1) { it }
-        val current = IntArray(bChars.size + 1)
-
-        for (i in aChars.indices) {
-            current[0] = i + 1
-            for (j in bChars.indices) {
-                val cost = if (aChars[i] == bChars[j]) 0 else 1
-                current[j + 1] = minOf(
-                    current[j] + 1,
-                    previous[j + 1] + 1,
-                    previous[j] + cost
-                )
-            }
-            // swap arrays
-            for (k in previous.indices) {
-                previous[k] = current[k]
-            }
-        }
-        return previous[bChars.size]
     }
 
 }

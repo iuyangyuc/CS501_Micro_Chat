@@ -31,7 +31,6 @@ import android.os.SystemClock
 import android.speech.tts.TextToSpeech
 import android.util.Log
 import android.webkit.MimeTypeMap
-import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -54,7 +53,6 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -133,6 +131,7 @@ import java.util.Locale
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import android.widget.Toast
 
 // Figma Design Colors (still used for branding)
 private val PrimaryBlue = Color(0xFF3296FA)
@@ -221,97 +220,104 @@ fun HomeScreen(
                 it.startsWith(CHAT_SEARCH_ROUTE) ||
                 it.startsWith(GROUP_MEMBER_SEARCH_ROUTE)
     } == true
-    val backgroundColor = MaterialTheme.colorScheme.background
     val surfaceColor = MaterialTheme.colorScheme.surface
 
     // 创建共享的 HomeViewModel（用于添加好友等全局功能）
     val sharedHomeViewModel: HomeViewModel = hiltViewModel()
 
     // ========== 固定布局：顶栏 + 内容 + 底栏 ==========
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .background(backgroundColor)
-    ) {
-        // ========== 固定顶栏（始终存在，只改变内容） ==========
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .statusBarsPadding()
-                .background(
-                    brush = Brush.verticalGradient(
-                        colors = listOf(PrimaryBlue, LightBlue)
-                    )
-                )
-                .padding(horizontal = 4.dp, vertical = 8.dp)
-        ) {
-            // 顶栏内容平滑切换
-            AnimatedContent(
-                targetState = currentRoute,
-                transitionSpec = {
-                    fadeIn(animationSpec = tween(150)) togetherWith
-                            fadeOut(animationSpec = tween(150))
-                },
-                label = "TopBarContent"
-            ) { route ->
-                when {
-                    route?.startsWith("chat_detail") == true -> {
-                        val chatDetailViewModel: ChatDetailViewModel = hiltViewModel(navBackStackEntry!!)
-                        val otherUserId by chatDetailViewModel.otherUserId.collectAsStateWithLifecycle()
-                        val conversationType by chatDetailViewModel.conversationType.collectAsStateWithLifecycle()
-                        val convoId by chatDetailViewModel.conversationId.collectAsStateWithLifecycle()
-                        ChatDetailTopBar(
-                            conversationName = navBackStackEntry?.arguments?.getString("conversationName")?.let {
-                                URLDecoder.decode(it, StandardCharsets.UTF_8.toString())
-                            } ?: "",
-                            conversationAvatar = navBackStackEntry?.arguments?.getString("conversationAvatar")?.let {
-                                URLDecoder.decode(it, StandardCharsets.UTF_8.toString())
-                            } ?: "",
-                            onBack = { navController.popBackStack() },
-                            onProfileClick = {
-                                when (conversationType) {
-                                    ConversationType.PRIVATE -> if (otherUserId.isNotBlank()) {
-                                        navController.navigate("$USER_PROFILE_ROUTE/$otherUserId?conversationId=$convoId&source=chat")
-                                    }
+    Scaffold(
+        topBar = {
+            // ========== 固定顶栏（所有页面共用，包括 chat_detail） ==========
+            Surface(
+                color = Color.Transparent
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(
+                            brush = Brush.verticalGradient(
+                                colors = listOf(PrimaryBlue, LightBlue)
+                            )
+                        )
+                        .statusBarsPadding()
+                        .padding(horizontal = 4.dp, vertical = 8.dp)
+                ) {
+                    // 顶栏内容平滑切换
+                    AnimatedContent(
+                        targetState = currentRoute,
+                        transitionSpec = {
+                            fadeIn(animationSpec = tween(150)) togetherWith
+                                    fadeOut(animationSpec = tween(150))
+                        },
+                        label = "TopBarContent"
+                    ) { route ->
+                        when {
+                            route?.startsWith("chat_detail") == true -> {
+                                // 使用 ChatDetailViewModel 来获取正确的头像
+                                val chatDetailViewModel: ChatDetailViewModel = hiltViewModel(navBackStackEntry!!)
+                                val otherUserId by chatDetailViewModel.otherUserId.collectAsStateWithLifecycle()
+                                val otherUserAvatarUrl by chatDetailViewModel.otherUserAvatarUrl.collectAsStateWithLifecycle()
+                                val conversationType by chatDetailViewModel.conversationType.collectAsStateWithLifecycle()
+                                val convoId by chatDetailViewModel.conversationId.collectAsStateWithLifecycle()
 
-                                ConversationType.GROUP -> if (convoId.isNotBlank()) {
-                                        navController.navigate("$GROUP_PROFILE_ROUTE/$convoId?source=chat")
-                                    }
+                                // 从路由参数获取对话名称
+                                val conversationName = navBackStackEntry?.arguments?.getString("conversationName")?.let {
+                                    URLDecoder.decode(it, StandardCharsets.UTF_8.toString())
+                                } ?: ""
 
-                                    else -> {}
-                                }
+                                // 从路由参数获取初始头像（作为 fallback）
+                                val fallbackAvatar = navBackStackEntry?.arguments?.getString("conversationAvatar")?.let {
+                                    URLDecoder.decode(it, StandardCharsets.UTF_8.toString())
+                                } ?: ""
+
+                                ChatDetailTopBar(
+                                    conversationName = conversationName,
+                                    // 优先使用 ViewModel 中解析好的头像 URL，如果为空则使用路由参数
+                                    conversationAvatar = otherUserAvatarUrl.ifBlank { fallbackAvatar },
+                                    onBack = { navController.popBackStack() },
+                                    onProfileClick = {
+                                        when (conversationType) {
+                                            ConversationType.PRIVATE -> if (otherUserId.isNotBlank()) {
+                                                navController.navigate("$USER_PROFILE_ROUTE/$otherUserId?conversationId=$convoId&source=chat")
+                                            }
+
+                                            ConversationType.GROUP -> if (convoId.isNotBlank()) {
+                                                navController.navigate("$GROUP_PROFILE_ROUTE/$convoId?source=chat")
+                                            }
+                                        }
+                                    }
+                                )
                             }
-                        )
-                    }
 
-                    route == LANGUAGE_SETTINGS_ROUTE -> {
-                        LanguageSettingsTopBar(onBack = { navController.popBackStack() })
-                    }
+                            route == LANGUAGE_SETTINGS_ROUTE -> {
+                                LanguageSettingsTopBar(onBack = { navController.popBackStack() })
+                            }
 
-                    route == PRIVACY_SETTINGS_ROUTE -> {
-                        PrivacySettingsTopBar(onBack = { navController.popBackStack() })
-                    }
+                            route == PRIVACY_SETTINGS_ROUTE -> {
+                                PrivacySettingsTopBar(onBack = { navController.popBackStack() })
+                            }
 
-                    route == ABOUT_ROUTE -> {
-                        AboutTopBar(onBack = { navController.popBackStack() })
-                    }
+                            route == ABOUT_ROUTE -> {
+                                AboutTopBar(onBack = { navController.popBackStack() })
+                            }
 
-                    route == PROFILE_EDIT_ROUTE -> {
-                        ProfileHeaderTopBar(onBack = { navController.popBackStack() })
-                    }
+                            route == PROFILE_EDIT_ROUTE -> {
+                                ProfileHeaderTopBar(onBack = { navController.popBackStack() })
+                            }
 
-                    route?.startsWith(USER_PROFILE_ROUTE) == true -> {
-                        ProfileHeaderTopBar(onBack = { navController.popBackStack() })
-                    }
+                            route?.startsWith(USER_PROFILE_ROUTE) == true -> {
+                                ProfileHeaderTopBar(onBack = { navController.popBackStack() })
+                            }
 
-                    route?.startsWith(GROUP_PROFILE_ROUTE) == true -> {
-                        val groupProfileViewModel: com.example.cs501_micro_chat.ui.profile.GroupProfileViewModel = hiltViewModel(navBackStackEntry!!)
-                        val groupState by groupProfileViewModel.uiState.collectAsStateWithLifecycle()
-                        GroupHeaderTopBar(
-                            memberCount = groupState.members.size,
-                            onBack = { navController.popBackStack() }
-                        )
-                    }
+                            route?.startsWith(GROUP_PROFILE_ROUTE) == true -> {
+                                val groupProfileViewModel: com.example.cs501_micro_chat.ui.profile.GroupProfileViewModel = hiltViewModel(navBackStackEntry!!)
+                                val groupState by groupProfileViewModel.uiState.collectAsStateWithLifecycle()
+                                GroupHeaderTopBar(
+                                    memberCount = groupState.members.size,
+                                    onBack = { navController.popBackStack() }
+                                )
+                            }
 
                     route?.startsWith(GROUP_MEMBER_SEARCH_ROUTE) == true -> {
                         GroupMemberSearchTopBar(onBack = { navController.popBackStack() })
@@ -320,37 +326,81 @@ fun HomeScreen(
                     route?.startsWith(CHAT_SEARCH_ROUTE) == true -> {
                         ChatSearchTopBar(onBack = { navController.popBackStack() })
                     }
+                            route?.startsWith(CHAT_SEARCH_ROUTE) == true -> {
+                                ChatSearchTopBar(onBack = { navController.popBackStack() })
+                            }
 
-                    else -> {
-                        HomeTopBar(
-                            currentRoute = route,
-                            homeViewModel = sharedHomeViewModel,
-                            onNavigateToChat = { convoId, name, avatar ->
-                                val encodedName = URLEncoder.encode(name, StandardCharsets.UTF_8.toString())
-                                val encodedAvatar = URLEncoder.encode(avatar, StandardCharsets.UTF_8.toString())
-                                navController.navigate("chat_detail/$convoId/$encodedName/$encodedAvatar") {
-                                    popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                            else -> {
+                                HomeTopBar(
+                                    currentRoute = route,
+                                    homeViewModel = sharedHomeViewModel,
+                                    onNavigateToChat = { convoId, name, avatar ->
+                                        val encodedName = URLEncoder.encode(name, StandardCharsets.UTF_8.toString())
+                                        val encodedAvatar = URLEncoder.encode(avatar, StandardCharsets.UTF_8.toString())
+                                        navController.navigate("chat_detail/$convoId/$encodedName/$encodedAvatar") {
+                                            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                                            launchSingleTop = true
+                                            restoreState = true
+                                        }
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        bottomBar = {
+            // ========== 固定底栏（非全屏路由时显示） ==========
+            if (!isFullScreenRoute) {
+                NavigationBar(
+                    containerColor = surfaceColor,
+                    tonalElevation = 8.dp
+                ) {
+                    items.forEach { destination ->
+                        NavigationBarItem(
+                            icon = {
+                                Icon(
+                                    imageVector = destination.icon,
+                                    contentDescription = stringResource(destination.labelResId),
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            },
+                            label = {
+                                Text(
+                                    text = stringResource(destination.labelResId),
+                                    fontSize = 12.sp
+                                )
+                            },
+                            selected = currentRoute == destination.route,
+                            onClick = {
+                                navController.navigate(destination.route) {
+                                    popUpTo(navController.graph.findStartDestination().id) {
+                                        saveState = true
+                                    }
                                     launchSingleTop = true
                                     restoreState = true
                                 }
-                            }
+                            },
+                            colors = NavigationBarItemDefaults.colors(
+                                selectedIconColor = PrimaryBlue,
+                                selectedTextColor = PrimaryBlue,
+                                unselectedIconColor = secondaryTextColor(),
+                                unselectedTextColor = secondaryTextColor(),
+                                indicatorColor = PrimaryBlue.copy(alpha = 0.12f)
+                            )
                         )
                     }
                 }
             }
         }
-
-        // ========== 内容区域（可动画） ==========
-        Box(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth()
-                .background(backgroundColor)
+    ) { paddingValues ->
+        // ========== 内容区域（NavHost） ==========
+        NavHost(
+            navController = navController,
+            startDestination = HomeDestination.Chats.route,
+            modifier = Modifier.padding(paddingValues)
         ) {
-            NavHost(
-                navController = navController,
-                startDestination = HomeDestination.Chats.route
-            ) {
                 composable(HomeDestination.Chats.route) {
                     val homeViewModel: HomeViewModel = hiltViewModel()
                     ChatListScreen(
@@ -554,7 +604,6 @@ fun HomeScreen(
                     )
                 ) { backStackEntry ->
                     val userId = backStackEntry.arguments?.getString("userId") ?: return@composable
-                    val conversationIdArg = backStackEntry.arguments?.getString("conversationId").orEmpty()
                     val sourceArg = backStackEntry.arguments?.getString("source").orEmpty()
                     val onBackHandler: () -> Unit = {
                         val popped = navController.popBackStack()
@@ -620,51 +669,8 @@ fun HomeScreen(
                     )
                 }
             }
-        }
-
-        // ========== 固定底栏（非 ChatDetail 时显示） ==========
-        if (!isFullScreenRoute) {
-            NavigationBar(
-                containerColor = surfaceColor,
-                tonalElevation = 8.dp
-            ) {
-                items.forEach { destination ->
-                    NavigationBarItem(
-                        icon = {
-                            Icon(
-                                imageVector = destination.icon,
-                                contentDescription = stringResource(destination.labelResId),
-                                modifier = Modifier.size(24.dp)
-                            )
-                        },
-                        label = {
-                            Text(
-                                text = stringResource(destination.labelResId),
-                                fontSize = 12.sp
-                            )
-                        },
-                        selected = currentRoute == destination.route,
-                        onClick = {
-                            navController.navigate(destination.route) {
-                                popUpTo(navController.graph.findStartDestination().id) {
-                                    saveState = true
-                                }
-                                launchSingleTop = true
-                                restoreState = true
-                            }
-                        },
-                        colors = NavigationBarItemDefaults.colors(
-                            selectedIconColor = PrimaryBlue,
-                            selectedTextColor = PrimaryBlue,
-                            unselectedIconColor = secondaryTextColor(),
-                            unselectedTextColor = secondaryTextColor(),
-                            indicatorColor = PrimaryBlue.copy(alpha = 0.12f)
-                        )
-                    )
-                }
-            }
-        }
     }
+
 
 }
 
@@ -788,7 +794,7 @@ fun HomeTopBar(
                                     text = stringResource(R.string.add_option_new_group),
                                     color = primaryTextColor(),
                                     fontSize = 16.sp,
-                                    fontWeight = androidx.compose.ui.text.font.FontWeight.Medium
+                                    fontWeight = FontWeight.Medium
                                 )
                             }
                         },
@@ -1224,7 +1230,7 @@ fun ChatDetailContent(
     conversationId: String,
     onAvatarClick: (String) -> Unit = {}
 ) {
-    val viewModel: com.example.cs501_micro_chat.ui.chat.ChatDetailViewModel = hiltViewModel()
+    val viewModel: ChatDetailViewModel = hiltViewModel()
     val context = LocalContext.current
 
     LaunchedEffect(conversationId) {
@@ -1295,7 +1301,7 @@ fun ChatDetailContent(
     fun startRecording() {
         try {
             val output = File(context.cacheDir, "voice_${System.currentTimeMillis()}.mp4")
-            val recorder = MediaRecorder().apply {
+            val recorder = MediaRecorder(context).apply {
                 setAudioSource(MediaRecorder.AudioSource.MIC)
                 setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
                 setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
@@ -1512,7 +1518,7 @@ fun ChatDetailContent(
                     }
                 ),
                 SheetAction(
-                    icon = Icons.Filled.InsertDriveFile,
+                    icon = Icons.Default.AttachFile,
                     label = stringResource(R.string.action_sheet_file),
                     onClick = {
                         filePicker.launch("*/*")
@@ -1985,8 +1991,6 @@ fun ConversationListItem(
 ) {
     // 监听 userCache 的变化，确保用户信息加载后界面会更新
     val userCache by viewModel.userCache.collectAsStateWithLifecycle()
-    // 监听联系人变化，确保头像/备注更新能反映到列表
-    val contacts by viewModel.allContacts.collectAsStateWithLifecycle()
 
     val formattedTime = if (conversation.lastMessage.isNotBlank()) {
         viewModel.formatTime(conversation.lastMessageTime)
