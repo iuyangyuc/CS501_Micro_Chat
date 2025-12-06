@@ -16,7 +16,9 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Base64;
+import java.util.List;
 
 import static spark.Spark.get;
 import static spark.Spark.port;
@@ -51,6 +53,7 @@ public final class TranslationServer {
         });
 
         post("/translate", (req, res) -> handleTranslate(req, res, config));
+        post("/summarize", (req, res) -> handleSummarize(req, res, config));
         post("/tts", (req, res) -> handleTextToSpeech(req, res, config));
 
         System.out.printf("[translation-backend-java] Listening on port %d (model: %s)%n", config.port, config.model);
@@ -111,6 +114,54 @@ public final class TranslationServer {
             System.err.println("[translation-backend-java] translate error: " + e.getMessage());
             res.status(502);
             return jsonError("Translation failed: " + e.getMessage());
+        }
+    }
+
+    private static String handleSummarize(Request req, Response res, ServerConfig config) {
+        res.type("application/json");
+
+        if (config.apiKey == null || config.apiKey.isBlank()) {
+            res.status(500);
+            return jsonError("OPENAI_API_KEY is not configured on the server");
+        }
+
+        JsonNode body;
+        try {
+            body = MAPPER.readTree(req.body());
+        } catch (IOException e) {
+            res.status(400);
+            return jsonError("Invalid JSON payload: " + e.getMessage());
+        }
+
+        List<String> messages = normalizeMessages(body.get("messages"));
+        if (messages.isEmpty()) {
+            res.status(400);
+            return jsonError("messages is required and must be a non-empty array of strings");
+        }
+
+        String instructions = textValue(body, "instructions");
+        if (instructions == null) {
+            instructions = "";
+        }
+
+        try {
+            ObjectNode completion = callOpenAISummarize(config, messages, instructions);
+            String summary = extractSummary(completion);
+
+            ObjectNode response = MAPPER.createObjectNode();
+            response.put("summary", summary);
+            response.put("messageCount", messages.size());
+            response.put("model", completion.path("model").asText(config.model));
+            if (completion.has("usage")) {
+                response.set("usage", completion.get("usage"));
+            }
+
+            res.status(200);
+            return response.toString();
+        } catch (IOException | InterruptedException e) {
+            System.err.println("[translation-backend-java] summarize error: " + e.getMessage());
+            res.status(502);
+            return jsonError("Summarization failed: " + e.getMessage());
         }
     }
 
@@ -219,6 +270,39 @@ public final class TranslationServer {
         return (ObjectNode) MAPPER.readTree(response.body());
     }
 
+    private static ObjectNode callOpenAISummarize(ServerConfig config,
+                                                  List<String> messages,
+                                                  String instructions) throws IOException, InterruptedException {
+        ObjectNode payload = MAPPER.createObjectNode();
+        payload.put("model", config.model);
+        if (config.temperature != null) {
+            payload.put("temperature", config.temperature);
+        }
+
+        ArrayNode completionMessages = payload.putArray("messages");
+        completionMessages.addObject()
+                .put("role", "system")
+                .put("content", "You are a concise meeting assistant. Summarize the conversation, highlighting the main points, decisions, and action items. Respond clearly without bullet points unless explicitly requested.");
+        completionMessages.addObject()
+                .put("role", "user")
+                .put("content", buildSummaryPrompt(messages, instructions));
+
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create("https://api.openai.com/v1/chat/completions"))
+                .timeout(Duration.ofSeconds(60))
+                .header("Authorization", "Bearer " + config.apiKey)
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(payload.toString(), StandardCharsets.UTF_8))
+                .build();
+
+        HttpResponse<String> response = HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+        if (response.statusCode() >= 400) {
+            throw new IOException("OpenAI API error (status " + response.statusCode() + "): " + response.body());
+        }
+
+        return (ObjectNode) MAPPER.readTree(response.body());
+    }
+
     private static byte[] callOpenAITts(ServerConfig config,
                                         String text,
                                         String voice,
@@ -253,16 +337,24 @@ public final class TranslationServer {
     }
 
     private static String extractTranslation(JsonNode completion) throws JsonProcessingException {
+        return extractMessageContent(completion, "translated content");
+    }
+
+    private static String extractSummary(JsonNode completion) throws JsonProcessingException {
+        return extractMessageContent(completion, "summary content");
+    }
+
+    private static String extractMessageContent(JsonNode completion, String contentName) throws JsonProcessingException {
         JsonNode choices = completion.get("choices");
         if (choices == null || !choices.isArray() || choices.isEmpty()) {
-            throw new JsonProcessingException("OpenAI response did not contain any choices") {
+            throw new JsonProcessingException("OpenAI response did not contain any choices for " + contentName) {
                 private static final long serialVersionUID = 1L;
             };
         }
 
         JsonNode message = choices.get(0).get("message");
         if (message == null || message.get("content") == null) {
-            throw new JsonProcessingException("OpenAI response was missing translated content") {
+            throw new JsonProcessingException("OpenAI response was missing " + contentName) {
                 private static final long serialVersionUID = 1L;
             };
         }
@@ -290,6 +382,53 @@ public final class TranslationServer {
 
         builder.append("\n\nText:\n\"\"\"").append(text).append("\"\"\"");
         return builder.toString();
+    }
+
+    private static String buildSummaryPrompt(List<String> messages, String instructions) {
+        StringBuilder builder = new StringBuilder();
+        builder.append("Summarize the following chat transcript in 2-4 sentences, calling out key themes, decisions, and any follow-up items.");
+        if (instructions != null && !instructions.isBlank()) {
+            builder.append(" Follow these extra instructions: ").append(instructions).append(".");
+        }
+        builder.append("\n\nMessages:\n");
+        for (int i = 0; i < messages.size(); i++) {
+            builder.append(i + 1).append(". ").append(messages.get(i)).append("\n");
+        }
+        return builder.toString();
+    }
+
+    private static List<String> normalizeMessages(JsonNode messagesNode) {
+        List<String> messages = new ArrayList<>();
+        if (messagesNode == null || messagesNode.isNull() || !messagesNode.isArray()) {
+            return messages;
+        }
+
+        for (JsonNode messageNode : messagesNode) {
+            String content = null;
+            if (messageNode.isTextual()) {
+                content = messageNode.asText();
+            } else if (messageNode.isObject()) {
+                content = textValue(messageNode, "text");
+                if (content == null || content.isBlank()) {
+                    content = textValue(messageNode, "content");
+                }
+
+                String author = textValue(messageNode, "author");
+                if (author == null || author.isBlank()) {
+                    author = textValue(messageNode, "sender");
+                }
+
+                if (author != null && !author.isBlank() && content != null && !content.isBlank()) {
+                    content = author + ": " + content;
+                }
+            }
+
+            if (content != null && !content.isBlank()) {
+                messages.add(content.trim());
+            }
+        }
+
+        return messages;
     }
 
     private static String textValue(JsonNode node, String field) {
