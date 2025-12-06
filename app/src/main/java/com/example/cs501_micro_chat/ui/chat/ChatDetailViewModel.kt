@@ -239,21 +239,33 @@ class ChatDetailViewModel @Inject constructor(
 
     private fun loadOtherUserAvatar(userId: String) {
         viewModelScope.launch {
+            Log.d("ChatDetailViewModel", "⭐ loadOtherUserAvatar started for userId=$userId")
             val profileResult = chatRepository.getUser(userId)
             val user = profileResult.getOrNull()
-            user?.let { userCache[userId] = it }
 
-            val rawAvatar = user?.avatarUrl.orEmpty()
+            if (user == null) {
+                Log.e("ChatDetailViewModel", "❌ Failed to load user profile for userId=$userId")
+                return@launch
+            }
+
+            user.let { userCache[userId] = it }
+            val rawAvatar = user.avatarUrl
+            Log.d("ChatDetailViewModel", "📸 Raw avatar URL from user profile: $rawAvatar")
+
             val resolved = resolveAvatarUrl(userId, rawAvatar)
-            resolved?.let { result ->
-                Log.d("ChatDetailViewModel", "TopBar avatar resolved for user=$userId source=${result.source} url=${result.url}")
-                _otherUserAvatarUrl.value = result.url
-                // Update cache with resolved URL so bubbles also see it
-                user?.let { cached ->
-                    userCache[userId] = cached.copy(avatarUrl = result.url)
-                    _messages.update { list -> list.map { msg ->
-                        if (msg.senderId == userId) msg.copy(senderAvatarUrl = result.url) else msg
-                    } }
+            if (resolved == null) {
+                Log.e("ChatDetailViewModel", "❌ resolveAvatarUrl returned null for userId=$userId, rawAvatar=$rawAvatar")
+                return@launch
+            }
+
+            Log.d("ChatDetailViewModel", "✅ TopBar avatar resolved for user=$userId source=${resolved.source} url=${resolved.url}")
+            _otherUserAvatarUrl.value = resolved.url
+            Log.d("ChatDetailViewModel", "✅ _otherUserAvatarUrl updated to: ${_otherUserAvatarUrl.value}")
+            // Update cache with resolved URL so bubbles also see it
+            userCache[userId] = user.copy(avatarUrl = resolved.url)
+            _messages.update { list ->
+                list.map { msg ->
+                    if (msg.senderId == userId) msg.copy(senderAvatarUrl = resolved.url) else msg
                 }
             }
         }
@@ -262,32 +274,60 @@ class ChatDetailViewModel @Inject constructor(
     private data class ResolvedAvatar(val url: String, val source: String)
 
     private suspend fun resolveAvatarUrl(userId: String, avatar: String): ResolvedAvatar? {
+        Log.d("ChatDetailViewModel", "🔍 resolveAvatarUrl: userId=$userId, avatar=$avatar")
+
         // Firebase Storage download link is still http, so detect by host instead of protocol.
         if (avatar.contains("firebasestorage.googleapis.com", ignoreCase = true)) {
+            Log.d("ChatDetailViewModel", "🔥 Detected Firebase Storage URL")
             extractStoragePath(avatar)?.let { path ->
-                storageRepository.getDownloadUrl(path).onSuccess { url ->
-                    if (url.isNotBlank()) return ResolvedAvatar(url, "storage_download_from_profile_url_path=$path")
+                Log.d("ChatDetailViewModel", "📂 Extracted storage path: $path")
+                storageRepository.getDownloadUrlFromRoot(path).onSuccess { url ->
+                    if (url.isNotBlank()) {
+                        Log.d("ChatDetailViewModel", "✅ Got download URL from storage path: $url")
+                        return ResolvedAvatar(url, "storage_download_from_profile_url_path=$path")
+                    }
+                }.onFailure { error ->
+                    Log.e("ChatDetailViewModel", "❌ Failed to get download URL for path $path", error)
                 }
             }
+            Log.d("ChatDetailViewModel", "⚠️ Using Firebase Storage URL as fallback")
             return ResolvedAvatar(avatar, "profile_url_storage_fallback")
         }
 
         // If already an http(s) URL but not storage, use directly (random CDN or custom URL).
-        if (avatar.startsWith("http", ignoreCase = true)) return ResolvedAvatar(avatar, "profile_url_non_storage")
+        if (avatar.startsWith("http", ignoreCase = true)) {
+            Log.d("ChatDetailViewModel", "🌐 Detected HTTP URL (non-storage)")
+            return ResolvedAvatar(avatar, "profile_url_non_storage")
+        }
 
-        // If avatar is a storage path, try to resolve download URL
+        // If avatar is a storage path, try to resolve download URL from root Avatars folder
         val pathCandidates = buildList {
             if (avatar.isNotBlank()) add(avatar)
             add("Avatars/$userId.jpg")
+            add("Avatars/$userId.png")
         }
+        Log.d("ChatDetailViewModel", "🔍 Trying storage path candidates from ROOT: $pathCandidates")
 
         pathCandidates.forEach { path ->
-            storageRepository.getDownloadUrl(path).onSuccess { url ->
-                if (url.isNotBlank()) return ResolvedAvatar(url, "storage_path=$path")
+            Log.d("ChatDetailViewModel", "  Trying ROOT path: $path")
+            storageRepository.getDownloadUrlFromRoot(path).onSuccess { url ->
+                if (url.isNotBlank()) {
+                    Log.d("ChatDetailViewModel", "✅ Found download URL for ROOT path $path: $url")
+                    return ResolvedAvatar(url, "storage_root_path=$path")
+                }
+            }.onFailure { error ->
+                Log.d("ChatDetailViewModel", "  ROOT path $path not found or error: ${error.message}")
             }
         }
 
-        return if (avatar.isNotBlank()) ResolvedAvatar(avatar, "fallback_original") else null
+        val result = if (avatar.isNotBlank()) {
+            Log.d("ChatDetailViewModel", "⚠️ Using original avatar as fallback: $avatar")
+            ResolvedAvatar(avatar, "fallback_original")
+        } else {
+            Log.d("ChatDetailViewModel", "❌ No avatar URL available, returning null")
+            null
+        }
+        return result
     }
 
     private fun extractStoragePath(url: String): String? {
