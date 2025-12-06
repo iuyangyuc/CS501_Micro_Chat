@@ -137,6 +137,7 @@
     <string name="privacy_confirm_password_label">確認新密碼</string>
     <string name="privacy_change_password_button">更新密碼</string>
     <string name="privacy_password_updated">已成功更新密碼。</string>
+    <string name="privacy_google_sign_in_blocked">您使用 Google 登入，無法在此修改密碼。</string>
     <string name="error_current_password_incorrect">目前密碼不正確。</string>
     <string name="error_password_same_as_old">新密碼不可與目前密碼相同。</string>
     <string name="about_title">關於 Micro Chat</string>
@@ -186,6 +187,9 @@
     <string name="user_profile_search_history">搜尋聊天記錄</string>
     <string name="user_profile_clear_history">清除聊天記錄</string>
     <string name="user_profile_clear_history_success">聊天記錄已清除</string>
+    <string name="clear_history_title">清除聊天記錄？</string>
+    <string name="clear_history_description">這將永久刪除此對話在本裝置上的所有訊息。</string>
+    <string name="clear_history_confirm">刪除</string>
     <string name="user_profile_alias_update_success">備註已更新</string>
     <string name="user_profile_pin_title">置頂聊天</string>
     <string name="user_profile_pin_on_description">讓此聊天永遠顯示在列表最上方。</string>
@@ -237,12 +241,15 @@
     <string name="search_cancel">取消</string>
     <string name="search_header_title">搜尋</string>
     <string name="search_this_chat_title">搜尋此聊天</string>
-    <string name="search_chip_group_members">群組成員</string>
+    <string name="search_chip_group_members">成員</string>
     <string name="search_chip_date">日期</string>
     <string name="search_chip_photos_videos">照片與影片</string>
     <string name="search_chip_files">檔案</string>
     <string name="search_chip_audio">音訊</string>
     <string name="search_chip_links">連結</string>
+    <string name="search_by_member_title">依成員搜尋</string>
+    <string name="search_members_placeholder">搜尋成員</string>
+    <string name="search_members_empty">找不到成員</string>
     <string name="no_results_found">沒有找到結果</string>
     <string name="try_different_search_keyword">試試其他搜尋關鍵字</string>
     <string name="no_conversations_yet">尚無對話</string>

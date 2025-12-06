@@ -143,6 +143,7 @@
     <string name="privacy_confirm_password_label">Confirm new password</string>
     <string name="privacy_change_password_button">Update password</string>
     <string name="privacy_password_updated">Password updated successfully.</string>
+    <string name="privacy_google_sign_in_blocked">Password cannot be changed here for Google sign-in accounts.</string>
     <string name="error_current_password_incorrect">Current password is incorrect.</string>
     <string name="error_password_same_as_old">New password must be different from the current password.</string>
     <string name="about_title">About Micro Chat</string>
@@ -192,6 +193,9 @@
     <string name="user_profile_search_history">Search chat history</string>
     <string name="user_profile_clear_history">Clear chat history</string>
     <string name="user_profile_clear_history_success">Chat history cleared</string>
+    <string name="clear_history_title">Clear chat history?</string>
+    <string name="clear_history_description">This will permanently delete all messages in this conversation on this device.</string>
+    <string name="clear_history_confirm">Delete</string>
     <string name="user_profile_alias_label">Contact nickname</string>
     <string name="user_profile_alias_placeholder">Enter a nickname</string>
     <string name="user_profile_alias_save">Save nickname</string>
@@ -249,12 +253,15 @@
     <string name="search_cancel">Cancel</string>
     <string name="search_header_title">Search</string>
     <string name="search_this_chat_title">Search This Chat</string>
-    <string name="search_chip_group_members">Group Members</string>
+    <string name="search_chip_group_members">Members</string>
     <string name="search_chip_date">Date</string>
     <string name="search_chip_photos_videos">Photos &amp; Videos</string>
     <string name="search_chip_files">Files</string>
     <string name="search_chip_audio">Audio</string>
     <string name="search_chip_links">Links</string>
+    <string name="search_by_member_title">Search by member</string>
+    <string name="search_members_placeholder">Search members</string>
+    <string name="search_members_empty">No members found</string>
 
     <!-- Avatar Crop Dialog -->
     <string name="crop_avatar_title">Crop Avatar</string>

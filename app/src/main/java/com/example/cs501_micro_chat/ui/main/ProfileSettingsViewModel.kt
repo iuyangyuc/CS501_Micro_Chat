@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.cs501_micro_chat.data.repository.ProfileRepository
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.GoogleAuthProvider
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -27,7 +28,14 @@ class ProfileSettingsViewModel @Inject constructor(
 
     fun refreshProfile() {
         viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true, errorMessage = null) }
+            val signedInWithGoogle = isGoogleSignIn()
+            _uiState.update {
+                it.copy(
+                    isLoading = true,
+                    errorMessage = null,
+                    isGoogleSignIn = signedInWithGoogle
+                )
+            }
             val result = profileRepository.getProfile()
             result
                 .onSuccess { profile ->
@@ -42,7 +50,8 @@ class ProfileSettingsViewModel @Inject constructor(
                             email = email,
                             bio = profile.bio,
                             avatarUrl = profile.avatarUrl,
-                            isLoading = false
+                            isLoading = false,
+                            isGoogleSignIn = signedInWithGoogle
                         )
                     }
                 }
@@ -50,11 +59,17 @@ class ProfileSettingsViewModel @Inject constructor(
                     _uiState.update {
                         it.copy(
                             isLoading = false,
-                            errorMessage = error.message
+                            errorMessage = error.message,
+                            isGoogleSignIn = signedInWithGoogle
                         )
                     }
                 }
         }
+    }
+
+    private fun isGoogleSignIn(): Boolean {
+        val user = firebaseAuth.currentUser ?: return false
+        return user.providerData.any { it.providerId == GoogleAuthProvider.PROVIDER_ID }
     }
 }
 
@@ -64,5 +79,6 @@ data class ProfileSettingsUiState(
     val bio: String = "",
     val avatarUrl: String = "",
     val isLoading: Boolean = false,
-    val errorMessage: String? = null
+    val errorMessage: String? = null,
+    val isGoogleSignIn: Boolean = false
 )

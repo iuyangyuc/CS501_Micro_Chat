@@ -1,0 +1,160 @@
+package com.example.cs501_micro_chat.ui.search
+
+import androidx.lifecycle.SavedStateHandle
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.example.cs501_micro_chat.data.model.Conversation
+import com.example.cs501_micro_chat.data.repository.ChatRepository
+import dagger.hilt.android.lifecycle.HiltViewModel
+import java.text.Collator
+import java.util.Locale
+import javax.inject.Inject
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
+
+data class GroupMemberItem(
+    val id: String,
+    val name: String,
+    val avatarUrl: String
+)
+
+data class GroupMemberSearchUiState(
+    val query: String = "",
+    val members: List<GroupMemberItem> = emptyList(),
+    val filteredMembers: List<GroupMemberItem> = emptyList(),
+    val isLoading: Boolean = false,
+    val errorMessage: String? = null
+)
+
+@HiltViewModel
+class GroupMemberSearchViewModel @Inject constructor(
+    private val chatRepository: ChatRepository,
+    savedStateHandle: SavedStateHandle
+) : ViewModel() {
+
+    private val conversationId: String = savedStateHandle.get<String>("conversationId").orEmpty()
+    private val collator: Collator = Collator.getInstance(Locale.getDefault()).apply {
+        strength = Collator.PRIMARY
+    }
+
+    private val _uiState = MutableStateFlow(GroupMemberSearchUiState())
+    val uiState: StateFlow<GroupMemberSearchUiState> = _uiState.asStateFlow()
+
+    init {
+        if (conversationId.isNotBlank()) {
+            loadMembers()
+        }
+    }
+
+    fun onQueryChange(query: String) {
+        val members = _uiState.value.members
+        _uiState.update {
+            it.copy(
+                query = query,
+                filteredMembers = filterAndSort(members, query)
+            )
+        }
+    }
+
+    private fun loadMembers() {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true, errorMessage = null) }
+            chatRepository.getConversation(conversationId).onSuccess { conversation: Conversation? ->
+                val participants = conversation?.participants.orEmpty()
+                if (participants.isEmpty()) {
+                    _uiState.update { it.copy(isLoading = false, members = emptyList(), filteredMembers = emptyList()) }
+                    return@onSuccess
+                }
+
+                chatRepository.getUsers(participants).onSuccess { userMap ->
+                    val members = participants.map { id ->
+                        val user = userMap[id]
+                        val name = when {
+                            !user?.username.isNullOrBlank() -> user!!.username
+                            !user?.email.isNullOrBlank() -> user!!.email.substringBefore("@")
+                            else -> id
+                        }
+                        GroupMemberItem(
+                            id = id,
+                            name = name,
+                            avatarUrl = user?.avatarUrl.orEmpty()
+                        )
+                    }
+                    val sortedMembers = sortMembers(members)
+                    val filtered = filterAndSort(sortedMembers, _uiState.value.query)
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            members = sortedMembers,
+                            filteredMembers = filtered
+                        )
+                    }
+                }.onFailure { error ->
+                    _uiState.update { it.copy(isLoading = false, errorMessage = error.message) }
+                }
+            }.onFailure { error ->
+                _uiState.update { it.copy(isLoading = false, errorMessage = error.message) }
+            }
+        }
+    }
+
+    private fun sortMembers(members: List<GroupMemberItem>): List<GroupMemberItem> {
+        return members.sortedWith { a, b -> collator.compare(a.name, b.name) }
+    }
+
+    private fun filterAndSort(members: List<GroupMemberItem>, query: String): List<GroupMemberItem> {
+        val trimmed = query.trim()
+        val filtered = if (trimmed.isBlank()) {
+            members
+        } else {
+            members.filter { fuzzyMatch(it.name, trimmed) }
+        }
+        return sortMembers(filtered)
+    }
+
+    private fun fuzzyMatch(name: String, query: String): Boolean {
+        val needle = query.lowercase(Locale.getDefault())
+        val haystack = name.lowercase(Locale.getDefault())
+
+        if (haystack.contains(needle)) return true
+
+        val maxDistance = when {
+            needle.length <= 3 -> 1
+            needle.length <= 6 -> 2
+            else -> 3
+        }
+        return levenshteinDistance(needle, haystack) <= maxDistance
+    }
+
+    private fun levenshteinDistance(a: String, b: String): Int {
+        if (a == b) return 0
+        if (a.isEmpty()) return b.length
+        if (b.isEmpty()) return a.length
+
+        val aChars = a.toCharArray()
+        val bChars = b.toCharArray()
+        val previous = IntArray(bChars.size + 1) { it }
+        val current = IntArray(bChars.size + 1)
+
+        for (i in aChars.indices) {
+            current[0] = i + 1
+            for (j in bChars.indices) {
+                val cost = if (aChars[i] == bChars[j]) 0 else 1
+                current[j + 1] = minOf(
+                    current[j] + 1,
+                    previous[j + 1] + 1,
+                    previous[j] + cost
+                )
+            }
+            // swap arrays
+            for (k in previous.indices) {
+                previous[k] = current[k]
+            }
+        }
+        return previous[bChars.size]
+    }
+
+}

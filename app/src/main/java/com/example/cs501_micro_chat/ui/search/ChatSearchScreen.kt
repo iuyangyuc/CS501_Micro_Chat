@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -32,7 +31,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.stringResource
 import com.example.cs501_micro_chat.R
@@ -40,7 +38,8 @@ import com.example.cs501_micro_chat.R
 @Composable
 fun ChatSearchScreen(
     conversationId: String,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onGroupMembersClick: () -> Unit
 ) {
     val (query, setQuery) = remember { mutableStateOf("") }
     val accent = MaterialTheme.colorScheme.primary.copy(alpha = 0.85f)
@@ -86,17 +85,6 @@ fun ChatSearchScreen(
             }
         }
 
-            Spacer(modifier = Modifier.height(4.dp))
-
-        Text(
-            text = stringResource(id = R.string.search_this_chat_title),
-            modifier = Modifier.fillMaxWidth(),
-            textAlign = TextAlign.Center,
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.onSurface
-        )
-
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -128,7 +116,11 @@ fun ChatSearchScreen(
                                 color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f),
                                 shape = RoundedCornerShape(14.dp)
                             )
-                            .clickable { /* TODO: hook up search filter */ },
+                            .clickable {
+                if (resId == R.string.search_chip_group_members) {
+                                    onGroupMembersClick()
+                                }
+                            },
                         contentAlignment = Alignment.Center
                     ) {
                         Text(

@@ -65,6 +65,7 @@ import com.example.cs501_micro_chat.R
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
+import com.example.cs501_micro_chat.ui.common.ConfirmDialog
 
 @Composable
 fun GroupProfileScreen(
@@ -142,6 +143,7 @@ fun GroupProfileScreen(
                         viewModel.startChat()
                     }
                 }
+                var showClearHistoryDialog by remember { mutableStateOf(false) }
                 GroupProfileContent(
                     state = state,
                     onNameChange = viewModel::onNameChange,
@@ -149,10 +151,23 @@ fun GroupProfileScreen(
                     onStartChat = openChat,
                     onSearchHistory = viewModel::searchHistory,
                     onTogglePinned = viewModel::togglePinned,
-                    onClearHistory = viewModel::clearHistory,
+                    onClearHistory = { showClearHistoryDialog = true },
                     onLeaveGroup = viewModel::leaveGroup,
                     onMemberClick = onMemberClick
                 )
+                if (showClearHistoryDialog) {
+                    ConfirmDialog(
+                        title = stringResource(R.string.clear_history_title),
+                        description = stringResource(R.string.clear_history_description),
+                        confirmText = stringResource(R.string.clear_history_confirm),
+                        cancelText = stringResource(R.string.user_profile_delete_confirm_cancel),
+                        onConfirm = {
+                            showClearHistoryDialog = false
+                            viewModel.clearHistory()
+                        },
+                        onDismiss = { showClearHistoryDialog = false }
+                    )
+                }
             }
         }
     }
