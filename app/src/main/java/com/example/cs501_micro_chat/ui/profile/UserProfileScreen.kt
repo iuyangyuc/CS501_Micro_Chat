@@ -95,7 +95,8 @@ fun UserProfileScreen(
                 UserProfileEvent.Deleted -> onDeleted()
                 is UserProfileEvent.ShowError -> {
                     snackbarStyle = SnackbarStyle.ERROR
-                    snackbarHostState.showSnackbar(event.message)
+                    val text = event.messageRes?.let { context.getString(it) } ?: event.message.orEmpty()
+                    snackbarHostState.showSnackbar(text)
                 }
                 UserProfileEvent.AliasSaved -> {
                     snackbarStyle = SnackbarStyle.SUCCESS
@@ -381,8 +382,7 @@ private fun ProfileContent(
             Button(
                 onClick = onClearHistory,
                 modifier = Modifier.fillMaxWidth(),
-                enabled = state.conversationId.isNotBlank() && !state.isDeleted,
-                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                enabled = state.conversationId.isNotBlank() && !state.isDeleted
             ) {
                 Icon(imageVector = Icons.Outlined.Clear, contentDescription = null)
                 Spacer(modifier = Modifier.width(8.dp))

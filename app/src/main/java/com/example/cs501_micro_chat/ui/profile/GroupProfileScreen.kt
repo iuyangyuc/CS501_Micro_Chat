@@ -94,7 +94,12 @@ fun GroupProfileScreen(
                 is GroupProfileEvent.SearchHistory -> onOpenSearch(event.conversationId)
                 is GroupProfileEvent.ShowMessage -> {
                     snackbarStyle = GroupSnackbarStyle.ERROR
-                    snackbarHostState.showSnackbar(event.message)
+                    val text = event.messageRes?.let { context.getString(it) } ?: event.message.orEmpty()
+                    snackbarHostState.showSnackbar(text)
+                }
+                is GroupProfileEvent.ShowStatus -> {
+                    snackbarStyle = if (event.success) GroupSnackbarStyle.SUCCESS else GroupSnackbarStyle.ERROR
+                    snackbarHostState.showSnackbar(context.getString(event.messageRes))
                 }
                 is GroupProfileEvent.PinStatusChanged -> {
                     snackbarStyle = GroupSnackbarStyle.SUCCESS

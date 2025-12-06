@@ -185,6 +185,7 @@
     <string name="user_profile_not_provided">未提供</string>
     <string name="user_profile_search_history">搜索聊天记录</string>
     <string name="user_profile_clear_history">清除聊天记录</string>
+    <string name="user_profile_clear_history_success">聊天记录已清除</string>
     <string name="user_profile_alias_label">备注名</string>
     <string name="user_profile_alias_placeholder">请输入备注</string>
     <string name="user_profile_alias_save">保存备注</string>
@@ -198,6 +199,15 @@
     <string name="user_profile_pin_enabled">已置顶聊天</string>
     <string name="user_profile_pin_disabled">已取消置顶</string>
     <string name="user_profile_pin_unavailable">添加为联系人后才能置顶。</string>
+    <string name="user_profile_error_start_chat">打开聊天失败</string>
+    <string name="user_profile_error_search_empty">没有可搜索的会话</string>
+    <string name="user_profile_error_clear_history">清除聊天记录失败</string>
+    <string name="user_profile_error_delete_contact">删除联系人失败</string>
+    <string name="user_profile_error_pin_update">更新置顶状态失败</string>
+    <string name="user_profile_error_pin_status">加载置顶状态失败</string>
+    <string name="user_profile_error_load_profile">加载用户信息失败</string>
+    <string name="user_profile_error_not_found">未找到该用户</string>
+    <string name="user_profile_error_update_alias">更新备注失败</string>
     <string name="user_profile_delete_confirm_title">确认删除联系人？</string>
     <string name="user_profile_delete_confirm_message">此联系人将从列表中移除。</string>
     <string name="user_profile_delete_confirm_confirm">删除</string>
@@ -234,6 +244,22 @@
     <string name="group_profile_leaving">正在退出...</string>
     <string name="group_profile_no_members">暂无成员</string>
     <string name="group_profile_title_with_count">群组（%1$d）</string>
+    <string name="group_profile_clear_history_success">群聊记录已清除</string>
+    <string name="group_profile_error_clear_history">清除群聊记录失败</string>
+    <string name="group_profile_error_pin_status">加载群聊置顶状态失败</string>
+    <string name="group_profile_error_pin_update">更新群聊置顶状态失败</string>
+    <string name="group_profile_error_leave">退出群聊失败</string>
+    <string name="group_profile_error_update_name">更新群组名称失败</string>
+    <string name="search_placeholder">搜索</string>
+    <string name="search_cancel">取消</string>
+    <string name="search_header_title">搜索</string>
+    <string name="search_this_chat_title">搜索此聊天</string>
+    <string name="search_chip_group_members">群成员</string>
+    <string name="search_chip_date">日期</string>
+    <string name="search_chip_photos_videos">照片和视频</string>
+    <string name="search_chip_files">文件</string>
+    <string name="search_chip_audio">音频</string>
+    <string name="search_chip_links">链接</string>
     <!-- HomeScreen additional strings -->
     <string name="no_results_found">未找到结果</string>
     <string name="try_different_search_keyword">请尝试其他关键词</string>

@@ -32,7 +32,8 @@ data class Conversation(
     val createdAt: Long = System.currentTimeMillis(),
     val createdBy: String = "",
     val isActive: Boolean = true,
-    val blockedParticipants: Map<String, Boolean> = emptyMap() // userId -> isBlocked
+    val blockedParticipants: Map<String, Boolean> = emptyMap(), // userId -> isBlocked
+    val clearedAt: Map<String, Long> = emptyMap() // userId -> last cleared timestamp
 ) {
     // 转换为 Firebase Map 格式
     fun toMap(): Map<String, Any> = mapOf(
@@ -47,7 +48,8 @@ data class Conversation(
         "createdAt" to createdAt,
         "createdBy" to createdBy,
         "isActive" to isActive,
-        "blockedParticipants" to blockedParticipants
+        "blockedParticipants" to blockedParticipants,
+        "clearedAt" to clearedAt
     )
 
     // 获取特定用户的未读消息数

@@ -55,10 +55,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import android.util.Log
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.example.cs501_micro_chat.R
+import com.example.cs501_micro_chat.data.model.ConversationType
 import com.example.cs501_micro_chat.data.model.Message
 import com.example.cs501_micro_chat.data.model.MessageStatus
 import com.example.cs501_micro_chat.data.model.MessageType
@@ -122,6 +124,8 @@ fun ChatDetailScreen(
     val hasLoadedInitial by viewModel.hasLoadedInitial.collectAsStateWithLifecycle()
     val error by viewModel.error.collectAsStateWithLifecycle()
     val currentUserId by viewModel.currentUserId.collectAsStateWithLifecycle()
+    val conversationType by viewModel.conversationType.collectAsStateWithLifecycle()
+    val otherUserAvatarUrl by viewModel.otherUserAvatarUrl.collectAsStateWithLifecycle()
     val isBlocked by viewModel.isConversationBlocked.collectAsStateWithLifecycle()
     val translationStates by viewModel.translationStates.collectAsStateWithLifecycle()
     val voiceTranscriptionStates by viewModel.voiceTranscriptionStates.collectAsStateWithLifecycle()
@@ -210,10 +214,28 @@ fun ChatDetailScreen(
                             )
                         }
 
+                        val topAvatarUrl = if (conversationType == ConversationType.PRIVATE && otherUserAvatarUrl.isNotBlank()) {
+                            otherUserAvatarUrl
+                        } else {
+                            conversationAvatar
+                        }
+                        val topAvatarSource = if (conversationType == ConversationType.PRIVATE && otherUserAvatarUrl.isNotBlank()) {
+                            "otherUserAvatarUrl"
+                        } else {
+                            "conversationParam"
+                        }
+
+                        LaunchedEffect(topAvatarUrl, topAvatarSource, conversationName) {
+                            Log.d(
+                                "ChatDetailTopBar",
+                                "Top avatar resolved: url=$topAvatarUrl source=$topAvatarSource convo=$conversationName"
+                            )
+                        }
+
                         // Conversation avatar and name
-                        if (conversationAvatar.isNotBlank()) {
+                        if (topAvatarUrl.isNotBlank()) {
                             AsyncImage(
-                                model = conversationAvatar,
+                                model = topAvatarUrl,
                                 contentDescription = stringResource(R.string.content_description_avatar, conversationName),
                                 modifier = Modifier
                                     .size(36.dp)

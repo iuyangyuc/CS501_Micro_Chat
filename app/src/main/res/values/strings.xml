@@ -191,6 +191,7 @@
     <string name="user_profile_not_provided">Not provided</string>
     <string name="user_profile_search_history">Search chat history</string>
     <string name="user_profile_clear_history">Clear chat history</string>
+    <string name="user_profile_clear_history_success">Chat history cleared</string>
     <string name="user_profile_alias_label">Contact nickname</string>
     <string name="user_profile_alias_placeholder">Enter a nickname</string>
     <string name="user_profile_alias_save">Save nickname</string>
@@ -204,6 +205,15 @@
     <string name="user_profile_pin_enabled">Chat pinned</string>
     <string name="user_profile_pin_disabled">Pin removed</string>
     <string name="user_profile_pin_unavailable">Add this contact before pinning.</string>
+    <string name="user_profile_error_start_chat">Failed to open chat</string>
+    <string name="user_profile_error_search_empty">No conversation to search</string>
+    <string name="user_profile_error_clear_history">Failed to clear chat history</string>
+    <string name="user_profile_error_delete_contact">Failed to delete contact</string>
+    <string name="user_profile_error_pin_update">Failed to update pin status</string>
+    <string name="user_profile_error_pin_status">Failed to load pin status</string>
+    <string name="user_profile_error_load_profile">Failed to load profile</string>
+    <string name="user_profile_error_not_found">User not found</string>
+    <string name="user_profile_error_update_alias">Failed to update nickname</string>
     <string name="user_profile_delete_confirm_title">Remove contact?</string>
     <string name="user_profile_delete_confirm_message">This person will disappear from your contacts list.</string>
     <string name="user_profile_delete_confirm_confirm">Delete</string>
@@ -229,6 +239,22 @@
     <string name="group_profile_leaving">Leaving...</string>
     <string name="group_profile_no_members">No members</string>
     <string name="group_profile_title_with_count">Group (%1$d)</string>
+    <string name="group_profile_clear_history_success">Group chat history cleared</string>
+    <string name="group_profile_error_clear_history">Failed to clear chat history</string>
+    <string name="group_profile_error_pin_status">Failed to load pin status</string>
+    <string name="group_profile_error_pin_update">Failed to update pin status</string>
+    <string name="group_profile_error_leave">Failed to leave group</string>
+    <string name="group_profile_error_update_name">Failed to update group name</string>
+    <string name="search_placeholder">Search</string>
+    <string name="search_cancel">Cancel</string>
+    <string name="search_header_title">Search</string>
+    <string name="search_this_chat_title">Search This Chat</string>
+    <string name="search_chip_group_members">Group Members</string>
+    <string name="search_chip_date">Date</string>
+    <string name="search_chip_photos_videos">Photos &amp; Videos</string>
+    <string name="search_chip_files">Files</string>
+    <string name="search_chip_audio">Audio</string>
+    <string name="search_chip_links">Links</string>
 
     <!-- Avatar Crop Dialog -->
     <string name="crop_avatar_title">Crop Avatar</string>

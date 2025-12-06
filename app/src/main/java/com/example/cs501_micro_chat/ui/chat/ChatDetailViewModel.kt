@@ -89,6 +89,9 @@ class ChatDetailViewModel @Inject constructor(
     private val _otherUserId = MutableStateFlow("")
     val otherUserId: StateFlow<String> = _otherUserId.asStateFlow()
 
+    private val _otherUserAvatarUrl = MutableStateFlow("")
+    val otherUserAvatarUrl: StateFlow<String> = _otherUserAvatarUrl.asStateFlow()
+
     private val _conversationType = MutableStateFlow(com.example.cs501_micro_chat.data.model.ConversationType.PRIVATE)
     val conversationType: StateFlow<com.example.cs501_micro_chat.data.model.ConversationType> = _conversationType.asStateFlow()
 
@@ -152,6 +155,7 @@ class ChatDetailViewModel @Inject constructor(
         _hasLoadedInitial.value = false
         _error.value = null
         _isConversationBlocked.value = false
+        _otherUserAvatarUrl.value = ""
         _translationStates.value = emptyMap()
         _voiceTranscriptionStates.value = emptyMap()
         _suppressedTranslationKeys.value = emptySet()
@@ -220,6 +224,9 @@ class ChatDetailViewModel @Inject constructor(
                 val currentId = _currentUserId.value
                 val other = convo.participants.firstOrNull { it != currentId }.orEmpty()
                 _otherUserId.value = other
+                if (other.isNotBlank()) {
+                    loadOtherUserAvatar(other)
+                }
             } else {
                 _otherUserId.value = ""
             }
@@ -227,6 +234,74 @@ class ChatDetailViewModel @Inject constructor(
             _isConversationBlocked.value = blocked
         }.onFailure { error ->
             Log.e("ChatDetailViewModel", "Failed to load conversation meta", error)
+        }
+    }
+
+    private fun loadOtherUserAvatar(userId: String) {
+        viewModelScope.launch {
+            val profileResult = chatRepository.getUser(userId)
+            val user = profileResult.getOrNull()
+            user?.let { userCache[userId] = it }
+
+            val rawAvatar = user?.avatarUrl.orEmpty()
+            val resolved = resolveAvatarUrl(userId, rawAvatar)
+            resolved?.let { result ->
+                Log.d("ChatDetailViewModel", "TopBar avatar resolved for user=$userId source=${result.source} url=${result.url}")
+                _otherUserAvatarUrl.value = result.url
+                // Update cache with resolved URL so bubbles also see it
+                user?.let { cached ->
+                    userCache[userId] = cached.copy(avatarUrl = result.url)
+                    _messages.update { list -> list.map { msg ->
+                        if (msg.senderId == userId) msg.copy(senderAvatarUrl = result.url) else msg
+                    } }
+                }
+            }
+        }
+    }
+
+    private data class ResolvedAvatar(val url: String, val source: String)
+
+    private suspend fun resolveAvatarUrl(userId: String, avatar: String): ResolvedAvatar? {
+        // Firebase Storage download link is still http, so detect by host instead of protocol.
+        if (avatar.contains("firebasestorage.googleapis.com", ignoreCase = true)) {
+            extractStoragePath(avatar)?.let { path ->
+                storageRepository.getDownloadUrl(path).onSuccess { url ->
+                    if (url.isNotBlank()) return ResolvedAvatar(url, "storage_download_from_profile_url_path=$path")
+                }
+            }
+            return ResolvedAvatar(avatar, "profile_url_storage_fallback")
+        }
+
+        // If already an http(s) URL but not storage, use directly (random CDN or custom URL).
+        if (avatar.startsWith("http", ignoreCase = true)) return ResolvedAvatar(avatar, "profile_url_non_storage")
+
+        // If avatar is a storage path, try to resolve download URL
+        val pathCandidates = buildList {
+            if (avatar.isNotBlank()) add(avatar)
+            add("Avatars/$userId.jpg")
+        }
+
+        pathCandidates.forEach { path ->
+            storageRepository.getDownloadUrl(path).onSuccess { url ->
+                if (url.isNotBlank()) return ResolvedAvatar(url, "storage_path=$path")
+            }
+        }
+
+        return if (avatar.isNotBlank()) ResolvedAvatar(avatar, "fallback_original") else null
+    }
+
+    private fun extractStoragePath(url: String): String? {
+        // Example: https://firebasestorage.googleapis.com/v0/b/bucket/o/Avatars%2Fuid.jpg?alt=media&token=...
+        val marker = "/o/"
+        val idx = url.indexOf(marker)
+        if (idx == -1) return null
+        val start = idx + marker.length
+        val end = url.indexOf('?', start).takeIf { it != -1 } ?: url.length
+        val encoded = url.substring(start, end)
+        return try {
+            java.net.URLDecoder.decode(encoded, "UTF-8")
+        } catch (e: Exception) {
+            null
         }
     }
 
