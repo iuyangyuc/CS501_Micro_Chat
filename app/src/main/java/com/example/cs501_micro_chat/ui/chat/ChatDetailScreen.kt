@@ -1087,10 +1087,16 @@ internal fun MessageBubble(
                 }
 
                 if (summarySelectionMode && isTextMessage) {
+                    val indicatorTint = when {
+                        isSelectedForSummary && isSelf -> Color.White
+                        isSelectedForSummary -> PrimaryBlue
+                        isSelf -> Color.White.copy(alpha = 0.8f)
+                        else -> MaterialTheme.colorScheme.outline
+                    }
                     Icon(
                         imageVector = if (isSelectedForSummary) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
                         contentDescription = null,
-                        tint = if (isSelectedForSummary) PrimaryBlue else chatSecondaryTextColor(),
+                        tint = indicatorTint,
                         modifier = Modifier
                             .align(if (isSelf) Alignment.TopStart else Alignment.TopEnd)
                             .padding(6.dp)
