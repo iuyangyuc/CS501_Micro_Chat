@@ -62,6 +62,7 @@ import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.filled.Summarize
 import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.FilterChipDefaults
@@ -108,6 +109,7 @@ import com.example.cs501_micro_chat.data.model.Contact
 import com.example.cs501_micro_chat.data.model.Conversation
 import com.example.cs501_micro_chat.data.model.ConversationType
 import com.example.cs501_micro_chat.data.model.Message
+import com.example.cs501_micro_chat.data.model.MessageType
 import com.example.cs501_micro_chat.ui.chat.ChatDetailViewModel
 import com.example.cs501_micro_chat.ui.auth.LanguageOption
 import com.example.cs501_micro_chat.ui.chat.TranslationLanguageChooser
@@ -953,6 +955,7 @@ fun HomeTopBar(
             }
         )
     }
+
 }
 
 @Composable
@@ -1233,22 +1236,22 @@ fun ChatDetailContent(
     val viewModel: ChatDetailViewModel = hiltViewModel()
     val context = LocalContext.current
 
-    LaunchedEffect(conversationId) {
-        viewModel.loadMessages(conversationId)
-    }
-
     val messages by viewModel.messages.collectAsStateWithLifecycle()
     val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
     val hasLoadedInitial by viewModel.hasLoadedInitial.collectAsStateWithLifecycle()
     val currentUserId by viewModel.currentUserId.collectAsStateWithLifecycle()
     val translationStates by viewModel.translationStates.collectAsStateWithLifecycle()
     val voiceTranscriptionStates by viewModel.voiceTranscriptionStates.collectAsStateWithLifecycle()
+    val summaryState by viewModel.summaryState.collectAsStateWithLifecycle()
     val preferredTranslationLanguage by viewModel.preferredTranslationLanguage.collectAsStateWithLifecycle()
 
     var inputText by remember { mutableStateOf("") }
     var showActionSheet by remember { mutableStateOf(false) }
     var messageAwaitingTranslation by remember { mutableStateOf<Message?>(null) }
     var selectedLanguage by remember(preferredTranslationLanguage) { mutableStateOf(preferredTranslationLanguage) }
+    var isSummarySelectionMode by remember { mutableStateOf(false) }
+    var selectedSummaryMessages by remember { mutableStateOf(setOf<String>()) }
+    var showSummaryDialog by remember { mutableStateOf(false) }
     val languageOptions = remember { LanguageOption.entries }
     var textToSpeech by remember { mutableStateOf<TextToSpeech?>(null) }
     var ttsReady by remember { mutableStateOf(false) }
@@ -1260,6 +1263,14 @@ fun ChatDetailContent(
     var recordingFile by remember { mutableStateOf<File?>(null) }
     var recordingStart by remember { mutableStateOf(0L) }
     val listState = rememberLazyListState()
+
+    LaunchedEffect(conversationId) {
+        isSummarySelectionMode = false
+        selectedSummaryMessages = emptySet()
+        showSummaryDialog = false
+        viewModel.clearSummaryResult()
+        viewModel.loadMessages(conversationId)
+    }
 
     fun resolveMimeType(uri: Uri, fallback: String): Pair<String, String?> {
         val resolverType = contentResolver.getType(uri)
@@ -1491,6 +1502,51 @@ fun ChatDetailContent(
         }
     }
 
+    LaunchedEffect(summaryState.result) {
+        if (summaryState.result != null) {
+            isSummarySelectionMode = false
+            selectedSummaryMessages = emptySet()
+            showSummaryDialog = true
+        }
+    }
+
+    LaunchedEffect(summaryState.error) {
+        summaryState.error?.takeIf { it.isNotBlank() }?.let { Toast.makeText(context, it, Toast.LENGTH_SHORT).show() }
+    }
+
+    fun startSummarySelection(initial: Message) {
+        if (initial.type != MessageType.TEXT || summaryState.isSummarizing) return
+        isSummarySelectionMode = true
+        selectedSummaryMessages = setOf(messageKey(initial))
+        viewModel.clearSummaryResult()
+    }
+
+    fun toggleSummarySelection(target: Message) {
+        if (!isSummarySelectionMode || summaryState.isSummarizing || target.type != MessageType.TEXT) return
+        val key = messageKey(target)
+        selectedSummaryMessages = if (selectedSummaryMessages.contains(key)) {
+            selectedSummaryMessages - key
+        } else {
+            selectedSummaryMessages + key
+        }
+    }
+
+    fun cancelSummarySelection() {
+        if (summaryState.isSummarizing) return
+        isSummarySelectionMode = false
+        selectedSummaryMessages = emptySet()
+        viewModel.clearSummaryResult()
+    }
+
+    fun submitSummarySelection() {
+        val selectedMessages = messages.filter { it.type == MessageType.TEXT && selectedSummaryMessages.contains(messageKey(it)) }
+        if (selectedMessages.isEmpty()) {
+            viewModel.clearSummaryResult()
+            return
+        }
+        viewModel.summarizeMessages(selectedMessages)
+    }
+
     val backgroundColor = MaterialTheme.colorScheme.background
     val surfaceColorChat = MaterialTheme.colorScheme.surface
     val searchBackgroundChat = MaterialTheme.colorScheme.surfaceVariant
@@ -1644,30 +1700,44 @@ fun ChatDetailContent(
                     )
                 }
             } else {
-                LazyColumn(
-                    state = listState,
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    items(
-                        items = messages,
-                        key = { message -> messageKey(message) }
-                    ) { message ->
-                            com.example.cs501_micro_chat.ui.chat.MessageBubble(
-                                message = message,
-                                isSelf = message.senderId == currentUserId,
-                                translationState = translationStates[messageKey(message)],
-                                transcriptionState = voiceTranscriptionStates[messageKey(message)],
-                                onAvatarClick = onAvatarClick,
-                                onTranslateClick = { messageAwaitingTranslation = message },
-                                onClearTranslation = { viewModel.clearTranslationFor(it) },
-                                onPlayClick = { speakMessage(message.content) },
-                                onTranscribeClick = { viewModel.transcribeVoiceMessage(it) },
-                                onClearTranscription = { viewModel.clearTranscriptionFor(it) }
-                            )
-                        }
+                Column(modifier = Modifier.fillMaxSize()) {
+                    if (isSummarySelectionMode) {
+                        SummarySelectionBar(
+                            selectedCount = selectedSummaryMessages.size,
+                            isSubmitting = summaryState.isSummarizing,
+                            onCancel = { cancelSummarySelection() },
+                            onSubmit = { submitSummarySelection() }
+                        )
                     }
+                    LazyColumn(
+                        state = listState,
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(
+                            items = messages,
+                            key = { message -> messageKey(message) }
+                        ) { message ->
+                                com.example.cs501_micro_chat.ui.chat.MessageBubble(
+                                    message = message,
+                                    isSelf = message.senderId == currentUserId,
+                                    translationState = translationStates[messageKey(message)],
+                                    transcriptionState = voiceTranscriptionStates[messageKey(message)],
+                                    onAvatarClick = onAvatarClick,
+                                    onTranslateClick = { messageAwaitingTranslation = message },
+                                    onClearTranslation = { viewModel.clearTranslationFor(it) },
+                                    onPlayClick = { speakMessage(message.content) },
+                                    onTranscribeClick = { viewModel.transcribeVoiceMessage(it) },
+                                    onClearTranscription = { viewModel.clearTranscriptionFor(it) },
+                                    summarySelectionMode = isSummarySelectionMode,
+                                    isSelectedForSummary = selectedSummaryMessages.contains(messageKey(message)),
+                                    onSummaryToggle = { toggleSummarySelection(it) },
+                                    onStartSummarySelection = { startSummarySelection(it) }
+                                )
+                            }
+                        }
+                }
             }
         }
 
@@ -1832,6 +1902,106 @@ fun ChatDetailContent(
                 }
             }
         )
+    }
+
+    if (showSummaryDialog && summaryState.result != null) {
+        AlertDialog(
+            onDismissRequest = {
+                showSummaryDialog = false
+                viewModel.clearSummaryResult()
+            },
+            title = { Text(text = stringResource(R.string.summary_dialog_title)) },
+            text = {
+                Text(
+                    text = summaryState.result.orEmpty(),
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showSummaryDialog = false
+                        viewModel.clearSummaryResult()
+                    }
+                ) {
+                    Text(text = stringResource(R.string.summary_dialog_close))
+                }
+            }
+        )
+    }
+}
+
+@Composable
+private fun SummarySelectionBar(
+    selectedCount: Int,
+    isSubmitting: Boolean,
+    onCancel: () -> Unit,
+    onSubmit: () -> Unit
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = MaterialTheme.colorScheme.surface,
+        tonalElevation = 3.dp,
+        shadowElevation = 2.dp
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = stringResource(R.string.summary_selection_title),
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 15.sp
+                    )
+                    Text(
+                        text = stringResource(R.string.summary_selection_subtitle, selectedCount),
+                        color = secondaryTextColor(),
+                        fontSize = 13.sp
+                    )
+                }
+
+                TextButton(
+                    onClick = onCancel,
+                    enabled = !isSubmitting
+                ) {
+                    Text(text = stringResource(R.string.summary_selection_cancel))
+                }
+                Button(
+                    onClick = onSubmit,
+                    enabled = selectedCount > 0 && !isSubmitting
+                ) {
+                    if (isSubmitting) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(16.dp),
+                            strokeWidth = 2.dp,
+                            color = Color.White
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.Default.Summarize,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                    }
+                    Text(text = stringResource(R.string.summary_selection_action))
+                }
+            }
+            if (isSubmitting) {
+                LinearProgressIndicator(
+                    modifier = Modifier.fillMaxWidth(),
+                    color = PrimaryBlue
+                )
+            }
+        }
     }
 }
 

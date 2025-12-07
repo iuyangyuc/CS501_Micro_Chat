@@ -78,6 +78,7 @@
     <string name="translate_menu_action">Translate</string>
     <string name="translate_menu_hide">Hide translation</string>
     <string name="translate_menu_play">Play</string>
+    <string name="summary_menu_action">Summary</string>
     <string name="translate_status_loading">Translating…</string>
     <string name="translate_status_failed">Translation failed. Please try again.</string>
     <string name="translate_result_label">Translated (%1$s)</string>
@@ -91,6 +92,12 @@
     <string name="transcribe_status_loading">Converting to text…</string>
     <string name="transcribe_status_failed">Voice to text failed. Please try again.</string>
     <string name="transcribe_result_label">Voice text:</string>
+    <string name="summary_selection_title">Select messages to summarize</string>
+    <string name="summary_selection_subtitle">%1$d selected</string>
+    <string name="summary_selection_cancel">Cancel</string>
+    <string name="summary_selection_action">Summarize</string>
+    <string name="summary_dialog_title">Summary</string>
+    <string name="summary_dialog_close">Close</string>
     <string name="chat_list_empty_title">No chats</string>
     <string name="chat_list_empty_subtitle">Start a new conversation!</string>
     <string name="search_hint">Search</string>
