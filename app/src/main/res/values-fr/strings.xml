@@ -150,6 +150,13 @@
     <string name="about_feature_translation">Traduisez chaque discussion en temps réel et traduisez automatiquement les messages entrants dans votre langue.</string>
     <string name="about_feature_voice">Envoyez des notes vocales et transformez vos enregistrements en texte.</string>
     <string name="about_feature_sync">Synchronisez en toute sécurité vos discussions privées, groupes et contacts via Firebase.</string>
+    <string name="summary_menu_action">Résumé</string>
+    <string name="summary_selection_title">Sélectionnez les messages à résumer</string>
+    <string name="summary_selection_subtitle">%1$d sélectionnés</string>
+    <string name="summary_selection_cancel">Annuler</string>
+    <string name="summary_selection_action">Générer le résumé</string>
+    <string name="summary_dialog_title">Résumé</string>
+    <string name="summary_dialog_close">Fermer</string>
 
     <!-- Error messages -->
     <string name="error_select_email_provider">Sélectionnez la connexion par e-mail.</string>

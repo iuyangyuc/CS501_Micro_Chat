@@ -150,6 +150,13 @@
     <string name="about_feature_translation">Переводите каждый чат в реальном времени и автоматически переводите входящие сообщения на нужный язык.</string>
     <string name="about_feature_voice">Отправляйте голосовые заметки и превращайте записи в текст.</string>
     <string name="about_feature_sync">Надёжно синхронизируйте личные и групповые чаты, а также контакты через Firebase.</string>
+    <string name="summary_menu_action">Сводка</string>
+    <string name="summary_selection_title">Выберите сообщения для сводки</string>
+    <string name="summary_selection_subtitle">Выбрано: %1$d</string>
+    <string name="summary_selection_cancel">Отмена</string>
+    <string name="summary_selection_action">Сделать сводку</string>
+    <string name="summary_dialog_title">Сводка</string>
+    <string name="summary_dialog_close">Закрыть</string>
 
     <!-- Error messages -->
     <string name="error_select_email_provider">Выберите вход по электронной почте.</string>

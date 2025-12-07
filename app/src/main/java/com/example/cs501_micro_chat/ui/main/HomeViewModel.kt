@@ -28,6 +28,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
 import java.text.SimpleDateFormat
 import java.util.*
 import javax.inject.Inject
@@ -200,39 +203,39 @@ class HomeViewModel @Inject constructor(
         val now = System.currentTimeMillis()
         val diff = now - timestamp
 
-        val calendar = Calendar.getInstance()
-        calendar.timeInMillis = timestamp
+        val instantDate = Instant.ofEpochMilli(timestamp).atZone(ZoneId.systemDefault()).toLocalDate()
+        val todayDate = LocalDate.now()
+        val yesterdayDate = todayDate.minusDays(1)
 
-        val today = Calendar.getInstance()
+        Log.d(
+            TAG,
+            "formatTime ts=$timestamp now=$now diff=$diff msgDate=$instantDate today=$todayDate yesterday=$yesterdayDate"
+        )
 
         return when {
             // 今天 - 显示时间
-            calendar.get(Calendar.DAY_OF_YEAR) == today.get(Calendar.DAY_OF_YEAR) &&
-            calendar.get(Calendar.YEAR) == today.get(Calendar.YEAR) -> {
-                SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(timestamp))
+            instantDate == todayDate -> {
+                val formatted = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(timestamp))
+                Log.d(TAG, "formatTime -> today: $formatted")
+                formatted
             }
-            // 昨天
-            diff < 2 * 24 * 60 * 60 * 1000 -> {
-                // Localized "Yesterday"
-                java.text.DateFormat.getDateInstance(java.text.DateFormat.MEDIUM, Locale.getDefault())
-                    .format(Date(now - diff + 24 * 60 * 60 * 1000))
-                    .let { formatted ->
-                        // If the medium date for yesterday still shows the date, prefer a manual string
-                        // fallback for languages that expect a word.
-                        if (formatted.contains("/")) {
-                            java.text.SimpleDateFormat("MMM dd", Locale.getDefault()).format(Date(timestamp))
-                        } else {
-                            formatted
-                        }
-                    }
+            // 昨天 - 返回本地化“昨天”
+            instantDate == yesterdayDate -> {
+                val yesterdayLabel = "Yesterday" // UI layer can swap to stringResource
+                Log.d(TAG, "formatTime -> yesterday: $yesterdayLabel")
+                yesterdayLabel
             }
             // 一周内 - 显示星期
             diff < 7 * 24 * 60 * 60 * 1000 -> {
-                SimpleDateFormat("EEEE", Locale.getDefault()).format(Date(timestamp))
+                val formatted = SimpleDateFormat("EEEE", Locale.getDefault()).format(Date(timestamp))
+                Log.d(TAG, "formatTime -> weekday: $formatted")
+                formatted
             }
             // 更早 - 显示日期
             else -> {
-                SimpleDateFormat("MM/dd", Locale.getDefault()).format(Date(timestamp))
+                val formatted = SimpleDateFormat("MM/dd", Locale.getDefault()).format(Date(timestamp))
+                Log.d(TAG, "formatTime -> date: $formatted")
+                formatted
             }
         }
     }

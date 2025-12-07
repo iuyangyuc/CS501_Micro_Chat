@@ -150,6 +150,13 @@
     <string name="about_feature_translation">Traduce cada chat en tiempo real y traduce automáticamente los mensajes entrantes a tu idioma preferido.</string>
     <string name="about_feature_voice">Envía notas de voz y convierte grabaciones en texto.</string>
     <string name="about_feature_sync">Mantén chats privados, grupos y contactos sincronizados de forma segura mediante Firebase.</string>
+    <string name="summary_menu_action">Resumen</string>
+    <string name="summary_selection_title">Selecciona mensajes para resumir</string>
+    <string name="summary_selection_subtitle">%1$d seleccionados</string>
+    <string name="summary_selection_cancel">Cancelar</string>
+    <string name="summary_selection_action">Generar resumen</string>
+    <string name="summary_dialog_title">Resumen</string>
+    <string name="summary_dialog_close">Cerrar</string>
 
     <!-- Error messages -->
     <string name="error_select_email_provider">Selecciona el inicio de sesión con correo.</string>

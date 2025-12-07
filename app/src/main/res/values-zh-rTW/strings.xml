@@ -151,6 +151,13 @@
     <string name="about_feature_translation">即時翻譯聊天內容，並將收到的訊息自動翻譯成您的首選語言。</string>
     <string name="about_feature_voice">傳送語音訊息並將錄音轉換成文字。</string>
     <string name="about_feature_sync">透過 Firebase 安全同步私訊、群組與聯絡人。</string>
+    <string name="summary_menu_action">總結</string>
+    <string name="summary_selection_title">選擇要總結的訊息</string>
+    <string name="summary_selection_subtitle">%1$d 則已選</string>
+    <string name="summary_selection_cancel">取消</string>
+    <string name="summary_selection_action">生成總結</string>
+    <string name="summary_dialog_title">總結</string>
+    <string name="summary_dialog_close">關閉</string>
 
     <!-- Error messages -->
     <string name="error_select_email_provider">請選擇電子郵件登入。</string>

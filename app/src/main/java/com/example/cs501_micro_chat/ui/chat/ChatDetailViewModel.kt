@@ -19,6 +19,8 @@ import com.example.cs501_micro_chat.data.model.MessageType
 import com.example.cs501_micro_chat.data.repository.ChatRepository
 import com.example.cs501_micro_chat.data.preferences.LanguagePreferencesRepository
 import com.example.cs501_micro_chat.data.repository.StorageRepository
+import com.example.cs501_micro_chat.data.repository.SummaryRepository
+import com.example.cs501_micro_chat.ui.theme.ThemeViewModel
 import com.example.cs501_micro_chat.data.repository.TranscriptionRepository
 import com.example.cs501_micro_chat.data.repository.TranslationRepository
 import com.example.cs501_micro_chat.ui.auth.LanguageOption
@@ -61,12 +63,19 @@ data class MediaUploadState(
     val lastUploadedUrl: String? = null
 )
 
+data class SummaryUiState(
+    val isSummarizing: Boolean = false,
+    val result: String? = null,
+    val error: String? = null
+)
+
 @HiltViewModel
 class ChatDetailViewModel @Inject constructor(
     private val chatRepository: ChatRepository,
     private val storageRepository: StorageRepository,
     private val transcriptionRepository: TranscriptionRepository,
     private val translationRepository: TranslationRepository,
+    private val summaryRepository: SummaryRepository,
     private val languagePreferencesRepository: LanguagePreferencesRepository,
     private val auth: FirebaseAuth
 ) : ViewModel() {
@@ -114,8 +123,13 @@ class ChatDetailViewModel @Inject constructor(
     private val _voiceTranscriptionStates = MutableStateFlow<Map<String, VoiceTranscriptionState>>(emptyMap())
     val voiceTranscriptionStates: StateFlow<Map<String, VoiceTranscriptionState>> = _voiceTranscriptionStates.asStateFlow()
 
+    private val _summaryState = MutableStateFlow(SummaryUiState())
+    val summaryState: StateFlow<SummaryUiState> = _summaryState.asStateFlow()
+
     private val _preferredTranslationLanguage = MutableStateFlow(LanguageOption.English)
     val preferredTranslationLanguage: StateFlow<LanguageOption> = _preferredTranslationLanguage.asStateFlow()
+    private val _interfaceLanguage = MutableStateFlow(LanguageOption.English)
+    val interfaceLanguage: StateFlow<LanguageOption> = _interfaceLanguage.asStateFlow()
 
     private val _autoTranslateEnabled = MutableStateFlow(false)
     val autoTranslateEnabled: StateFlow<Boolean> = _autoTranslateEnabled.asStateFlow()
@@ -129,6 +143,17 @@ class ChatDetailViewModel @Inject constructor(
 
     // 用户信息缓存：userId -> User
     private val userCache = mutableMapOf<String, com.example.cs501_micro_chat.data.model.User>()
+
+    private fun summaryInstructionsFor(language: LanguageOption): String {
+        return when (language) {
+            LanguageOption.Chinese -> "请用中文总结这些消息的核心内容。"
+            LanguageOption.TraditionalChinese -> "請用中文總結這些訊息的重點內容。"
+            LanguageOption.Spanish -> "Resume el contenido principal de estos mensajes en español."
+            LanguageOption.French -> "Résume le contenu principal de ces messages en français."
+            LanguageOption.Russian -> "Сделай краткое резюме этих сообщений на русском языке."
+            LanguageOption.English -> "Summarize the key points of these messages in English."
+        }
+    }
 
     private var currentConversationId: String? = null
     private var initialEmptyJob: Job? = null
@@ -146,6 +171,11 @@ class ChatDetailViewModel @Inject constructor(
                 if (autoTranslate) {
                     maybeAutoTranslate(_messages.value)
                 }
+            }
+        }
+        viewModelScope.launch {
+            languagePreferencesRepository.interfaceLanguage.collect { option ->
+                _interfaceLanguage.value = option
             }
         }
     }
@@ -168,6 +198,7 @@ class ChatDetailViewModel @Inject constructor(
         _clearedAt.value = 0L
         _conversationName.value = ""
         _conversationAvatarUrl.value = ""
+        _summaryState.value = SummaryUiState()
         initialEmptyJob?.cancel()
         initialEmptyJob = null
 
@@ -763,6 +794,58 @@ class ChatDetailViewModel @Inject constructor(
         )
     }
 
+    fun summarizeMessages(messages: List<Message>) {
+        if (_summaryState.value.isSummarizing) return
+        val textMessages = messages.filter { it.type == MessageType.TEXT }
+        if (textMessages.isEmpty()) {
+            _summaryState.value = SummaryUiState(
+                isSummarizing = false,
+                result = null,
+                error = friendlyMessage(UserMessage.Summary)
+            )
+            return
+        }
+
+        viewModelScope.launch {
+            _summaryState.value = SummaryUiState(isSummarizing = true, result = null, error = null)
+            val formatted = textMessages
+                .sortedBy { it.timestamp }
+                .map { message ->
+                    val sender = message.senderName.ifBlank { "Unknown" }
+                    "$sender: ${message.content}"
+                }
+
+            val result = summaryRepository.summarize(
+                messages = formatted,
+                instructions = summaryInstructionsFor(_interfaceLanguage.value)
+            )
+
+            _summaryState.value = result.fold(
+                onSuccess = { summary ->
+                    SummaryUiState(isSummarizing = false, result = summary, error = null)
+                },
+                onFailure = { error ->
+                    logEvent(
+                        event = "summarize_failed",
+                        conversationId = conversationId.value,
+                        extra = "reason=${error.message.orEmpty()}",
+                        error = error
+                    )
+                    _uiMessages.tryEmit(friendlyMessage(UserMessage.Summary))
+                    SummaryUiState(
+                        isSummarizing = false,
+                        result = null,
+                        error = error.message ?: friendlyMessage(UserMessage.Summary)
+                    )
+                }
+            )
+        }
+    }
+
+    fun clearSummaryResult() {
+        _summaryState.value = SummaryUiState()
+    }
+
     fun translateMessage(message: Message, targetLanguage: String) {
         val normalizedTarget = targetLanguage.trim()
         if (message.type != MessageType.TEXT || normalizedTarget.isEmpty()) return
@@ -957,7 +1040,8 @@ private enum class UserMessage {
     UploadVideo,
     AuthRequired,
     Transcription,
-    Translation
+    Translation,
+    Summary
 }
 
 private fun ChatDetailViewModel.friendlyMessage(kind: UserMessage): String {
@@ -970,6 +1054,7 @@ private fun ChatDetailViewModel.friendlyMessage(kind: UserMessage): String {
         UserMessage.AuthRequired -> "请先登录再继续操作"
         UserMessage.Transcription -> "语音转文字失败，请稍后再试"
         UserMessage.Translation -> "翻译失败，请稍后再试"
+        UserMessage.Summary -> "总结失败，请稍后再试"
     }
 }
 

@@ -131,12 +131,25 @@ fun ChatDetailScreen(
     val voiceTranscriptionStates by viewModel.voiceTranscriptionStates.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     val preferredTranslationLanguage by viewModel.preferredTranslationLanguage.collectAsStateWithLifecycle()
+    val summaryState by viewModel.summaryState.collectAsStateWithLifecycle()
 
     var inputText by remember { mutableStateOf("") }
     var showAttachmentMenu by remember { mutableStateOf(false) }
     var messageAwaitingTranslation by remember { mutableStateOf<Message?>(null) }
     var selectedLanguage by remember(preferredTranslationLanguage) { mutableStateOf(preferredTranslationLanguage) }
+    var isSummarySelectionMode by remember { mutableStateOf(false) }
+    var selectedSummaryMessages by remember { mutableStateOf(setOf<String>()) }
+    var showSummaryDialog by remember { mutableStateOf(false) }
     val languageOptions = remember { LanguageOption.entries }
+
+    // Load conversation messages on first open
+    LaunchedEffect(conversationId) {
+        isSummarySelectionMode = false
+        selectedSummaryMessages = emptySet()
+        showSummaryDialog = false
+        viewModel.clearSummaryResult()
+        viewModel.loadMessages(conversationId)
+    }
 
     val context = LocalContext.current
     var textToSpeech by remember { mutableStateOf<TextToSpeech?>(null) }
@@ -182,6 +195,49 @@ fun ChatDetailScreen(
         if (messages.isNotEmpty()) {
             listState.animateScrollToItem(messages.size - 1)
         }
+    }
+
+    LaunchedEffect(summaryState.result) {
+        if (summaryState.result != null) {
+            isSummarySelectionMode = false
+            selectedSummaryMessages = emptySet()
+            showSummaryDialog = true
+        }
+    }
+
+    fun startSummarySelection(initial: Message) {
+        if (initial.type != MessageType.TEXT || summaryState.isSummarizing) return
+        isSummarySelectionMode = true
+        selectedSummaryMessages = setOf(messageKey(initial))
+        viewModel.clearSummaryResult()
+    }
+
+    fun toggleSummarySelection(target: Message) {
+        if (!isSummarySelectionMode || target.type != MessageType.TEXT || summaryState.isSummarizing) return
+        val key = messageKey(target)
+        selectedSummaryMessages = if (selectedSummaryMessages.contains(key)) {
+            selectedSummaryMessages - key
+        } else {
+            selectedSummaryMessages + key
+        }
+    }
+
+    fun cancelSummarySelection() {
+        if (summaryState.isSummarizing) return
+        isSummarySelectionMode = false
+        selectedSummaryMessages = emptySet()
+        viewModel.clearSummaryResult()
+    }
+
+    fun submitSummarySelection() {
+        val selectedMessages = messages.filter { message ->
+            message.type == MessageType.TEXT && selectedSummaryMessages.contains(messageKey(message))
+        }
+        if (selectedMessages.isEmpty()) {
+            viewModel.clearSummaryResult()
+            return
+        }
+        viewModel.summarizeMessages(selectedMessages)
     }
 
     Scaffold(
@@ -507,6 +563,14 @@ fun ChatDetailScreen(
                         if (isBlocked) {
                             RemovalBanner()
                         }
+                        if (isSummarySelectionMode) {
+                            SummarySelectionBar(
+                                selectedCount = selectedSummaryMessages.size,
+                                isSubmitting = summaryState.isSummarizing,
+                                onCancel = { cancelSummarySelection() },
+                                onSubmit = { submitSummarySelection() }
+                            )
+                        }
                         LazyColumn(
                             state = listState,
                             modifier = Modifier
@@ -535,7 +599,11 @@ fun ChatDetailScreen(
                                     onClearTranslation = { viewModel.clearTranslationFor(it) },
                                     onPlayClick = { speakMessage(message.content) },
                                     onTranscribeClick = { viewModel.transcribeVoiceMessage(it) },
-                                    onClearTranscription = { viewModel.clearTranscriptionFor(it) }
+                                    onClearTranscription = { viewModel.clearTranscriptionFor(it) },
+                                    summarySelectionMode = isSummarySelectionMode,
+                                    isSelectedForSummary = selectedSummaryMessages.contains(messageKey(message)),
+                                    onSummaryToggle = { toggleSummarySelection(it) },
+                                    onStartSummarySelection = { startSummarySelection(it) }
                                 )
                             }
                         }
@@ -591,6 +659,32 @@ fun ChatDetailScreen(
             }
         )
     }
+
+    if (showSummaryDialog && summaryState.result != null) {
+        AlertDialog(
+            onDismissRequest = {
+                showSummaryDialog = false
+                viewModel.clearSummaryResult()
+            },
+            title = { Text(text = stringResource(R.string.summary_dialog_title)) },
+            text = {
+                Text(
+                    text = summaryState.result.orEmpty(),
+                    color = chatPrimaryTextColor()
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showSummaryDialog = false
+                        viewModel.clearSummaryResult()
+                    }
+                ) {
+                    Text(text = stringResource(R.string.summary_dialog_close))
+                }
+            }
+        )
+    }
 }
 
 @Composable
@@ -611,6 +705,80 @@ private fun RemovalBanner() {
     }
 }
 
+@Composable
+private fun SummarySelectionBar(
+    selectedCount: Int,
+    isSubmitting: Boolean,
+    onCancel: () -> Unit,
+    onSubmit: () -> Unit
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = MaterialTheme.colorScheme.surface,
+        tonalElevation = 3.dp,
+        shadowElevation = 2.dp
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = stringResource(R.string.summary_selection_title),
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 15.sp
+                    )
+                    Text(
+                        text = stringResource(R.string.summary_selection_subtitle, selectedCount),
+                        color = chatSecondaryTextColor(),
+                        fontSize = 13.sp
+                    )
+                }
+
+                TextButton(
+                    onClick = onCancel,
+                    enabled = !isSubmitting
+                ) {
+                    Text(text = stringResource(R.string.summary_selection_cancel))
+                }
+                Button(
+                    onClick = onSubmit,
+                    enabled = selectedCount > 0 && !isSubmitting
+                ) {
+                    if (isSubmitting) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(16.dp),
+                            strokeWidth = 2.dp,
+                            color = Color.White
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.Default.Summarize,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                    }
+                    Text(text = stringResource(R.string.summary_selection_action))
+                }
+            }
+            if (isSubmitting) {
+                LinearProgressIndicator(
+                    modifier = Modifier.fillMaxWidth(),
+                    color = PrimaryBlue
+                )
+            }
+        }
+    }
+}
+
 /**
  * Message bubble component (Based on Figma design)
  */
@@ -628,11 +796,21 @@ internal fun MessageBubble(
     onPlayClick: (Message) -> Unit = {},
     onTranscribeClick: (Message) -> Unit = {},
     onClearTranscription: (Message) -> Unit = {},
-    showAvatarForSelf: Boolean = false
+    showAvatarForSelf: Boolean = false,
+    summarySelectionMode: Boolean = false,
+    isSelectedForSummary: Boolean = false,
+    onSummaryToggle: (Message) -> Unit = {},
+    onStartSummarySelection: (Message) -> Unit = {}
 ) {
     val isTextMessage = message.type == MessageType.TEXT
     val isVoiceMessage = message.type == MessageType.VOICE
     var showActionMenu by remember { mutableStateOf(false) }
+
+    LaunchedEffect(summarySelectionMode) {
+        if (summarySelectionMode) {
+            showActionMenu = false
+        }
+    }
 
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -683,15 +861,27 @@ internal fun MessageBubble(
         ) {
             // 消息内容
             Box {
-                Surface(
-                    modifier = if (isTextMessage || isVoiceMessage) {
+                val bubbleModifier = when {
+                    summarySelectionMode && isTextMessage -> {
+                        Modifier.combinedClickable(
+                            onClick = { onSummaryToggle(message) },
+                            onDoubleClick = { onSummaryToggle(message) }
+                        )
+                    }
+
+                    isTextMessage || isVoiceMessage -> {
                         Modifier.combinedClickable(
                             onClick = { showActionMenu = true },
                             onDoubleClick = { showActionMenu = true }
                         )
-                    } else {
+                    }
+
+                    else -> {
                         Modifier
-                    },
+                    }
+                }
+                Surface(
+                    modifier = bubbleModifier,
                     shape = RoundedCornerShape(
                         topStart = if (isSelf) 12.dp else 2.dp,
                         topEnd = if (isSelf) 2.dp else 12.dp,
@@ -699,7 +889,15 @@ internal fun MessageBubble(
                         bottomEnd = 12.dp
                     ),
                     color = if (isSelf) PrimaryBlue else otherMessageBubbleColor(),
-                    shadowElevation = if (isSelf) 0.dp else 1.dp
+                    shadowElevation = if (isSelf) 0.dp else 1.dp,
+                    border = if (summarySelectionMode && isTextMessage) {
+                        BorderStroke(
+                            width = 1.2.dp,
+                            color = if (isSelectedForSummary) PrimaryBlue else MaterialTheme.colorScheme.outline
+                        )
+                    } else {
+                        null
+                    }
                 ) {
                     when (message.type) {
                         MessageType.TEXT -> {
@@ -896,7 +1094,25 @@ internal fun MessageBubble(
                     }
                 }
 
-                if (isTextMessage || isVoiceMessage) {
+                if (summarySelectionMode && isTextMessage) {
+                    val indicatorTint = when {
+                        isSelectedForSummary && isSelf -> Color.White
+                        isSelectedForSummary -> PrimaryBlue
+                        isSelf -> Color.White.copy(alpha = 0.8f)
+                        else -> MaterialTheme.colorScheme.outline
+                    }
+                    Icon(
+                        imageVector = if (isSelectedForSummary) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
+                        contentDescription = null,
+                        tint = indicatorTint,
+                        modifier = Modifier
+                            .align(if (isSelf) Alignment.TopStart else Alignment.TopEnd)
+                            .padding(6.dp)
+                            .size(18.dp)
+                    )
+                }
+
+                if ((isTextMessage || isVoiceMessage) && !summarySelectionMode) {
                     DropdownMenu(
                         expanded = showActionMenu,
                         onDismissRequest = { showActionMenu = false }
@@ -939,6 +1155,19 @@ internal fun MessageBubble(
                                 onClick = {
                                     showActionMenu = false
                                     onPlayClick(message)
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text(text = stringResource(R.string.summary_menu_action)) },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Default.Summarize,
+                                        contentDescription = null
+                                    )
+                                },
+                                onClick = {
+                                    showActionMenu = false
+                                    onStartSummarySelection(message)
                                 }
                             )
                         }
