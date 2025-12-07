@@ -72,7 +72,11 @@
     <string name="theme_option_dark">Sombre</string>
     <string name="chat_placeholder_no_messages">Pas encore de message</string>
     <string name="chat_detail_empty_subtitle">Envoyez le premier message pour démarrer la conversation.</string>
+    <string name="chat_date_today">Aujourd’hui</string>
+    <string name="chat_date_yesterday">Hier</string>
     <string name="chat_input_placeholder">Écrivez un message…</string>
+    <string name="search_member_label">Membre</string>
+    <string name="chat_search_no_dates">Aucune date disponible avec des messages</string>
     <string name="translate_menu_action">Traduire</string>
     <string name="translate_menu_hide">Masquer la traduction</string>
     <string name="translate_menu_play">Lire</string>
@@ -146,6 +150,13 @@
     <string name="about_feature_translation">Traduisez chaque discussion en temps réel et traduisez automatiquement les messages entrants dans votre langue.</string>
     <string name="about_feature_voice">Envoyez des notes vocales et transformez vos enregistrements en texte.</string>
     <string name="about_feature_sync">Synchronisez en toute sécurité vos discussions privées, groupes et contacts via Firebase.</string>
+    <string name="summary_menu_action">Résumé</string>
+    <string name="summary_selection_title">Sélectionnez les messages à résumer</string>
+    <string name="summary_selection_subtitle">%1$d sélectionnés</string>
+    <string name="summary_selection_cancel">Annuler</string>
+    <string name="summary_selection_action">Générer le résumé</string>
+    <string name="summary_dialog_title">Résumé</string>
+    <string name="summary_dialog_close">Fermer</string>
 
     <!-- Error messages -->
     <string name="error_select_email_provider">Sélectionnez la connexion par e-mail.</string>

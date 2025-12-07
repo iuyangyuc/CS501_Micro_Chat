@@ -72,7 +72,11 @@
     <string name="theme_option_dark">Тёмная</string>
     <string name="chat_placeholder_no_messages">Сообщений пока нет</string>
     <string name="chat_detail_empty_subtitle">Отправьте первое сообщение, чтобы начать чат.</string>
+    <string name="chat_date_today">Сегодня</string>
+    <string name="chat_date_yesterday">Вчера</string>
     <string name="chat_input_placeholder">Введите сообщение…</string>
+    <string name="search_member_label">Участник</string>
+    <string name="chat_search_no_dates">Нет дат с доступными сообщениями</string>
     <string name="translate_menu_action">Перевести</string>
     <string name="translate_menu_hide">Скрыть перевод</string>
     <string name="translate_menu_play">Воспроизвести</string>
@@ -146,6 +150,13 @@
     <string name="about_feature_translation">Переводите каждый чат в реальном времени и автоматически переводите входящие сообщения на нужный язык.</string>
     <string name="about_feature_voice">Отправляйте голосовые заметки и превращайте записи в текст.</string>
     <string name="about_feature_sync">Надёжно синхронизируйте личные и групповые чаты, а также контакты через Firebase.</string>
+    <string name="summary_menu_action">Сводка</string>
+    <string name="summary_selection_title">Выберите сообщения для сводки</string>
+    <string name="summary_selection_subtitle">Выбрано: %1$d</string>
+    <string name="summary_selection_cancel">Отмена</string>
+    <string name="summary_selection_action">Сделать сводку</string>
+    <string name="summary_dialog_title">Сводка</string>
+    <string name="summary_dialog_close">Закрыть</string>
 
     <!-- Error messages -->
     <string name="error_select_email_provider">Выберите вход по электронной почте.</string>

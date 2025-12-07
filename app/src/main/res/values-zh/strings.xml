@@ -72,7 +72,11 @@
     <string name="theme_option_dark">深色</string>
     <string name="chat_placeholder_no_messages">暂无消息</string>
     <string name="chat_detail_empty_subtitle">发送第一条消息开始聊天吧！</string>
+    <string name="chat_date_today">今天</string>
+    <string name="chat_date_yesterday">昨天</string>
     <string name="chat_input_placeholder">输入消息…</string>
+    <string name="search_member_label">成员</string>
+    <string name="chat_search_no_dates">暂无可选的消息日期</string>
     <string name="translate_menu_action">翻译</string>
     <string name="translate_menu_hide">不看翻译</string>
     <string name="translate_menu_play">播放</string>
@@ -89,6 +93,13 @@
     <string name="transcribe_status_loading">正在转换为文本…</string>
     <string name="transcribe_status_failed">语音转文字失败，请稍后重试。</string>
     <string name="transcribe_result_label">语音文本：</string>
+    <string name="summary_menu_action">总结</string>
+    <string name="summary_selection_title">选择要总结的消息</string>
+    <string name="summary_selection_subtitle">%1$d 条已选</string>
+    <string name="summary_selection_cancel">取消</string>
+    <string name="summary_selection_action">生成总结</string>
+    <string name="summary_dialog_title">总结</string>
+    <string name="summary_dialog_close">关闭</string>
     <string name="chat_list_empty_title">暂无聊天</string>
     <string name="chat_list_empty_subtitle">开始一个新对话吧！</string>
     <string name="search_hint">搜索</string>

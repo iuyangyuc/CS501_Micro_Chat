@@ -20,6 +20,7 @@ import com.example.cs501_micro_chat.data.repository.ChatRepository
 import com.example.cs501_micro_chat.data.preferences.LanguagePreferencesRepository
 import com.example.cs501_micro_chat.data.repository.StorageRepository
 import com.example.cs501_micro_chat.data.repository.SummaryRepository
+import com.example.cs501_micro_chat.ui.theme.ThemeViewModel
 import com.example.cs501_micro_chat.data.repository.TranscriptionRepository
 import com.example.cs501_micro_chat.data.repository.TranslationRepository
 import com.example.cs501_micro_chat.ui.auth.LanguageOption
@@ -105,6 +106,10 @@ class ChatDetailViewModel @Inject constructor(
 
     private val _conversationId = MutableStateFlow("")
     val conversationId: StateFlow<String> = _conversationId.asStateFlow()
+    private val _conversationName = MutableStateFlow("")
+    val conversationName: StateFlow<String> = _conversationName.asStateFlow()
+    private val _conversationAvatarUrl = MutableStateFlow("")
+    val conversationAvatarUrl: StateFlow<String> = _conversationAvatarUrl.asStateFlow()
 
     private val _isConversationBlocked = MutableStateFlow(false)
     val isConversationBlocked: StateFlow<Boolean> = _isConversationBlocked.asStateFlow()
@@ -123,6 +128,8 @@ class ChatDetailViewModel @Inject constructor(
 
     private val _preferredTranslationLanguage = MutableStateFlow(LanguageOption.English)
     val preferredTranslationLanguage: StateFlow<LanguageOption> = _preferredTranslationLanguage.asStateFlow()
+    private val _interfaceLanguage = MutableStateFlow(LanguageOption.English)
+    val interfaceLanguage: StateFlow<LanguageOption> = _interfaceLanguage.asStateFlow()
 
     private val _autoTranslateEnabled = MutableStateFlow(false)
     val autoTranslateEnabled: StateFlow<Boolean> = _autoTranslateEnabled.asStateFlow()
@@ -137,7 +144,16 @@ class ChatDetailViewModel @Inject constructor(
     // 用户信息缓存：userId -> User
     private val userCache = mutableMapOf<String, com.example.cs501_micro_chat.data.model.User>()
 
-    private val summaryInstructions = "summarize these message"
+    private fun summaryInstructionsFor(language: LanguageOption): String {
+        return when (language) {
+            LanguageOption.Chinese -> "请用中文总结这些消息的核心内容。"
+            LanguageOption.TraditionalChinese -> "請用中文總結這些訊息的重點內容。"
+            LanguageOption.Spanish -> "Resume el contenido principal de estos mensajes en español."
+            LanguageOption.French -> "Résume le contenu principal de ces messages en français."
+            LanguageOption.Russian -> "Сделай краткое резюме этих сообщений на русском языке."
+            LanguageOption.English -> "Summarize the key points of these messages in English."
+        }
+    }
 
     private var currentConversationId: String? = null
     private var initialEmptyJob: Job? = null
@@ -155,6 +171,11 @@ class ChatDetailViewModel @Inject constructor(
                 if (autoTranslate) {
                     maybeAutoTranslate(_messages.value)
                 }
+            }
+        }
+        viewModelScope.launch {
+            languagePreferencesRepository.interfaceLanguage.collect { option ->
+                _interfaceLanguage.value = option
             }
         }
     }
@@ -175,6 +196,8 @@ class ChatDetailViewModel @Inject constructor(
         _suppressedTranslationKeys.value = emptySet()
         _suppressedTranscriptionKeys.value = emptySet()
         _clearedAt.value = 0L
+        _conversationName.value = ""
+        _conversationAvatarUrl.value = ""
         _summaryState.value = SummaryUiState()
         initialEmptyJob?.cancel()
         initialEmptyJob = null
@@ -243,6 +266,8 @@ class ChatDetailViewModel @Inject constructor(
             val convo = conversation ?: return@onSuccess
             _conversationId.value = convo.id
             _conversationType.value = convo.type
+            _conversationName.value = convo.name
+            _conversationAvatarUrl.value = convo.avatarUrl
             if (convo.type == com.example.cs501_micro_chat.data.model.ConversationType.PRIVATE) {
                 val currentId = _currentUserId.value
                 val other = convo.participants.firstOrNull { it != currentId }.orEmpty()
@@ -433,6 +458,7 @@ class ChatDetailViewModel @Inject constructor(
                 ).onSuccess { sent ->
                     if (sent.status == MessageStatus.FAILED) {
                         _isConversationBlocked.value = true
+                        addLocalMessage(sent)
                     }
                 }.onFailure { error ->
                     logEvent(
@@ -532,6 +558,12 @@ class ChatDetailViewModel @Inject constructor(
                 )
                 return@launch
             }
+            sendResult.onSuccess { sent ->
+                if (sent.status == MessageStatus.FAILED) {
+                    _isConversationBlocked.value = true
+                    addLocalMessage(sent)
+                }
+            }
 
             _mediaUploadState.value = _mediaUploadState.value.copy(
                 isUploading = false,
@@ -616,6 +648,12 @@ class ChatDetailViewModel @Inject constructor(
                 )
                 return@launch
             }
+            sendResult.onSuccess { sent ->
+                if (sent.status == MessageStatus.FAILED) {
+                    _isConversationBlocked.value = true
+                    addLocalMessage(sent)
+                }
+            }
 
             _mediaUploadState.value = _mediaUploadState.value.copy(
                 isUploading = false,
@@ -698,6 +736,12 @@ class ChatDetailViewModel @Inject constructor(
                 )
                 return@launch
             }
+            sendResult.onSuccess { sent ->
+                if (sent.status == MessageStatus.FAILED) {
+                    _isConversationBlocked.value = true
+                    addLocalMessage(sent)
+                }
+            }
 
             _mediaUploadState.value = _mediaUploadState.value.copy(
                 isUploading = false,
@@ -773,7 +817,7 @@ class ChatDetailViewModel @Inject constructor(
 
             val result = summaryRepository.summarize(
                 messages = formatted,
-                instructions = summaryInstructions
+                instructions = summaryInstructionsFor(_interfaceLanguage.value)
             )
 
             _summaryState.value = result.fold(
@@ -978,6 +1022,12 @@ class ChatDetailViewModel @Inject constructor(
                     current + (key to next)
                 }
             }
+        }
+    }
+
+    private fun addLocalMessage(message: Message) {
+        _messages.update { current ->
+            (current + message).sortedBy { it.timestamp }
         }
     }
 }

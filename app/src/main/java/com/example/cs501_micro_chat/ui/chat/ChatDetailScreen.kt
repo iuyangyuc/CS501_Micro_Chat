@@ -114,6 +114,11 @@ fun ChatDetailScreen(
     onBack: () -> Unit,
     viewModel: ChatDetailViewModel = hiltViewModel()
 ) {
+    // Load conversation messages on first open
+    LaunchedEffect(conversationId) {
+        viewModel.loadMessages(conversationId)
+    }
+
     val messages by viewModel.messages.collectAsStateWithLifecycle()
     val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
     val hasLoadedInitial by viewModel.hasLoadedInitial.collectAsStateWithLifecycle()
@@ -782,6 +787,7 @@ private fun SummarySelectionBar(
 internal fun MessageBubble(
     message: Message,
     isSelf: Boolean,
+    timeLabel: String? = null,
     translationState: TranslationResultState? = null,
     transcriptionState: VoiceTranscriptionState? = null,
     onAvatarClick: (String) -> Unit = {},
@@ -790,6 +796,7 @@ internal fun MessageBubble(
     onPlayClick: (Message) -> Unit = {},
     onTranscribeClick: (Message) -> Unit = {},
     onClearTranscription: (Message) -> Unit = {},
+    showAvatarForSelf: Boolean = false,
     summarySelectionMode: Boolean = false,
     isSelectedForSummary: Boolean = false,
     onSummaryToggle: (Message) -> Unit = {},
@@ -809,7 +816,7 @@ internal fun MessageBubble(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = if (isSelf) Arrangement.End else Arrangement.Start
     ) {
-        if (!isSelf) {
+        if (!isSelf || (isSelf && showAvatarForSelf)) {
             // Other user's avatar
             val avatarModifier = Modifier
                 .size(40.dp)
@@ -844,6 +851,7 @@ internal fun MessageBubble(
                     )
                 }
             }
+
             Spacer(modifier = Modifier.width(8.dp))
         }
 
@@ -1224,7 +1232,7 @@ internal fun MessageBubble(
             Spacer(modifier = Modifier.height(2.dp))
 
             Text(
-                text = formatMessageTime(message.timestamp),
+                text = timeLabel ?: formatMessageTime(message.timestamp),
                 color = chatSecondaryTextColor(),
                 fontSize = 11.sp
             )
