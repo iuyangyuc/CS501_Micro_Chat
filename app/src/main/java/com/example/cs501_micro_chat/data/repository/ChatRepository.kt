@@ -458,6 +458,10 @@ class ChatRepository @Inject constructor(
             )
             firebaseDataSource.addContact(theirContact).getOrThrow()
 
+            // 解除双方可能遗留的屏蔽标记
+            firebaseDataSource.setConversationParticipantBlocked(conversationId, userId, false)
+            firebaseDataSource.setConversationParticipantBlocked(conversationId, requesterId, false)
+
             Log.d("ChatRepository", "  🎉 Friend request accepted successfully with conversationId: $conversationId")
             return Result.success(Unit)
         } catch (e: Exception) {
@@ -509,6 +513,10 @@ class ChatRepository @Inject constructor(
         val conversationResult = createOrGetPrivateConversation(contactId)
         val conversation = conversationResult.getOrNull()
             ?: return Result.failure(Exception("Failed to create conversation"))
+
+        // 解除双方可能遗留的屏蔽标记
+        runCatching { firebaseDataSource.setConversationParticipantBlocked(conversation.id, userId, false) }
+        runCatching { firebaseDataSource.setConversationParticipantBlocked(conversation.id, contactId, false) }
 
         val contact = Contact(
             userId = userId,
