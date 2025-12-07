@@ -404,9 +404,6 @@ class ChatDetailViewModel @Inject constructor(
         if (content.isBlank()) {
             return
         }
-        if (_isConversationBlocked.value) {
-            return
-        }
 
         viewModelScope.launch {
             try {
@@ -419,8 +416,12 @@ class ChatDetailViewModel @Inject constructor(
                     conversationId = conversationId,
                     content = content,
                     type = MessageType.TEXT
-                ).onFailure { error ->
-                    _isConversationBlocked.value = true
+                ).onSuccess { sent ->
+                    if (sent.status == MessageStatus.FAILED) {
+                        _isConversationBlocked.value = true
+                        addLocalMessage(sent)
+                    }
+                }.onFailure { error ->
                     logEvent(
                         event = "send_message_failed",
                         messageId = content.hashCode().toString(),
@@ -518,6 +519,12 @@ class ChatDetailViewModel @Inject constructor(
                 )
                 return@launch
             }
+            sendResult.onSuccess { sent ->
+                if (sent.status == MessageStatus.FAILED) {
+                    _isConversationBlocked.value = true
+                    addLocalMessage(sent)
+                }
+            }
 
             _mediaUploadState.value = _mediaUploadState.value.copy(
                 isUploading = false,
@@ -602,6 +609,12 @@ class ChatDetailViewModel @Inject constructor(
                 )
                 return@launch
             }
+            sendResult.onSuccess { sent ->
+                if (sent.status == MessageStatus.FAILED) {
+                    _isConversationBlocked.value = true
+                    addLocalMessage(sent)
+                }
+            }
 
             _mediaUploadState.value = _mediaUploadState.value.copy(
                 isUploading = false,
@@ -683,6 +696,12 @@ class ChatDetailViewModel @Inject constructor(
                     error = sendResult.exceptionOrNull()
                 )
                 return@launch
+            }
+            sendResult.onSuccess { sent ->
+                if (sent.status == MessageStatus.FAILED) {
+                    _isConversationBlocked.value = true
+                    addLocalMessage(sent)
+                }
             }
 
             _mediaUploadState.value = _mediaUploadState.value.copy(
@@ -912,6 +931,12 @@ class ChatDetailViewModel @Inject constructor(
                     current + (key to next)
                 }
             }
+        }
+    }
+
+    private fun addLocalMessage(message: Message) {
+        _messages.update { current ->
+            (current + message).sortedBy { it.timestamp }
         }
     }
 }
