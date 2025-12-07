@@ -1,6 +1,7 @@
 package com.example.cs501_micro_chat.ui.search
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -46,6 +47,7 @@ import java.util.Locale
 @Composable
 fun GroupMemberSearchScreen(
     onBack: () -> Unit,
+    onMemberClick: (GroupMemberItem) -> Unit = {},
     viewModel: GroupMemberSearchViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -86,7 +88,7 @@ fun GroupMemberSearchScreen(
                     unfocusedTextColor = MaterialTheme.colorScheme.onSurface
                 )
             )
-            TextButton(onClick = onBack) {
+            TextButton(onClick = { viewModel.onQueryChange("") }) {
                 Text(text = stringResource(R.string.search_cancel))
             }
         }
@@ -141,7 +143,7 @@ fun GroupMemberSearchScreen(
                             SectionHeader(title = header)
                         }
                         items(members, key = { it.id }) { member ->
-                            MemberRow(member)
+                            MemberRow(member, onClick = { onMemberClick(member) })
                         }
                     }
                 }
@@ -151,11 +153,15 @@ fun GroupMemberSearchScreen(
 }
 
 @Composable
-private fun MemberRow(member: GroupMemberItem) {
+private fun MemberRow(
+    member: GroupMemberItem,
+    onClick: () -> Unit
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 4.dp, vertical = 6.dp),
+            .padding(horizontal = 4.dp, vertical = 6.dp)
+            .clickable { onClick() },
         verticalAlignment = Alignment.CenterVertically
     ) {
         val avatarModifier = Modifier

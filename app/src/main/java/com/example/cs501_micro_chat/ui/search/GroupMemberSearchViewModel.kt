@@ -62,42 +62,59 @@ class GroupMemberSearchViewModel @Inject constructor(
     private fun loadMembers() {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, errorMessage = null) }
-            chatRepository.getConversation(conversationId).onSuccess { conversation: Conversation? ->
-                val participants = conversation?.participants.orEmpty()
-                if (participants.isEmpty()) {
-                    _uiState.update { it.copy(isLoading = false, members = emptyList(), filteredMembers = emptyList()) }
-                    return@onSuccess
-                }
+            chatRepository.getConversation(conversationId)
+                .onSuccess { conversation: Conversation? ->
+                    val participants = conversation?.participants.orEmpty()
+                    if (participants.isEmpty()) {
+                        _uiState.update { it.copy(isLoading = false, members = emptyList(), filteredMembers = emptyList()) }
+                        return@onSuccess
+                    }
 
-                chatRepository.getUsers(participants).onSuccess { userMap ->
-                    val members = participants.map { id ->
-                        val user = userMap[id]
-                        val name = when {
-                            !user?.username.isNullOrBlank() -> user!!.username
-                            !user?.email.isNullOrBlank() -> user!!.email.substringBefore("@")
-                            else -> id
+                    // Load contacts once to find aliases/display names for participants
+                    val contactMap = chatRepository.getContacts()
+                        .getOrNull()
+                        ?.associateBy { it.contactId }
+                        .orEmpty()
+
+                    chatRepository.getUsers(participants).onSuccess { userMap ->
+                        val members = participants.map { id ->
+                            val user = userMap[id]
+                            val contact = contactMap[id]
+                            val contactDisplayName = contact?.alias?.trim().takeIf { !it.isNullOrEmpty() }
+                                ?: contact?.contactName?.trim().takeIf { !it.isNullOrEmpty() }
+                            val name = contactDisplayName
+                                ?: when {
+                                    !user?.username.isNullOrBlank() -> user!!.username
+                                    !user?.email.isNullOrBlank() -> user!!.email.substringBefore("@")
+                                    else -> id
+                                }
+                            val avatarUrl = listOf(
+                                contact?.contactAvatarUrl,
+                                user?.avatarUrl
+                            ).firstOrNull { !it.isNullOrBlank() }.orEmpty()
+
+                            GroupMemberItem(
+                                id = id,
+                                name = name,
+                                avatarUrl = avatarUrl
+                            )
                         }
-                        GroupMemberItem(
-                            id = id,
-                            name = name,
-                            avatarUrl = user?.avatarUrl.orEmpty()
-                        )
+                        val sortedMembers = sortMembers(members)
+                        val filtered = filterAndSort(sortedMembers, _uiState.value.query)
+                        _uiState.update {
+                            it.copy(
+                                isLoading = false,
+                                members = sortedMembers,
+                                filteredMembers = filtered
+                            )
+                        }
+                    }.onFailure { error ->
+                        _uiState.update { it.copy(isLoading = false, errorMessage = error.message) }
                     }
-                    val sortedMembers = sortMembers(members)
-                    val filtered = filterAndSort(sortedMembers, _uiState.value.query)
-                    _uiState.update {
-                        it.copy(
-                            isLoading = false,
-                            members = sortedMembers,
-                            filteredMembers = filtered
-                        )
-                    }
-                }.onFailure { error ->
+                }
+                .onFailure { error ->
                     _uiState.update { it.copy(isLoading = false, errorMessage = error.message) }
                 }
-            }.onFailure { error ->
-                _uiState.update { it.copy(isLoading = false, errorMessage = error.message) }
-            }
         }
     }
 

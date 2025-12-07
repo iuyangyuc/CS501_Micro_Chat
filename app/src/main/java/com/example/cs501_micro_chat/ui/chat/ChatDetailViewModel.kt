@@ -97,6 +97,10 @@ class ChatDetailViewModel @Inject constructor(
 
     private val _conversationId = MutableStateFlow("")
     val conversationId: StateFlow<String> = _conversationId.asStateFlow()
+    private val _conversationName = MutableStateFlow("")
+    val conversationName: StateFlow<String> = _conversationName.asStateFlow()
+    private val _conversationAvatarUrl = MutableStateFlow("")
+    val conversationAvatarUrl: StateFlow<String> = _conversationAvatarUrl.asStateFlow()
 
     private val _isConversationBlocked = MutableStateFlow(false)
     val isConversationBlocked: StateFlow<Boolean> = _isConversationBlocked.asStateFlow()
@@ -162,6 +166,8 @@ class ChatDetailViewModel @Inject constructor(
         _suppressedTranslationKeys.value = emptySet()
         _suppressedTranscriptionKeys.value = emptySet()
         _clearedAt.value = 0L
+        _conversationName.value = ""
+        _conversationAvatarUrl.value = ""
         initialEmptyJob?.cancel()
         initialEmptyJob = null
 
@@ -229,6 +235,8 @@ class ChatDetailViewModel @Inject constructor(
             val convo = conversation ?: return@onSuccess
             _conversationId.value = convo.id
             _conversationType.value = convo.type
+            _conversationName.value = convo.name
+            _conversationAvatarUrl.value = convo.avatarUrl
             if (convo.type == com.example.cs501_micro_chat.data.model.ConversationType.PRIVATE) {
                 val currentId = _currentUserId.value
                 val other = convo.participants.firstOrNull { it != currentId }.orEmpty()

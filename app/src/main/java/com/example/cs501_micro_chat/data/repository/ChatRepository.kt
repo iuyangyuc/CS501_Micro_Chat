@@ -168,6 +168,8 @@ class ChatRepository @Inject constructor(
         return firebaseDataSource.clearConversationForUser(conversationId, userId, System.currentTimeMillis())
     }
 
+    fun currentUserIdOrNull(): String? = currentUserId
+
     // ==================== 群组相关 Group Operations ====================
 
     /**

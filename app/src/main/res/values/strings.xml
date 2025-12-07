@@ -74,7 +74,11 @@
     <string name="theme_option_dark">Dark</string>
     <string name="chat_placeholder_no_messages">No messages yet</string>
     <string name="chat_detail_empty_subtitle">Send the first message to start chatting!</string>
+    <string name="chat_date_today">Today</string>
+    <string name="chat_date_yesterday">Yesterday</string>
     <string name="chat_input_placeholder">Type a message…</string>
+    <string name="search_member_label">Member</string>
+    <string name="chat_search_no_dates">No message dates available</string>
     <string name="translate_menu_action">Translate</string>
     <string name="translate_menu_hide">Hide translation</string>
     <string name="translate_menu_play">Play</string>

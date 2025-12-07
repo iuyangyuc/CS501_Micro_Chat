@@ -72,7 +72,11 @@
     <string name="theme_option_dark">深色</string>
     <string name="chat_placeholder_no_messages">目前沒有訊息</string>
     <string name="chat_detail_empty_subtitle">傳送第一則訊息開始聊天吧！</string>
+    <string name="chat_date_today">今天</string>
+    <string name="chat_date_yesterday">昨天</string>
     <string name="chat_input_placeholder">輸入訊息…</string>
+    <string name="search_member_label">成員</string>
+    <string name="chat_search_no_dates">沒有可選的訊息日期</string>
     <string name="translate_menu_action">翻譯</string>
     <string name="translate_menu_hide">不看翻譯</string>
     <string name="translate_menu_play">播放</string>

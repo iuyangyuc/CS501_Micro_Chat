@@ -75,6 +75,7 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -84,6 +85,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -116,6 +118,9 @@ import com.example.cs501_micro_chat.ui.profile.GroupProfileScreen
 import com.example.cs501_micro_chat.ui.profile.UserProfileScreen
 import com.example.cs501_micro_chat.ui.search.ChatSearchScreen
 import com.example.cs501_micro_chat.ui.search.GroupMemberSearchScreen
+import com.example.cs501_micro_chat.ui.search.MessageFilterSearchScreen
+import com.example.cs501_micro_chat.ui.search.MessageSearchFilter
+import com.example.cs501_micro_chat.ui.search.MemberMessageSearchScreen
 import com.example.cs501_micro_chat.ui.settings.AboutScreen
 import com.example.cs501_micro_chat.ui.settings.PrivacySettingsScreen
 import com.example.cs501_micro_chat.ui.settings.ProfileEditScreen
@@ -127,6 +132,10 @@ import java.net.URLDecoder
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 import java.text.Collator
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -152,6 +161,8 @@ private const val USER_PROFILE_ROUTE = "user_profile"
 private const val GROUP_PROFILE_ROUTE = "group_profile"
 private const val CHAT_SEARCH_ROUTE = "chat_search"
 private const val GROUP_MEMBER_SEARCH_ROUTE = "group_member_search"
+private const val MEMBER_MESSAGE_SEARCH_ROUTE = "member_message_search"
+private const val MESSAGE_FILTER_SEARCH_ROUTE = "message_filter_search"
 private const val PROFILE_UPDATED_KEY = "profile_updated"
 
 
@@ -213,12 +224,14 @@ fun HomeScreen(
         it.startsWith("chat_detail") ||
                 it == LANGUAGE_SETTINGS_ROUTE ||
                 it == PRIVACY_SETTINGS_ROUTE ||
-                it == ABOUT_ROUTE ||
-                it == PROFILE_EDIT_ROUTE ||
-                it.startsWith(USER_PROFILE_ROUTE) ||
-                it.startsWith(GROUP_PROFILE_ROUTE) ||
-                it.startsWith(CHAT_SEARCH_ROUTE) ||
-                it.startsWith(GROUP_MEMBER_SEARCH_ROUTE)
+        it == ABOUT_ROUTE ||
+        it == PROFILE_EDIT_ROUTE ||
+        it.startsWith(USER_PROFILE_ROUTE) ||
+        it.startsWith(GROUP_PROFILE_ROUTE) ||
+        it.startsWith(CHAT_SEARCH_ROUTE) ||
+        it.startsWith(GROUP_MEMBER_SEARCH_ROUTE) ||
+        it.startsWith(MEMBER_MESSAGE_SEARCH_ROUTE) ||
+        it.startsWith(MESSAGE_FILTER_SEARCH_ROUTE)
     } == true
     val surfaceColor = MaterialTheme.colorScheme.surface
 
@@ -260,21 +273,30 @@ fun HomeScreen(
                                 val otherUserAvatarUrl by chatDetailViewModel.otherUserAvatarUrl.collectAsStateWithLifecycle()
                                 val conversationType by chatDetailViewModel.conversationType.collectAsStateWithLifecycle()
                                 val convoId by chatDetailViewModel.conversationId.collectAsStateWithLifecycle()
+                                val conversationNameVm by chatDetailViewModel.conversationName.collectAsStateWithLifecycle()
+                                val conversationAvatarVm by chatDetailViewModel.conversationAvatarUrl.collectAsStateWithLifecycle()
 
                                 // 从路由参数获取对话名称
-                                val conversationName = navBackStackEntry?.arguments?.getString("conversationName")?.let {
+                                val conversationNameArg = navBackStackEntry?.arguments?.getString("conversationName")?.let {
                                     URLDecoder.decode(it, StandardCharsets.UTF_8.toString())
                                 } ?: ""
 
                                 // 从路由参数获取初始头像（作为 fallback）
-                                val fallbackAvatar = navBackStackEntry?.arguments?.getString("conversationAvatar")?.let {
+                                val fallbackAvatarArg = navBackStackEntry?.arguments?.getString("conversationAvatar")?.let {
                                     URLDecoder.decode(it, StandardCharsets.UTF_8.toString())
                                 } ?: ""
 
+                                val resolvedConversationName = conversationNameVm.ifBlank { conversationNameArg }
+                                val resolvedConversationAvatar = when {
+                                    otherUserAvatarUrl.isNotBlank() -> otherUserAvatarUrl
+                                    conversationAvatarVm.isNotBlank() -> conversationAvatarVm
+                                    else -> fallbackAvatarArg
+                                }
+
                                 ChatDetailTopBar(
-                                    conversationName = conversationName,
+                                    conversationName = resolvedConversationName,
                                     // 优先使用 ViewModel 中解析好的头像 URL，如果为空则使用路由参数
-                                    conversationAvatar = otherUserAvatarUrl.ifBlank { fallbackAvatar },
+                                    conversationAvatar = resolvedConversationAvatar,
                                     onBack = { navController.popBackStack() },
                                     onProfileClick = {
                                         when (conversationType) {
@@ -313,19 +335,26 @@ fun HomeScreen(
                             route?.startsWith(GROUP_PROFILE_ROUTE) == true -> {
                                 val groupProfileViewModel: com.example.cs501_micro_chat.ui.profile.GroupProfileViewModel = hiltViewModel(navBackStackEntry!!)
                                 val groupState by groupProfileViewModel.uiState.collectAsStateWithLifecycle()
-                                GroupHeaderTopBar(
-                                    memberCount = groupState.members.size,
+                            GroupHeaderTopBar(
+                                memberCount = groupState.members.size,
+                                onBack = { navController.popBackStack() }
+                            )
+                        }
+
+                            route?.startsWith(GROUP_MEMBER_SEARCH_ROUTE) == true ||
+                                    route?.startsWith(MEMBER_MESSAGE_SEARCH_ROUTE) == true -> {
+                                GroupMemberSearchTopBar(onBack = { navController.popBackStack() })
+                            }
+
+                            route?.startsWith(MESSAGE_FILTER_SEARCH_ROUTE) == true -> {
+                                val filterArg = navBackStackEntry?.arguments?.getString("filter")
+                                val filter = MessageSearchFilter.fromArg(filterArg)
+                                MessageFilterSearchTopBar(
+                                    title = stringResource(filter.titleRes),
                                     onBack = { navController.popBackStack() }
                                 )
                             }
 
-                    route?.startsWith(GROUP_MEMBER_SEARCH_ROUTE) == true -> {
-                        GroupMemberSearchTopBar(onBack = { navController.popBackStack() })
-                    }
-
-                    route?.startsWith(CHAT_SEARCH_ROUTE) == true -> {
-                        ChatSearchTopBar(onBack = { navController.popBackStack() })
-                    }
                             route?.startsWith(CHAT_SEARCH_ROUTE) == true -> {
                                 ChatSearchTopBar(onBack = { navController.popBackStack() })
                             }
@@ -337,12 +366,12 @@ fun HomeScreen(
                                     onNavigateToChat = { convoId, name, avatar ->
                                         val encodedName = URLEncoder.encode(name, StandardCharsets.UTF_8.toString())
                                         val encodedAvatar = URLEncoder.encode(avatar, StandardCharsets.UTF_8.toString())
-                                        navController.navigate("chat_detail/$convoId/$encodedName/$encodedAvatar") {
-                                            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                                            launchSingleTop = true
-                                            restoreState = true
-                                        }
-                                    }
+                        navController.navigate("chat_detail/$convoId/$encodedName/$encodedAvatar") {
+                            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    }
                                 )
                             }
                         }
@@ -514,11 +543,15 @@ fun HomeScreen(
 
                 // ChatDetail 页面 - 从右侧滑入
                 composable(
-                    route = "chat_detail/{conversationId}/{conversationName}/{conversationAvatar}",
+                    route = "chat_detail/{conversationId}/{conversationName}/{conversationAvatar}?targetDate={targetDate}",
                     arguments = listOf(
                         navArgument("conversationId") { type = NavType.StringType },
                         navArgument("conversationName") { type = NavType.StringType },
-                        navArgument("conversationAvatar") { type = NavType.StringType }
+                        navArgument("conversationAvatar") { type = NavType.StringType },
+                        navArgument("targetDate") {
+                            type = NavType.LongType
+                            defaultValue = -1L
+                        }
                     ),
                     enterTransition = {
                         slideInHorizontally(
@@ -540,8 +573,10 @@ fun HomeScreen(
                     }
                 ) { backStackEntry ->
                     val conversationId = backStackEntry.arguments?.getString("conversationId") ?: ""
+                    val targetDate = backStackEntry.arguments?.getLong("targetDate")?.takeIf { it > 0 }
                     ChatDetailContent(
                         conversationId = conversationId,
+                        targetDateMillis = targetDate,
                         onAvatarClick = { userId ->
                             navController.navigate("$USER_PROFILE_ROUTE/$userId?conversationId=$conversationId&source=chat")
                         }
@@ -652,6 +687,16 @@ fun HomeScreen(
                         onGroupMembersClick = {
                             val encodedId = URLEncoder.encode(conversationId, StandardCharsets.UTF_8.toString())
                             navController.navigate("$GROUP_MEMBER_SEARCH_ROUTE/$encodedId")
+                        },
+                        onDateSelected = { targetMillis ->
+                            val encodedId = URLEncoder.encode(conversationId, StandardCharsets.UTF_8.toString())
+                            val encodedName = URLEncoder.encode("", StandardCharsets.UTF_8.toString())
+                            val encodedAvatar = URLEncoder.encode("", StandardCharsets.UTF_8.toString())
+                            navController.navigate("chat_detail/$encodedId/$encodedName/$encodedAvatar?targetDate=$targetMillis")
+                        },
+                        onFilterSelected = { filter ->
+                            val encodedId = URLEncoder.encode(conversationId, StandardCharsets.UTF_8.toString())
+                            navController.navigate("$MESSAGE_FILTER_SEARCH_ROUTE/$encodedId?filter=${filter.arg}")
                         }
                     )
                 }
@@ -663,10 +708,57 @@ fun HomeScreen(
                             defaultValue = ""
                         }
                     )
-                ) {
+                ) { backStackEntry ->
+                    val conversationId = backStackEntry.arguments?.getString("conversationId").orEmpty()
                     GroupMemberSearchScreen(
-                        onBack = { navController.popBackStack() }
+                        onBack = { navController.popBackStack() },
+                        onMemberClick = { member ->
+                            val encodedConversation = URLEncoder.encode(conversationId, StandardCharsets.UTF_8.toString())
+                            val encodedMemberId = URLEncoder.encode(member.id, StandardCharsets.UTF_8.toString())
+                            val encodedName = URLEncoder.encode(member.name, StandardCharsets.UTF_8.toString())
+                            val encodedAvatar = URLEncoder.encode(member.avatarUrl, StandardCharsets.UTF_8.toString())
+                            navController.navigate("$MEMBER_MESSAGE_SEARCH_ROUTE/$encodedConversation/$encodedMemberId?memberName=$encodedName&memberAvatar=$encodedAvatar")
+                        }
                     )
+                }
+                composable(
+                    route = "$MEMBER_MESSAGE_SEARCH_ROUTE/{conversationId}/{memberId}?memberName={memberName}&memberAvatar={memberAvatar}",
+                    arguments = listOf(
+                        navArgument("conversationId") {
+                            type = NavType.StringType
+                            defaultValue = ""
+                        },
+                        navArgument("memberId") {
+                            type = NavType.StringType
+                            defaultValue = ""
+                        },
+                        navArgument("memberName") {
+                            type = NavType.StringType
+                            defaultValue = ""
+                        },
+                        navArgument("memberAvatar") {
+                            type = NavType.StringType
+                            defaultValue = ""
+                        }
+                    )
+                ) {
+                    MemberMessageSearchScreen(onBack = { navController.popBackStack() })
+                }
+
+                composable(
+                    route = "$MESSAGE_FILTER_SEARCH_ROUTE/{conversationId}?filter={filter}",
+                    arguments = listOf(
+                        navArgument("conversationId") {
+                            type = NavType.StringType
+                            defaultValue = ""
+                        },
+                        navArgument("filter") {
+                            type = NavType.StringType
+                            defaultValue = MessageSearchFilter.Photos.arg
+                        }
+                    )
+                ) {
+                    MessageFilterSearchScreen(onBack = { navController.popBackStack() })
                 }
             }
     }
@@ -1070,6 +1162,37 @@ fun GroupMemberSearchTopBar(onBack: () -> Unit) {
 }
 
 @Composable
+fun MessageFilterSearchTopBar(
+    title: String,
+    onBack: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(56.dp)
+    ) {
+        IconButton(
+            onClick = onBack,
+            modifier = Modifier.align(Alignment.CenterStart)
+        ) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                contentDescription = stringResource(R.string.content_description_back),
+                tint = Color.White
+            )
+        }
+
+        Text(
+            text = title,
+            color = Color.White,
+            fontSize = 18.sp,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.align(Alignment.Center)
+        )
+    }
+}
+
+@Composable
 fun LanguageSettingsTopBar(
     onBack: () -> Unit
 ) {
@@ -1224,10 +1347,16 @@ fun ChatDetailTopBar(
 /**
  * ChatDetail 的内容区域（不包含顶栏）
  */
+private sealed interface ChatListItem {
+    data class DateHeader(val date: LocalDate) : ChatListItem
+    data class MessageItem(val message: Message) : ChatListItem
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChatDetailContent(
     conversationId: String,
+    targetDateMillis: Long? = null,
     onAvatarClick: (String) -> Unit = {}
 ) {
     val viewModel: ChatDetailViewModel = hiltViewModel()
@@ -1485,15 +1614,28 @@ fun ChatDetailContent(
         )
     }
 
-    LaunchedEffect(messages.size) {
+    var hasJumpedToTarget by rememberSaveable { mutableStateOf(false) }
+
+    LaunchedEffect(messages.size, targetDateMillis) {
         if (messages.isNotEmpty()) {
-            listState.animateScrollToItem(messages.size - 1)
+            val targetIndex = targetDateMillis
+                ?.takeIf { it > 0 }
+                ?.let { ts ->
+                    messages.indexOfFirst { it.timestamp >= ts }.takeIf { it >= 0 }
+                }
+                ?: (messages.size - 1)
+
+            if (!hasJumpedToTarget || targetDateMillis != null) {
+                listState.scrollToItem(targetIndex)
+                hasJumpedToTarget = true
+            }
         }
     }
 
     val backgroundColor = MaterialTheme.colorScheme.background
     val surfaceColorChat = MaterialTheme.colorScheme.surface
     val searchBackgroundChat = MaterialTheme.colorScheme.surfaceVariant
+    val zoneId = remember { ZoneId.systemDefault() }
     if (showActionSheet) {
         ModalBottomSheet(
             onDismissRequest = {
@@ -1644,6 +1786,20 @@ fun ChatDetailContent(
                     )
                 }
             } else {
+                val chatItems = remember(messages) {
+                    val sorted = messages.sortedBy { it.timestamp }
+                    buildList<ChatListItem> {
+                        var lastDate: LocalDate? = null
+                        sorted.forEach { message ->
+                            val date = Instant.ofEpochMilli(message.timestamp).atZone(zoneId).toLocalDate()
+                            if (lastDate != date) {
+                                add(ChatListItem.DateHeader(date))
+                                lastDate = date
+                            }
+                            add(ChatListItem.MessageItem(message))
+                        }
+                    }
+                }
                 LazyColumn(
                     state = listState,
                     modifier = Modifier.fillMaxSize(),
@@ -1651,23 +1807,31 @@ fun ChatDetailContent(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     items(
-                        items = messages,
-                        key = { message -> messageKey(message) }
-                    ) { message ->
-                            com.example.cs501_micro_chat.ui.chat.MessageBubble(
-                                message = message,
-                                isSelf = message.senderId == currentUserId,
-                                translationState = translationStates[messageKey(message)],
-                                transcriptionState = voiceTranscriptionStates[messageKey(message)],
+                        items = chatItems,
+                        key = { item ->
+                            when (item) {
+                                is ChatListItem.DateHeader -> "date_${item.date}"
+                                is ChatListItem.MessageItem -> messageKey(item.message)
+                            }
+                        }
+                    ) { item ->
+                        when (item) {
+                            is ChatListItem.DateHeader -> DateDivider(date = item.date)
+                            is ChatListItem.MessageItem -> com.example.cs501_micro_chat.ui.chat.MessageBubble(
+                                message = item.message,
+                                isSelf = item.message.senderId == currentUserId,
+                                translationState = translationStates[messageKey(item.message)],
+                                transcriptionState = voiceTranscriptionStates[messageKey(item.message)],
                                 onAvatarClick = onAvatarClick,
-                                onTranslateClick = { messageAwaitingTranslation = message },
+                                onTranslateClick = { messageAwaitingTranslation = item.message },
                                 onClearTranslation = { viewModel.clearTranslationFor(it) },
-                                onPlayClick = { speakMessage(message.content) },
+                                onPlayClick = { speakMessage(item.message.content) },
                                 onTranscribeClick = { viewModel.transcribeVoiceMessage(it) },
                                 onClearTranscription = { viewModel.clearTranscriptionFor(it) }
                             )
                         }
                     }
+                }
             }
         }
 
@@ -1831,6 +1995,48 @@ fun ChatDetailContent(
                     Text(text = stringResource(R.string.translate_dialog_cancel))
                 }
             }
+        )
+    }
+}
+
+@Composable
+private fun DateDivider(date: LocalDate) {
+    val configuration = LocalConfiguration.current
+    val locale = if (configuration.locales.size() > 0) {
+        configuration.locales[0]
+    } else {
+        Locale.getDefault()
+    }
+    val sameYearFormatter = remember(locale) { DateTimeFormatter.ofPattern("MMM d", locale) }
+    val otherYearFormatter = remember(locale) { DateTimeFormatter.ofPattern("MMM d, yyyy", locale) }
+    val today = LocalDate.now()
+    val yesterday = today.minusDays(1)
+    val label = when {
+        date == today -> stringResource(R.string.chat_date_today)
+        date == yesterday -> stringResource(R.string.chat_date_yesterday)
+        date.year == today.year -> date.format(sameYearFormatter)
+        else -> date.format(otherYearFormatter)
+    }
+    val lineColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        HorizontalDivider(
+            modifier = Modifier.weight(1f),
+            color = lineColor
+        )
+        Text(
+            text = label,
+            modifier = Modifier.padding(horizontal = 12.dp),
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        HorizontalDivider(
+            modifier = Modifier.weight(1f),
+            color = lineColor
         )
     }
 }
