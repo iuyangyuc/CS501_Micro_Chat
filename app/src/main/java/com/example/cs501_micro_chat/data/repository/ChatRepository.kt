@@ -92,6 +92,9 @@ class ChatRepository @Inject constructor(
         val userId = currentUserId ?: return Result.failure(Exception("User not logged in"))
 
         val isBlocked = firebaseDataSource.isConversationParticipantBlocked(conversationId, userId).getOrElse { false }
+        if (isBlocked) {
+            return Result.failure(IllegalStateException("Conversation blocked for current user"))
+        }
 
         // 获取当前用户信息
         val userResult = firebaseDataSource.getUser(userId)
@@ -107,7 +110,7 @@ class ChatRepository @Inject constructor(
             mediaUrl = mediaUrl,
             timestamp = System.currentTimeMillis(),
             readBy = listOf(userId),
-            status = if (isBlocked) MessageStatus.FAILED else MessageStatus.SENT
+            status = MessageStatus.SENT
         )
 
         return runCatching {

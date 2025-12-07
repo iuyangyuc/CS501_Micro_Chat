@@ -404,6 +404,9 @@ class ChatDetailViewModel @Inject constructor(
         if (content.isBlank()) {
             return
         }
+        if (_isConversationBlocked.value) {
+            return
+        }
 
         viewModelScope.launch {
             try {
@@ -416,11 +419,8 @@ class ChatDetailViewModel @Inject constructor(
                     conversationId = conversationId,
                     content = content,
                     type = MessageType.TEXT
-                ).onSuccess { sent ->
-                    if (sent.status == MessageStatus.FAILED) {
-                        _isConversationBlocked.value = true
-                    }
-                }.onFailure { error ->
+                ).onFailure { error ->
+                    _isConversationBlocked.value = true
                     logEvent(
                         event = "send_message_failed",
                         messageId = content.hashCode().toString(),
