@@ -96,7 +96,7 @@
     <string name="chat_list_empty_title">Sin chats</string>
     <string name="chat_list_empty_subtitle">¡Inicia una nueva conversación!</string>
     <string name="search_hint">Buscar</string>
-    <string name="contacts_search_hint">Buscar contactos</string>
+    <string name="contacts_search_hint">Buscar contactos y grupos</string>
     <string name="contacts_empty_title">Contactos</string>
     <string name="contacts_empty_subtitle">Próximamente…</string>
     <string name="profile_placeholder_name">Nombre de usuario</string>
@@ -296,4 +296,7 @@
     <string name="add_friend_button_sended">Enviado</string>
     <string name="add_friend_button_pending">Pendiente</string>
     <string name="add_friend_user_id">ID: %s</string>
+    <string name="section_groups">Grupos</string>
+    <string name="section_contacts">Contactos</string>
+    <string name="section_friend_requests">Solicitudes de amistad</string>
 </resources>

@@ -96,7 +96,7 @@
     <string name="chat_list_empty_title">Aucun chat</string>
     <string name="chat_list_empty_subtitle">Commencez une nouvelle discussion !</string>
     <string name="search_hint">Rechercher</string>
-    <string name="contacts_search_hint">Rechercher des contacts</string>
+    <string name="contacts_search_hint">Rechercher des contacts et groupes</string>
     <string name="contacts_empty_title">Contacts</string>
     <string name="contacts_empty_subtitle">À venir…</string>
     <string name="profile_placeholder_name">Nom d’utilisateur</string>
@@ -288,6 +288,9 @@
     <string name="add_friend_button_sended">Envoyé</string>
     <string name="add_friend_button_pending">En attente</string>
     <string name="add_friend_user_id">ID : %s</string>
+    <string name="section_groups">Groupes</string>
+    <string name="section_contacts">Contacts</string>
+    <string name="section_friend_requests">Demandes d\'amitié</string>
     <string name="user_profile_alias_label">Surnom du contact</string>
     <string name="user_profile_alias_placeholder">Saisissez un surnom</string>
     <string name="user_profile_alias_save">Enregistrer le surnom</string>

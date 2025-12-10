@@ -38,21 +38,44 @@ class GroupProfileViewModel @Inject constructor(
     fun loadGroup(conversationId: String) {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, errorMessage = null) }
+
+            // 获取当前用户ID
+            val currentUserId = chatRepository.currentUserIdOrNull()
+
             chatRepository.getConversation(conversationId).onSuccess { conversation ->
                 val convo = conversation ?: return@onSuccess
                 if (convo.type != ConversationType.GROUP) {
                     _uiState.update { it.copy(errorMessage = "Not a group", isLoading = false) }
                     return@onSuccess
                 }
-                _uiState.update {
-                    it.copy(
-                        conversationId = convo.id,
-                        name = convo.name,
-                        avatarUrl = convo.avatarUrl,
-                        participants = convo.participants,
-                        isLoading = false
-                    )
+
+                // 获取群组信息以判断是否为群主
+                chatRepository.getGroup(conversationId).onSuccess { group ->
+                    val isOwner = group?.ownerId == currentUserId
+                    _uiState.update {
+                        it.copy(
+                            conversationId = convo.id,
+                            name = convo.name,
+                            avatarUrl = convo.avatarUrl,
+                            participants = convo.participants,
+                            ownerId = group?.ownerId.orEmpty(),
+                            isOwner = isOwner,
+                            isLoading = false
+                        )
+                    }
+                }.onFailure {
+                    // 即使获取群组信息失败，也显示会话基本信息
+                    _uiState.update {
+                        it.copy(
+                            conversationId = convo.id,
+                            name = convo.name,
+                            avatarUrl = convo.avatarUrl,
+                            participants = convo.participants,
+                            isLoading = false
+                        )
+                    }
                 }
+
                 loadMembers(convo.participants)
                 loadPinFromContact(convo.id)
             }.onFailure { error ->
@@ -211,6 +234,40 @@ class GroupProfileViewModel @Inject constructor(
         }
     }
 
+    /**
+     * 解散群组（仅群主可用）
+     */
+    fun dismissGroup() {
+        val groupId = _uiState.value.conversationId
+        if (groupId.isBlank()) return
+        if (!_uiState.value.isOwner) return // 只有群主可以解散
+
+        viewModelScope.launch {
+            _uiState.update { it.copy(isDismissing = true) }
+            chatRepository.dismissGroup(groupId).onSuccess {
+                _events.send(GroupProfileEvent.GroupDismissed)
+                _uiState.update {
+                    it.copy(
+                        isDismissing = false,
+                        isRemoved = true,
+                        canPin = false,
+                        isPinned = false,
+                        contactFavorite = false,
+                        conversationId = ""
+                    )
+                }
+            }.onFailure { error ->
+                _events.send(
+                    GroupProfileEvent.ShowMessage(
+                        messageRes = R.string.group_profile_error_dismiss,
+                        message = error.message
+                    )
+                )
+                _uiState.update { it.copy(isDismissing = false) }
+            }
+        }
+    }
+
     fun togglePinned() {
         val state = _uiState.value
         val conversationId = state.conversationId
@@ -274,6 +331,8 @@ data class GroupProfileUiState(
     val avatarUrl: String = "",
     val participants: List<String> = emptyList(),
     val members: List<GroupMember> = emptyList(),
+    val ownerId: String = "",
+    val isOwner: Boolean = false,
     val isPinned: Boolean = false,
     val canPin: Boolean = false,
     val isPinUpdating: Boolean = false,
@@ -281,6 +340,7 @@ data class GroupProfileUiState(
     val isRemoved: Boolean = false,
     val isSaving: Boolean = false,
     val isLeaving: Boolean = false,
+    val isDismissing: Boolean = false,
     val isLoading: Boolean = false,
     val errorMessage: String? = null
 )
@@ -295,6 +355,7 @@ sealed interface GroupProfileEvent {
     data class OpenChat(val conversationId: String, val name: String, val avatarUrl: String) : GroupProfileEvent
     data class SearchHistory(val conversationId: String) : GroupProfileEvent
     data object LeftGroup : GroupProfileEvent
+    data object GroupDismissed : GroupProfileEvent
     data class Renamed(val name: String) : GroupProfileEvent
     data class ShowMessage(val message: String? = null, @StringRes val messageRes: Int? = null) : GroupProfileEvent
     data class PinStatusChanged(val isPinned: Boolean) : GroupProfileEvent

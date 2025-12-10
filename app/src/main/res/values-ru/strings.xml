@@ -96,7 +96,7 @@
     <string name="chat_list_empty_title">Нет чатов</string>
     <string name="chat_list_empty_subtitle">Начните новый разговор!</string>
     <string name="search_hint">Поиск</string>
-    <string name="contacts_search_hint">Поиск контактов</string>
+    <string name="contacts_search_hint">Поиск контактов и групп</string>
     <string name="contacts_empty_title">Контакты</string>
     <string name="contacts_empty_subtitle">Скоро…</string>
     <string name="profile_placeholder_name">Имя пользователя</string>
@@ -296,4 +296,7 @@
     <string name="add_friend_button_sended">Отправлено</string>
     <string name="add_friend_button_pending">Ожидание</string>
     <string name="add_friend_user_id">ID: %s</string>
+    <string name="section_groups">Группы</string>
+    <string name="section_contacts">Контакты</string>
+    <string name="section_friend_requests">Запросы в друзья</string>
 </resources>

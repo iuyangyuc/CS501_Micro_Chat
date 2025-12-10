@@ -1125,20 +1125,68 @@ class FirebaseDataSource @Inject constructor(
 
     /**
      * 创建群组
+     * 1. 生成 groupId 和 conversationId
+     * 2. 创建群组记录（包含 conversationId）
+     * 3. 创建群聊会话（使用 groupId 作为 conversationId）
+     * 4. 为所有成员创建 contacts 记录
      */
     suspend fun createGroup(group: Group): Result<Group> = runCatching {
-        val groupId = groupsCollection.document().id
-        val groupWithId = group.copy(id = groupId)
-        groupsCollection.document(groupId).set(groupWithId.toMap()).await()
+        Log.d(TAG, "📝 createGroup: name=${group.name}, members=${group.memberIds.size}")
 
-        // 同时创建对应的群聊会话
-        createGroupConversation(
+        // 1. 生成 groupId，同时作为 conversationId
+        val groupId = groupsCollection.document().id
+        val conversationId = groupId  // 群组的 conversationId 就是 groupId
+
+        Log.d(TAG, "🆔 Generated groupId/conversationId: $conversationId")
+
+        // 2. 创建群组记录，包含 conversationId
+        val groupWithId = group.copy(
+            id = groupId,
+            conversationId = conversationId
+        )
+        groupsCollection.document(groupId).set(groupWithId.toMap()).await()
+        Log.d(TAG, "✅ Created group document: groups/$groupId")
+
+        // 3. 创建对应的群聊会话（使用 groupId 作为 conversationId）
+        val conversation = Conversation(
+            id = conversationId,
+            type = ConversationType.GROUP,
             name = group.name,
             avatarUrl = group.avatarUrl,
             participants = group.memberIds,
-            createdBy = group.ownerId
+            createdBy = group.ownerId,
+            unreadCounts = group.memberIds.associateWith { 0 }
         )
+        conversationsCollection.document(conversationId).set(conversation.toMap()).await()
+        Log.d(TAG, "✅ Created conversation document: conversations/$conversationId")
 
+        // 4. 为所有成员创建 contacts 记录
+        group.memberIds.forEach { memberId ->
+            val contact = Contact(
+                userId = memberId,
+                contactId = groupId,
+                contactName = group.name,
+                contactAvatarUrl = group.avatarUrl,
+                type = "GROUP",
+                conversationId = conversationId,
+                isNew = false,
+                isPending = false,
+                isBlocked = false,
+                isFavorite = false,
+                addedAt = System.currentTimeMillis()
+            )
+
+            usersCollection
+                .document(memberId)
+                .collection("contacts")
+                .document(groupId)
+                .set(contact.toMap())
+                .await()
+
+            Log.d(TAG, "✅ Created contact for user $memberId: users/$memberId/contacts/$groupId")
+        }
+
+        Log.d(TAG, "🎉 Group creation completed: $groupId with ${group.memberIds.size} members")
         groupWithId
     }
 
@@ -1186,19 +1234,43 @@ class FirebaseDataSource @Inject constructor(
      * 移除群成员
      */
     suspend fun removeGroupMember(groupId: String, memberId: String): Result<Unit> = runCatching {
-        val group = getGroup(groupId).getOrNull() ?: throw Exception("Group not found")
-        val updatedMembers = group.memberIds.filter { it != memberId }
+        Log.d(TAG, "🚪 removeGroupMember: groupId=$groupId, memberId=$memberId")
 
+        val group = getGroup(groupId).getOrNull() ?: throw Exception("Group not found")
+
+        // 检查成员是否存在
+        if (!group.memberIds.contains(memberId)) {
+            Log.w(TAG, "⚠️ User $memberId is not a member of group $groupId")
+            return@runCatching  // 不是成员，直接返回成功
+        }
+
+        val updatedMembers = group.memberIds.filter { it != memberId }
+        Log.d(TAG, "📝 Updating group members: ${group.memberIds.size} -> ${updatedMembers.size}")
+
+        // 1. 更新群组成员列表
         groupsCollection
             .document(groupId)
             .update("memberIds", updatedMembers)
             .await()
+        Log.d(TAG, "✅ Updated groups/$groupId/memberIds")
 
-        // 更新对应会话的参与者列表
+        // 2. 更新对应会话的参与者列表
         conversationsCollection
             .document(groupId)
             .update("participants", updatedMembers)
             .await()
+        Log.d(TAG, "✅ Updated conversations/$groupId/participants")
+
+        // 3. 从用户的 contacts 中删除该群组
+        usersCollection
+            .document(memberId)
+            .collection("contacts")
+            .document(groupId)
+            .delete()
+            .await()
+        Log.d(TAG, "✅ Deleted users/$memberId/contacts/$groupId")
+
+        Log.d(TAG, "🎉 Successfully removed user $memberId from group $groupId")
     }
 
     /**
@@ -1220,12 +1292,43 @@ class FirebaseDataSource @Inject constructor(
 
     /**
      * 解散群组
+     * 保留群组记录，但从所有成员的 contacts 中删除该群组
      */
     suspend fun dismissGroup(groupId: String): Result<Unit> = runCatching {
-        // 删除群组信息
-        groupsCollection.document(groupId).delete().await()
+        Log.d(TAG, "💥 dismissGroup: groupId=$groupId")
 
-        // 标记会话为不活跃
-        deleteConversation(groupId)
+        // 1. 获取群组信息，获取所有成员列表
+        val group = getGroup(groupId).getOrNull() ?: throw Exception("Group not found")
+
+        Log.d(TAG, "📝 Group has ${group.memberIds.size} members to remove contacts")
+
+        // 2. 从所有成员的 contacts 中删除该群组
+        group.memberIds.forEach { memberId ->
+            try {
+                usersCollection
+                    .document(memberId)
+                    .collection("contacts")
+                    .document(groupId)
+                    .delete()
+                    .await()
+                Log.d(TAG, "✅ Deleted contact for user $memberId: users/$memberId/contacts/$groupId")
+            } catch (e: Exception) {
+                Log.e(TAG, "⚠️ Failed to delete contact for user $memberId", e)
+                // 继续处理其他成员，不因为一个失败而中断
+            }
+        }
+
+        // 3. 标记会话为不活跃（可选，根据需求决定）
+        try {
+            conversationsCollection
+                .document(groupId)
+                .update("isActive", false)
+                .await()
+            Log.d(TAG, "✅ Marked conversation as inactive: conversations/$groupId")
+        } catch (e: Exception) {
+            Log.e(TAG, "⚠️ Failed to mark conversation as inactive", e)
+        }
+
+        Log.d(TAG, "🎉 Group dismissed successfully: $groupId")
     }
 }

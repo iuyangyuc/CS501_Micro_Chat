@@ -105,7 +105,7 @@
     <string name="chat_list_empty_title">No chats</string>
     <string name="chat_list_empty_subtitle">Start a new conversation!</string>
     <string name="search_hint">Search</string>
-    <string name="contacts_search_hint">Search contacts</string>
+    <string name="contacts_search_hint">Search contacts and groups</string>
     <string name="contacts_empty_title">Contacts</string>
     <string name="contacts_empty_subtitle">Coming soon…</string>
     <string name="profile_placeholder_name">User Name</string>
@@ -260,6 +260,14 @@
     <string name="group_profile_error_pin_update">Failed to update pin status</string>
     <string name="group_profile_error_leave">Failed to leave group</string>
     <string name="group_profile_error_update_name">Failed to update group name</string>
+    <string name="group_profile_dismiss">Dismiss group</string>
+    <string name="group_profile_dismissing">Dismissing...</string>
+    <string name="group_profile_dismiss_title">Dismiss Group</string>
+    <string name="group_profile_dismiss_description">Are you sure you want to dismiss this group? This action cannot be undone. The group will be removed from all members\' contact lists.</string>
+    <string name="group_profile_dismiss_confirm">Dismiss</string>
+    <string name="group_profile_dismissed_success">Group dismissed successfully</string>
+    <string name="group_profile_error_dismiss">Failed to dismiss group</string>
+    <string name="group_create_min_members_error">At least 2 members are required to create a group</string>
     <string name="search_placeholder">Search</string>
     <string name="search_cancel">Cancel</string>
     <string name="search_header_title">Search</string>
@@ -314,4 +322,7 @@
     <string name="content_description_group">Group</string>
     <string name="contact_alias_label">Note: %1$s</string>
     <string name="content_description_favorite">Favorite</string>
+    <string name="section_groups">Groups</string>
+    <string name="section_contacts">Contacts</string>
+    <string name="section_friend_requests">Friend Requests</string>
 </resources>

@@ -2937,14 +2937,16 @@ fun ContactsList(
     val dividerColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
     val collator = remember { Collator.getInstance(Locale.getDefault()).apply { strength = Collator.PRIMARY } }
 
-    val combined = remember(groups, privateContacts, collator) {
-        (groups + privateContacts).sortedWith { a, b ->
+    // 对私聊联系人按字母排序
+    val sortedPrivateContacts = remember(privateContacts, collator) {
+        privateContacts.sortedWith { a, b ->
             collator.compare(viewModel.getDisplayName(a), viewModel.getDisplayName(b))
         }
     }
 
-    val sections = remember(combined) {
-        combined.groupBy { contact ->
+    // 将私聊联系人按字母分组
+    val privateSections = remember(sortedPrivateContacts) {
+        sortedPrivateContacts.groupBy { contact ->
             val name = viewModel.getDisplayName(contact).trim()
             val firstChar = name.firstOrNull()?.toString()?.uppercase(Locale.getDefault())
             firstChar?.takeIf { it.length == 1 && it[0].isLetter() } ?: "#"
@@ -2997,7 +2999,7 @@ fun ContactsList(
             // 待确认的好友请求（置顶）
             if (pendingFriendRequests.isNotEmpty()) {
                 item(key = "pending_requests_header") {
-                    SectionHeader(title = "FRIEND REQUESTS (${pendingFriendRequests.size})")
+                    SectionHeader(title = stringResource(R.string.section_friend_requests))
                 }
                 items(
                     items = pendingFriendRequests,
@@ -3016,14 +3018,14 @@ fun ContactsList(
                 }
             }
 
-            // 正常联系人列表（按字母分组）
-            sections.forEach { (header, contactsInSection) ->
-                item(key = "header_$header") {
-                    SectionHeader(title = header)
+            // 群组联系人
+            if (groups.isNotEmpty()) {
+                item(key = "groups_header") {
+                    SectionHeader(title = stringResource(R.string.section_groups))
                 }
                 items(
-                    items = contactsInSection,
-                    key = { it.contactId }
+                    items = groups,
+                    key = { "group_${it.contactId}" }
                 ) { contact ->
                     ContactListItem(
                         contact = contact,
@@ -3036,6 +3038,43 @@ fun ContactsList(
                         thickness = 0.5.dp,
                         color = dividerColor
                     )
+                }
+            }
+
+            // 私聊联系人（按字母分组）
+            if (sortedPrivateContacts.isNotEmpty()) {
+                item(key = "contacts_header") {
+                    SectionHeader(title = stringResource(R.string.section_contacts))
+                }
+                privateSections.forEach { (letter, contactsInSection) ->
+                    item(key = "letter_$letter") {
+                        Text(
+                            text = letter,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
+                                .padding(horizontal = 16.dp, vertical = 4.dp),
+                            color = PrimaryBlue,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                    items(
+                        items = contactsInSection,
+                        key = { "contact_${it.contactId}" }
+                    ) { contact ->
+                        ContactListItem(
+                            contact = contact,
+                            viewModel = viewModel,
+                            onClick = { onContactClick(contact) },
+                            onAvatarClick = onAvatarClick
+                        )
+                        HorizontalDivider(
+                            modifier = Modifier.padding(start = 72.dp),
+                            thickness = 0.5.dp,
+                            color = dividerColor
+                        )
+                    }
                 }
             }
         }

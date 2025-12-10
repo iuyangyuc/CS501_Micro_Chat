@@ -96,7 +96,7 @@
     <string name="chat_list_empty_title">暫無聊天</string>
     <string name="chat_list_empty_subtitle">開始新的對話吧！</string>
     <string name="search_hint">搜尋</string>
-    <string name="contacts_search_hint">搜尋聯絡人</string>
+    <string name="contacts_search_hint">搜尋聯絡人和群組</string>
     <string name="contacts_empty_title">聯絡人</string>
     <string name="contacts_empty_subtitle">敬請期待…</string>
     <string name="profile_placeholder_name">使用者名稱</string>
@@ -295,6 +295,9 @@
     <string name="add_friend_button_sended">已送出</string>
     <string name="add_friend_button_pending">待確認</string>
     <string name="add_friend_user_id">ID: %s</string>
+    <string name="section_groups">群組</string>
+    <string name="section_contacts">聯絡人</string>
+    <string name="section_friend_requests">好友請求</string>
     <string name="user_profile_alias_label">備註名</string>
     <string name="user_profile_alias_placeholder">請輸入備註</string>
     <string name="user_profile_alias_save">儲存備註</string>

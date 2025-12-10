@@ -414,6 +414,12 @@ class HomeViewModel @Inject constructor(
     ): Result<String> {
         val trimmed = name.trim()
         if (trimmed.isEmpty()) return Result.failure(Exception("Group name cannot be empty"))
+
+        // 验证：至少需要选择2个成员（不包括创建者）
+        if (memberIds.size < 2) {
+            return Result.failure(Exception("At least 2 members are required to create a group"))
+        }
+
         val creatorId = auth.currentUser?.uid ?: return Result.failure(Exception("User not logged in"))
 
         Log.d(TAG, "createGroup start name=$trimmed members=${memberIds.size}")
