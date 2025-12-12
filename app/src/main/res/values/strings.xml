@@ -333,4 +333,17 @@
     <string name="group_join_success">Successfully joined the group</string>
     <string name="group_join_failed">Failed to join group</string>
     <string name="group_members_count">%d members</string>
+
+    <!-- Create Group Screen -->
+    <string name="create_group_title">New Group</string>
+    <string name="create_group_avatar_hint">Tap to set group avatar</string>
+    <string name="create_group_name_hint">Group name</string>
+    <string name="create_group_search_members">Search contacts</string>
+    <string name="create_group_selected_members">Selected members (%d)</string>
+    <string name="create_group_no_members_selected">No members selected</string>
+    <string name="create_group_your_contacts">Your Contacts</string>
+    <string name="create_group_save">Create</string>
+    <string name="create_group_cancel">Cancel</string>
+    <string name="create_group_creating">Creating group…</string>
+    <string name="create_group_name_required">Group name is required</string>
 </resources>

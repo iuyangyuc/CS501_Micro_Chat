@@ -308,4 +308,17 @@
     <string name="group_join_success">Te uniste al grupo exitosamente</string>
     <string name="group_join_failed">Error al unirse al grupo</string>
     <string name="group_members_count">%d miembros</string>
+
+    <!-- Create Group Screen -->
+    <string name="create_group_title">Nuevo grupo</string>
+    <string name="create_group_avatar_hint">Toca para establecer el avatar del grupo</string>
+    <string name="create_group_name_hint">Nombre del grupo</string>
+    <string name="create_group_search_members">Buscar contactos</string>
+    <string name="create_group_selected_members">Miembros seleccionados (%d)</string>
+    <string name="create_group_no_members_selected">Sin miembros seleccionados</string>
+    <string name="create_group_your_contacts">Tus contactos</string>
+    <string name="create_group_save">Crear</string>
+    <string name="create_group_cancel">Cancelar</string>
+    <string name="create_group_creating">Creando grupo…</string>
+    <string name="create_group_name_required">El nombre del grupo es obligatorio</string>
 </resources>

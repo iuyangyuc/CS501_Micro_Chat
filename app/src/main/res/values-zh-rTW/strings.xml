@@ -308,6 +308,19 @@
     <string name="group_join_failed">加入群組失敗</string>
     <string name="group_members_count">%d 位成員</string>
 
+    <!-- Create Group Screen -->
+    <string name="create_group_title">新建群組</string>
+    <string name="create_group_avatar_hint">點擊設定群組頭像</string>
+    <string name="create_group_name_hint">群組名稱</string>
+    <string name="create_group_search_members">搜尋聯絡人</string>
+    <string name="create_group_selected_members">已選成員 (%d)</string>
+    <string name="create_group_no_members_selected">未選擇成員</string>
+    <string name="create_group_your_contacts">你的聯絡人</string>
+    <string name="create_group_save">建立</string>
+    <string name="create_group_cancel">取消</string>
+    <string name="create_group_creating">正在建立群組…</string>
+    <string name="create_group_name_required">請輸入群組名稱</string>
+
     <string name="user_profile_alias_label">備註名</string>
     <string name="user_profile_alias_placeholder">請輸入備註</string>
     <string name="user_profile_alias_save">儲存備註</string>

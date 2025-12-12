@@ -116,6 +116,7 @@ import com.example.cs501_micro_chat.ui.chat.ChatDetailViewModel
 import com.example.cs501_micro_chat.ui.auth.LanguageOption
 import com.example.cs501_micro_chat.ui.chat.TranslationLanguageChooser
 import com.example.cs501_micro_chat.ui.chat.messageKey
+import com.example.cs501_micro_chat.ui.group.CreateGroupScreen
 import com.example.cs501_micro_chat.ui.profile.GroupProfileScreen
 import com.example.cs501_micro_chat.ui.profile.UserProfileScreen
 import com.example.cs501_micro_chat.ui.search.ChatSearchScreen
@@ -165,6 +166,7 @@ private const val CHAT_SEARCH_ROUTE = "chat_search"
 private const val GROUP_MEMBER_SEARCH_ROUTE = "group_member_search"
 private const val MEMBER_MESSAGE_SEARCH_ROUTE = "member_message_search"
 private const val MESSAGE_FILTER_SEARCH_ROUTE = "message_filter_search"
+private const val CREATE_GROUP_ROUTE = "create_group"
 private const val PROFILE_UPDATED_KEY = "profile_updated"
 
 
@@ -233,7 +235,8 @@ fun HomeScreen(
         it.startsWith(CHAT_SEARCH_ROUTE) ||
         it.startsWith(GROUP_MEMBER_SEARCH_ROUTE) ||
         it.startsWith(MEMBER_MESSAGE_SEARCH_ROUTE) ||
-        it.startsWith(MESSAGE_FILTER_SEARCH_ROUTE)
+        it.startsWith(MESSAGE_FILTER_SEARCH_ROUTE) ||
+        it == CREATE_GROUP_ROUTE
     } == true
     val surfaceColor = MaterialTheme.colorScheme.surface
 
@@ -361,6 +364,10 @@ fun HomeScreen(
                                 ChatSearchTopBar(onBack = { navController.popBackStack() })
                             }
 
+                            route == CREATE_GROUP_ROUTE -> {
+                                CreateGroupTopBar(onBack = { navController.popBackStack() })
+                            }
+
                             else -> {
                                 HomeTopBar(
                                     currentRoute = route,
@@ -373,7 +380,10 @@ fun HomeScreen(
                             launchSingleTop = true
                             restoreState = true
                         }
-                    }
+                    },
+                                    onNavigateToCreateGroup = {
+                                        navController.navigate(CREATE_GROUP_ROUTE)
+                                    }
                                 )
                             }
                         }
@@ -585,6 +595,21 @@ fun HomeScreen(
                     )
                 }
 
+                // Create Group Screen
+                composable(route = CREATE_GROUP_ROUTE) {
+                    CreateGroupScreen(
+                        homeViewModel = sharedHomeViewModel,
+                        onBack = { navController.popBackStack() },
+                        onGroupCreated = { groupId, groupName ->
+                            val encodedName = URLEncoder.encode(groupName, StandardCharsets.UTF_8.toString())
+                            navController.navigate("chat_detail/$groupId/$encodedName/") {
+                                popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                                launchSingleTop = true
+                            }
+                        }
+                    )
+                }
+
                 composable(
                     route = "$GROUP_PROFILE_ROUTE/{conversationId}?source={source}",
                     arguments = listOf(
@@ -783,27 +808,13 @@ fun HomeScreen(
 fun HomeTopBar(
     currentRoute: String?,
     homeViewModel: HomeViewModel,
-    onNavigateToChat: (String, String, String) -> Unit
+    onNavigateToChat: (String, String, String) -> Unit,
+    onNavigateToCreateGroup: () -> Unit
 ) {
     // 控制下拉菜单的显示状态
     var showAddMenu by remember { mutableStateOf(false) }
     // 控制添加好友弹窗的显示状态
     var showAddFriendDialog by remember { mutableStateOf(false) }
-    var showCreateGroupDialog by remember { mutableStateOf(false) }
-    var createGroupError by remember { mutableStateOf<String?>(null) }
-    var groupName by remember { mutableStateOf("") }
-    val coroutineScope = rememberCoroutineScope()
-    val context = LocalContext.current
-    val addFriendResults by homeViewModel.addFriendSearchResults.collectAsStateWithLifecycle()
-    var groupSearchQuery by remember { mutableStateOf("") }
-    val selectedMemberIds = remember { mutableStateOf(setOf<String>()) }
-    var selectedAvatarUri by remember { mutableStateOf<Uri?>(null) }
-
-    val pickGroupAvatarLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.PickVisualMedia()
-    ) { uri ->
-        selectedAvatarUri = uri
-    }
 
     Row(
         modifier = Modifier
@@ -902,9 +913,7 @@ fun HomeTopBar(
                         },
                         onClick = {
                             showAddMenu = false
-                            createGroupError = null
-                            groupName = ""
-                            showCreateGroupDialog = true
+                            onNavigateToCreateGroup()
                         }
                     )
                 }
@@ -925,141 +934,6 @@ fun HomeTopBar(
         )
     }
 
-    if (showCreateGroupDialog) {
-        AlertDialog(
-            onDismissRequest = { showCreateGroupDialog = false },
-            title = { Text(stringResource(R.string.add_option_new_group)) },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    OutlinedTextField(
-                        value = groupName,
-                        onValueChange = { groupName = it },
-                        label = { Text(stringResource(R.string.group_profile_name_label)) },
-                        singleLine = true
-                    )
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Button(onClick = { pickGroupAvatarLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }) {
-                            Text(text = if (selectedAvatarUri != null) stringResource(R.string.profile_edit_choose_photo) else stringResource(R.string.profile_edit_choose_photo))
-                        }
-                        if (selectedAvatarUri != null) {
-                            Text(text = context.getString(R.string.profile_edit_remove_avatar))
-                        }
-                    }
-                    OutlinedTextField(
-                        value = groupSearchQuery,
-                        onValueChange = {
-                            groupSearchQuery = it
-                            homeViewModel.searchUsersForAddFriend(it)
-                        },
-                        label = { Text(stringResource(R.string.add_friend_search_placeholder)) },
-                        singleLine = true,
-                        leadingIcon = { Icon(imageVector = Icons.Default.Search, contentDescription = null) }
-                    )
-                    if (groupSearchQuery.isNotBlank()) {
-                        val currentId = homeViewModel.currentUserId
-                        LazyColumn(
-                            modifier = Modifier
-                                .heightIn(max = 200.dp)
-                        ) {
-                            items(addFriendResults) { user ->
-                                if (user.id == currentId) return@items
-                                val checked = selectedMemberIds.value.contains(user.id)
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clickable {
-                                            selectedMemberIds.value =
-                                                if (checked) selectedMemberIds.value - user.id else selectedMemberIds.value + user.id
-                                        }
-                                        .padding(vertical = 8.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    Checkbox(
-                                        checked = checked,
-                                        onCheckedChange = {
-                                            selectedMemberIds.value =
-                                                if (it) selectedMemberIds.value + user.id else selectedMemberIds.value - user.id
-                                        }
-                                    )
-                                    Text(text = user.username.ifBlank { user.email.substringBefore("@") })
-                                }
-                            }
-                        }
-                        Text(
-                            text = "${selectedMemberIds.value.size} selected",
-                            style = MaterialTheme.typography.bodySmall
-                        )
-                    }
-                    createGroupError?.let {
-                        Text(text = it, color = MaterialTheme.colorScheme.error, fontSize = 13.sp)
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        val name = groupName.trim()
-                        if (name.isEmpty()) {
-                            createGroupError = context.getString(R.string.group_profile_name_label)
-                            return@TextButton
-                        }
-                        // 验证至少选择1个成员（加上群主共2人）
-                        if (selectedMemberIds.value.isEmpty()) {
-                            createGroupError = context.getString(R.string.group_create_min_members_error)
-                            return@TextButton
-                        }
-                        coroutineScope.launch {
-                            createGroupError = null
-                            var avatarBytes: ByteArray? = null
-                            var mimeType = "image/jpeg"
-                            var extension: String? = null
-                            selectedAvatarUri?.let { uri ->
-                                try {
-                                    mimeType = context.contentResolver.getType(uri) ?: "image/jpeg"
-                                    extension = MimeTypeMap.getSingleton()
-                                        .getExtensionFromMimeType(mimeType)
-                                    avatarBytes = withContext(Dispatchers.IO) {
-                                        context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
-                                    }
-                                } catch (e: Exception) {
-                                    createGroupError = e.message ?: "Failed to read image"
-                                    return@launch
-                                }
-                            }
-
-                            val result = homeViewModel.createGroup(
-                                name = name,
-                                memberIds = selectedMemberIds.value.toList(),
-                                avatarBytes = avatarBytes,
-                                avatarMimeType = mimeType,
-                                avatarExtension = extension
-                            )
-                            result.onSuccess { groupId ->
-                                showCreateGroupDialog = false
-                                groupName = ""
-                                selectedMemberIds.value = emptySet()
-                                selectedAvatarUri = null
-                                onNavigateToChat(groupId, name, "")
-                            }.onFailure { error ->
-                                createGroupError = error.message ?: "Failed to create group"
-                            }
-                        }
-                    }
-                ) {
-                    Text(text = stringResource(R.string.profile_edit_save))
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showCreateGroupDialog = false }) {
-                    Text(text = stringResource(R.string.user_profile_delete_confirm_cancel))
-                }
-            }
-        )
-    }
 
 }
 
@@ -1141,6 +1015,34 @@ fun GroupHeaderTopBar(memberCount: Int, onBack: () -> Unit) {
 
         Text(
             text = stringResource(R.string.group_profile_title_with_count, memberCount),
+            color = Color.White,
+            fontSize = 18.sp,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.align(Alignment.Center)
+        )
+    }
+}
+
+@Composable
+fun CreateGroupTopBar(onBack: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(56.dp)
+    ) {
+        IconButton(
+            onClick = onBack,
+            modifier = Modifier.align(Alignment.CenterStart)
+        ) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                contentDescription = stringResource(R.string.content_description_back),
+                tint = Color.White
+            )
+        }
+
+        Text(
+            text = stringResource(R.string.create_group_title),
             color = Color.White,
             fontSize = 18.sp,
             fontWeight = FontWeight.SemiBold,

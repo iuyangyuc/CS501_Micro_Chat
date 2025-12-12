@@ -301,6 +301,19 @@
     <string name="group_join_failed">Échec de l\'adhésion au groupe</string>
     <string name="group_members_count">%d membres</string>
 
+    <!-- Create Group Screen -->
+    <string name="create_group_title">Nouveau groupe</string>
+    <string name="create_group_avatar_hint">Appuyez pour définir l\'avatar du groupe</string>
+    <string name="create_group_name_hint">Nom du groupe</string>
+    <string name="create_group_search_members">Rechercher des contacts</string>
+    <string name="create_group_selected_members">Membres sélectionnés (%d)</string>
+    <string name="create_group_no_members_selected">Aucun membre sélectionné</string>
+    <string name="create_group_your_contacts">Vos contacts</string>
+    <string name="create_group_save">Créer</string>
+    <string name="create_group_cancel">Annuler</string>
+    <string name="create_group_creating">Création du groupe…</string>
+    <string name="create_group_name_required">Le nom du groupe est requis</string>
+
     <string name="user_profile_alias_label">Surnom du contact</string>
     <string name="user_profile_alias_placeholder">Saisissez un surnom</string>
     <string name="user_profile_alias_save">Enregistrer le surnom</string>

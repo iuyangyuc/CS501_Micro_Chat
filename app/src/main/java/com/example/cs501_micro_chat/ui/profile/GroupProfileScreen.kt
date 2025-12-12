@@ -331,8 +331,7 @@ private fun GroupProfileContent(
                     icon = Icons.Outlined.Clear,
                     label = stringResource(R.string.user_profile_clear_history),
                     onClick = onClearHistory,
-                    enabled = !state.isRemoved && state.conversationId.isNotBlank(),
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant
+                    enabled = !state.isRemoved && state.conversationId.isNotBlank()
                 )
 
                 // 如果是群主，显示解散群组按钮；否则显示退出群组按钮
