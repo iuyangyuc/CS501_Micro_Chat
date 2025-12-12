@@ -616,7 +616,10 @@ fun HomeScreen(
                         onBack = { navController.popBackStack() },
                         onStartChat = onStartChatHandler,
                         onLeftGroup = { navController.popBackStack() },
-                        onOpenSearch = { /* TODO: hook up search history */ },
+                        onOpenSearch = { convoId ->
+                            val encodedId = URLEncoder.encode(convoId, StandardCharsets.UTF_8.toString())
+                            navController.navigate("$CHAT_SEARCH_ROUTE/$encodedId")
+                        },
                         onMemberClick = { userId ->
                             navController.navigate("$USER_PROFILE_ROUTE/$userId")
                         },
@@ -1002,6 +1005,11 @@ fun HomeTopBar(
                         val name = groupName.trim()
                         if (name.isEmpty()) {
                             createGroupError = context.getString(R.string.group_profile_name_label)
+                            return@TextButton
+                        }
+                        // 验证至少选择1个成员（加上群主共2人）
+                        if (selectedMemberIds.value.isEmpty()) {
+                            createGroupError = context.getString(R.string.group_create_min_members_error)
                             return@TextButton
                         }
                         coroutineScope.launch {
@@ -3650,10 +3658,13 @@ fun AddFriendDialog(
 ) {
     val searchQuery by homeViewModel.addFriendSearchQuery.collectAsStateWithLifecycle()
     val searchResults by homeViewModel.addFriendSearchResults.collectAsStateWithLifecycle()
+    val groupSearchResults by homeViewModel.addGroupSearchResults.collectAsStateWithLifecycle()
     val isSearching by homeViewModel.isAddFriendSearching.collectAsStateWithLifecycle()
 
     // 观察 allContacts 的变化，确保联系人状态更新时 UI 会重新组合
     val allContacts by homeViewModel.allContacts.collectAsStateWithLifecycle()
+
+    val context = LocalContext.current
 
     // 当对话框打开时，强制刷新联系人列表以确保数据最新
     LaunchedEffect(Unit) {
@@ -3716,7 +3727,7 @@ fun AddFriendDialog(
                 // 搜索栏
                 OutlinedTextField(
                     value = searchQuery,
-                    onValueChange = { homeViewModel.searchUsersForAddFriend(it) },
+                    onValueChange = { homeViewModel.searchUsersAndGroupsForAdd(it) },
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(16.dp),
@@ -3814,7 +3825,7 @@ fun AddFriendDialog(
                             }
                         }
                         // 无结果状态
-                        searchResults.isEmpty() -> {
+                        searchResults.isEmpty() && groupSearchResults.isEmpty() -> {
                             Box(
                                 modifier = Modifier.fillMaxSize(),
                                 contentAlignment = Alignment.Center
@@ -3849,31 +3860,171 @@ fun AddFriendDialog(
                                 modifier = Modifier.fillMaxSize(),
                                 contentPadding = PaddingValues(vertical = 8.dp)
                             ) {
-                                items(
-                                    items = searchResults,
-                                    key = { it.id }
-                                ) { user ->
-                                    // 观察 allContacts 的变化，确保联系人状态更新时按钮会更新
-                                    // allContacts 是 State，当它变化时会触发重新组合
-                                    val contactStatus = remember(allContacts, user.id) {
-                                        homeViewModel.getContactStatus(user.id)
+                                // 群组搜索结果
+                                if (groupSearchResults.isNotEmpty()) {
+                                    item {
+                                        Text(
+                                            text = stringResource(R.string.group_search_section),
+                                            fontSize = 14.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = secondaryTextColor(),
+                                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                                        )
                                     }
+                                    items(
+                                        items = groupSearchResults,
+                                        key = { "group_${it.id}" }
+                                    ) { group ->
+                                        GroupSearchResultItem(
+                                            group = group,
+                                            onJoinClick = {
+                                                Log.d("AddFriendDialog", "Join group: ${group.name} (${group.id})")
+                                                homeViewModel.joinGroup(
+                                                    groupId = group.id,
+                                                    onSuccess = {
+                                                        android.widget.Toast.makeText(
+                                                            context,
+                                                            context.getString(R.string.group_join_success),
+                                                            android.widget.Toast.LENGTH_SHORT
+                                                        ).show()
+                                                    },
+                                                    onError = { error ->
+                                                        android.widget.Toast.makeText(
+                                                            context,
+                                                            context.getString(R.string.group_join_failed) + ": $error",
+                                                            android.widget.Toast.LENGTH_SHORT
+                                                        ).show()
+                                                    }
+                                                )
+                                            }
+                                        )
+                                    }
+                                }
 
-                                    UserSearchResultItem(
-                                        user = user,
-                                        contactStatus = contactStatus,
-                                        onAddClick = {
-                                            // 发送好友请求
-                                            Log.d("AddFriendDialog", "Send friend request to: ${user.username} (${user.id})")
-                                        homeViewModel.sendFriendRequest(user)
+                                // 用户搜索结果
+                                if (searchResults.isNotEmpty()) {
+                                    item {
+                                        Text(
+                                            text = stringResource(R.string.section_contacts),
+                                            fontSize = 14.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = secondaryTextColor(),
+                                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                                        )
+                                    }
+                                    items(
+                                        items = searchResults,
+                                        key = { "user_${it.id}" }
+                                    ) { user ->
+                                        // 观察 allContacts 的变化，确保联系人状态更新时按钮会更新
+                                        // allContacts 是 State，当它变化时会触发重新组合
+                                        val contactStatus = remember(allContacts, user.id) {
+                                            homeViewModel.getContactStatus(user.id)
                                         }
-                                    )
+
+                                        UserSearchResultItem(
+                                            user = user,
+                                            contactStatus = contactStatus,
+                                            onAddClick = {
+                                                // 发送好友请求
+                                                Log.d("AddFriendDialog", "Send friend request to: ${user.username} (${user.id})")
+                                                homeViewModel.sendFriendRequest(user)
+                                            }
+                                        )
+                                    }
                                 }
                             }
                         }
                     }
                 }
             }
+        }
+    }
+}
+
+/**
+ * 群组搜索结果项
+ * Group Search Result Item
+ */
+@Composable
+fun GroupSearchResultItem(
+    group: com.example.cs501_micro_chat.data.model.Group,
+    onJoinClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // 群组头像
+        if (group.avatarUrl.isNotBlank()) {
+            AsyncImage(
+                model = group.avatarUrl,
+                contentDescription = stringResource(R.string.content_description_group),
+                modifier = Modifier
+                    .size(48.dp)
+                    .clip(CircleShape),
+                contentScale = ContentScale.Crop
+            )
+        } else {
+            Box(
+                modifier = Modifier
+                    .size(48.dp)
+                    .clip(CircleShape)
+                    .background(PrimaryBlue),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Group,
+                    contentDescription = stringResource(R.string.content_description_group),
+                    tint = Color.White,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.width(12.dp))
+
+        // 群组信息
+        Column(
+            modifier = Modifier.weight(1f)
+        ) {
+            Text(
+                text = group.name,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Medium,
+                color = primaryTextColor()
+            )
+            Text(
+                text = stringResource(R.string.group_members_count, group.memberIds.size),
+                fontSize = 12.sp,
+                color = secondaryTextColor()
+            )
+        }
+
+        Spacer(modifier = Modifier.width(8.dp))
+
+        // 加入按钮
+        Button(
+            onClick = onJoinClick,
+            colors = ButtonDefaults.buttonColors(
+                containerColor = PrimaryBlue,
+                contentColor = Color.White
+            ),
+            shape = RoundedCornerShape(8.dp),
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Add,
+                contentDescription = null,
+                modifier = Modifier.size(18.dp)
+            )
+            Spacer(modifier = Modifier.width(4.dp))
+            Text(
+                text = stringResource(R.string.group_join_button),
+                fontSize = 14.sp
+            )
         }
     }
 }

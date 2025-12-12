@@ -325,4 +325,12 @@
     <string name="section_groups">Groups</string>
     <string name="section_contacts">Contacts</string>
     <string name="section_friend_requests">Friend Requests</string>
+
+    <!-- Group Search and Join -->
+    <string name="group_search_section">Groups</string>
+    <string name="group_join_button">Join</string>
+    <string name="group_joined_button">Joined</string>
+    <string name="group_join_success">Successfully joined the group</string>
+    <string name="group_join_failed">Failed to join group</string>
+    <string name="group_members_count">%d members</string>
 </resources>

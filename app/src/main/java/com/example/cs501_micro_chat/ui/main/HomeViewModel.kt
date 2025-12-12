@@ -83,14 +83,8 @@ class HomeViewModel @Inject constructor(
     val isAddFriendSearching: StateFlow<Boolean> = _isAddFriendSearching.asStateFlow()
 
     // 添加群组搜索相关状态
-    private val _addGroupSearchQuery = MutableStateFlow("")
-    val addGroupSearchQuery: StateFlow<String> = _addGroupSearchQuery.asStateFlow()
-
-    private val _addGroupSearchResults = MutableStateFlow<List<Conversation>>(emptyList())
-    val addGroupSearchResults: StateFlow<List<Conversation>> = _addGroupSearchResults.asStateFlow()
-
-    private val _isAddGroupSearching = MutableStateFlow(false)
-    val isAddGroupSearching: StateFlow<Boolean> = _isAddGroupSearching.asStateFlow()
+    private val _addGroupSearchResults = MutableStateFlow<List<com.example.cs501_micro_chat.data.model.Group>>(emptyList())
+    val addGroupSearchResults: StateFlow<List<com.example.cs501_micro_chat.data.model.Group>> = _addGroupSearchResults.asStateFlow()
 
     // 已有联系人的 ID 集合（用于判断用户是否已添加）
     private val _existingContactIds = MutableStateFlow<Set<String>>(emptySet())
@@ -415,9 +409,9 @@ class HomeViewModel @Inject constructor(
         val trimmed = name.trim()
         if (trimmed.isEmpty()) return Result.failure(Exception("Group name cannot be empty"))
 
-        // 验证：至少需要选择2个成员（不包括创建者）
-        if (memberIds.size < 2) {
-            return Result.failure(Exception("At least 2 members are required to create a group"))
+        // 验证：至少需要选择1个成员（加上群主共2人）
+        if (memberIds.isEmpty()) {
+            return Result.failure(Exception("At least 1 member is required to create a group"))
         }
 
         val creatorId = auth.currentUser?.uid ?: return Result.failure(Exception("User not logged in"))
@@ -617,7 +611,95 @@ class HomeViewModel @Inject constructor(
     fun clearAddFriendSearch() {
         _addFriendSearchQuery.value = ""
         _addFriendSearchResults.value = emptyList()
+        _addGroupSearchResults.value = emptyList()
         _isAddFriendSearching.value = false
+    }
+
+    /**
+     * 搜索用户和群组（用于添加好友/加入群组）
+     */
+    fun searchUsersAndGroupsForAdd(query: String) {
+        _addFriendSearchQuery.value = query
+
+        if (query.isBlank()) {
+            _addFriendSearchResults.value = emptyList()
+            _addGroupSearchResults.value = emptyList()
+            _isAddFriendSearching.value = false
+            return
+        }
+
+        viewModelScope.launch {
+            _isAddFriendSearching.value = true
+            try {
+                // 并行搜索用户和群组
+                val userResult = chatRepository.searchUsers(query)
+                val groupResult = chatRepository.searchGroups(query)
+
+                // 处理用户搜索结果
+                userResult.onSuccess { users ->
+                    val currentUserId = auth.currentUser?.uid
+                    val filteredUsers = users
+                        .filter { it.id != currentUserId }
+                        .map { user ->
+                            if (user.username.isBlank() && user.email.isNotBlank()) {
+                                user.copy(username = user.email.substringBefore("@"))
+                            } else {
+                                user
+                            }
+                        }
+                    _addFriendSearchResults.value = filteredUsers
+                    Log.d(TAG, "User search for '$query' found ${filteredUsers.size} results")
+                }.onFailure { error ->
+                    Log.e(TAG, "Failed to search users", error)
+                    _addFriendSearchResults.value = emptyList()
+                }
+
+                // 处理群组搜索结果
+                groupResult.onSuccess { groups ->
+                    val currentUserId = auth.currentUser?.uid
+                    // 过滤掉用户已经加入的群组
+                    val filteredGroups = groups.filter { group ->
+                        currentUserId == null || !group.memberIds.contains(currentUserId)
+                    }
+                    _addGroupSearchResults.value = filteredGroups
+                    Log.d(TAG, "Group search for '$query' found ${filteredGroups.size} results")
+                }.onFailure { error ->
+                    Log.e(TAG, "Failed to search groups", error)
+                    _addGroupSearchResults.value = emptyList()
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error searching users and groups", e)
+                _addFriendSearchResults.value = emptyList()
+                _addGroupSearchResults.value = emptyList()
+            } finally {
+                _isAddFriendSearching.value = false
+            }
+        }
+    }
+
+    /**
+     * 加入群组
+     */
+    fun joinGroup(groupId: String, onSuccess: () -> Unit = {}, onError: (String) -> Unit = {}) {
+        viewModelScope.launch {
+            try {
+                val result = chatRepository.joinGroup(groupId)
+                result.onSuccess {
+                    Log.d(TAG, "Successfully joined group: $groupId")
+                    // 从搜索结果中移除已加入的群组
+                    _addGroupSearchResults.value = _addGroupSearchResults.value.filter { it.id != groupId }
+                    // 刷新会话列表
+                    loadConversations()
+                    onSuccess()
+                }.onFailure { error ->
+                    Log.e(TAG, "Failed to join group: $groupId", error)
+                    onError(error.message ?: "Failed to join group")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error joining group: $groupId", e)
+                onError(e.message ?: "Failed to join group")
+            }
+        }
     }
 
     /**

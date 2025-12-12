@@ -244,6 +244,7 @@
     <string name="group_profile_error_pin_update">Impossible de mettre à jour l’épingle du groupe</string>
     <string name="group_profile_error_leave">Impossible de quitter le groupe</string>
     <string name="group_profile_error_update_name">Impossible de mettre à jour le nom du groupe</string>
+    <string name="group_create_min_members_error">Au moins 2 membres sont requis pour créer un groupe</string>
     <string name="search_placeholder">Rechercher</string>
     <string name="search_cancel">Annuler</string>
     <string name="search_header_title">Rechercher</string>
@@ -291,6 +292,15 @@
     <string name="section_groups">Groupes</string>
     <string name="section_contacts">Contacts</string>
     <string name="section_friend_requests">Demandes d\'amitié</string>
+
+    <!-- Group Search and Join -->
+    <string name="group_search_section">Groupes</string>
+    <string name="group_join_button">Rejoindre</string>
+    <string name="group_joined_button">Rejoint</string>
+    <string name="group_join_success">Vous avez rejoint le groupe avec succès</string>
+    <string name="group_join_failed">Échec de l\'adhésion au groupe</string>
+    <string name="group_members_count">%d membres</string>
+
     <string name="user_profile_alias_label">Surnom du contact</string>
     <string name="user_profile_alias_placeholder">Saisissez un surnom</string>
     <string name="user_profile_alias_save">Enregistrer le surnom</string>

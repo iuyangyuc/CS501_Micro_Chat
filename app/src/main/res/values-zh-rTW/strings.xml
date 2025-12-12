@@ -248,6 +248,7 @@
     <string name="group_profile_error_pin_update">更新群聊置頂狀態失敗</string>
     <string name="group_profile_error_leave">退出群聊失敗</string>
     <string name="group_profile_error_update_name">更新群組名稱失敗</string>
+    <string name="group_create_min_members_error">建立群組至少需要選擇2位成員</string>
     <string name="search_placeholder">搜尋</string>
     <string name="search_cancel">取消</string>
     <string name="search_header_title">搜尋</string>
@@ -298,6 +299,15 @@
     <string name="section_groups">群組</string>
     <string name="section_contacts">聯絡人</string>
     <string name="section_friend_requests">好友請求</string>
+
+    <!-- Group Search and Join -->
+    <string name="group_search_section">群組</string>
+    <string name="group_join_button">加入</string>
+    <string name="group_joined_button">已加入</string>
+    <string name="group_join_success">成功加入群組</string>
+    <string name="group_join_failed">加入群組失敗</string>
+    <string name="group_members_count">%d 位成員</string>
+
     <string name="user_profile_alias_label">備註名</string>
     <string name="user_profile_alias_placeholder">請輸入備註</string>
     <string name="user_profile_alias_save">儲存備註</string>

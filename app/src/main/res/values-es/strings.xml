@@ -250,6 +250,7 @@
     <string name="group_profile_error_pin_update">No se pudo actualizar el estado de fijación del grupo</string>
     <string name="group_profile_error_leave">No se pudo salir del grupo</string>
     <string name="group_profile_error_update_name">No se pudo actualizar el nombre del grupo</string>
+    <string name="group_create_min_members_error">Se requieren al menos 2 miembros para crear un grupo</string>
     <string name="search_placeholder">Buscar</string>
     <string name="search_cancel">Cancelar</string>
     <string name="search_header_title">Buscar</string>
@@ -299,4 +300,12 @@
     <string name="section_groups">Grupos</string>
     <string name="section_contacts">Contactos</string>
     <string name="section_friend_requests">Solicitudes de amistad</string>
+
+    <!-- Group Search and Join -->
+    <string name="group_search_section">Grupos</string>
+    <string name="group_join_button">Unirse</string>
+    <string name="group_joined_button">Unido</string>
+    <string name="group_join_success">Te uniste al grupo exitosamente</string>
+    <string name="group_join_failed">Error al unirse al grupo</string>
+    <string name="group_members_count">%d miembros</string>
 </resources>

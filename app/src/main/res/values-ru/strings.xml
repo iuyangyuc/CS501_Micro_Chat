@@ -250,6 +250,7 @@
     <string name="group_profile_error_pin_update">Не удалось обновить закрепление группы</string>
     <string name="group_profile_error_leave">Не удалось выйти из группы</string>
     <string name="group_profile_error_update_name">Не удалось обновить название группы</string>
+    <string name="group_create_min_members_error">Для создания группы требуется минимум 2 участника</string>
     <string name="search_placeholder">Поиск</string>
     <string name="search_cancel">Отмена</string>
     <string name="search_header_title">Поиск</string>
@@ -299,4 +300,12 @@
     <string name="section_groups">Группы</string>
     <string name="section_contacts">Контакты</string>
     <string name="section_friend_requests">Запросы в друзья</string>
+
+    <!-- Group Search and Join -->
+    <string name="group_search_section">Группы</string>
+    <string name="group_join_button">Вступить</string>
+    <string name="group_joined_button">Уже в группе</string>
+    <string name="group_join_success">Вы успешно вступили в группу</string>
+    <string name="group_join_failed">Не удалось вступить в группу</string>
+    <string name="group_members_count">%d участников</string>
 </resources>

@@ -621,6 +621,21 @@ class ChatRepository @Inject constructor(
         return firebaseDataSource.searchUsers(query)
     }
 
+    /**
+     * 搜索群组（通过群组名称搜索）
+     */
+    suspend fun searchGroups(query: String): Result<List<com.example.cs501_micro_chat.data.model.Group>> {
+        return firebaseDataSource.searchGroups(query)
+    }
+
+    /**
+     * 加入群组
+     */
+    suspend fun joinGroup(groupId: String): Result<Unit> {
+        val userId = currentUserId ?: return Result.failure(Exception("User not logged in"))
+        return firebaseDataSource.joinGroup(groupId, userId)
+    }
+
     // ==================== 用户相关 User Operations ====================
 
     /**

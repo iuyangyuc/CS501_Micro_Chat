@@ -314,4 +314,12 @@
     <string name="section_groups">群组</string>
     <string name="section_contacts">联系人</string>
     <string name="section_friend_requests">好友请求</string>
+
+    <!-- Group Search and Join -->
+    <string name="group_search_section">群组</string>
+    <string name="group_join_button">加入</string>
+    <string name="group_joined_button">已加入</string>
+    <string name="group_join_success">成功加入群组</string>
+    <string name="group_join_failed">加入群组失败</string>
+    <string name="group_members_count">%d 位成员</string>
 </resources>
