@@ -39,6 +39,7 @@ The server listens on `PORT` and exposes:
 
 - `GET /health` – readiness endpoint with model + API-key status
 - `POST /translate` – performs the translation with OpenAI
+- `POST /summarize` – produces a concise meeting summary from an array of messages
 - `POST /tts` – converts text to speech using the GPT-4o mini TTS endpoint; returns base64-encoded audio
 - `POST /transcribe` – converts an uploaded voice clip (e.g., `voice_example.mp3`) to text using GPT-4o Transcribe
 
@@ -68,6 +69,30 @@ Response:
     "completion_tokens": 8,
     "total_tokens": 64
   }
+}
+```
+
+## Summarization example
+
+```bash
+curl -X POST http://localhost:4002/summarize \
+  -H "Content-Type: application/json" \
+  -d '{
+        "messages": [
+          "Alice: We need to ship the beta next Friday.",
+          "Bob: QA needs two days; we should freeze code by Wednesday.",
+          "Carol: I will notify marketing and prepare a changelog."
+        ],
+        "instructions": "Highlight deadlines"
+      }'
+```
+
+Response:
+
+```json
+{
+  "summary": "- Beta ships next Friday; code freeze mid-week for QA.\n- QA requires two days of testing before release.\n- Carol will notify marketing and draft the changelog.",
+  "model": "gpt-4o-mini"
 }
 ```
 
