@@ -96,7 +96,7 @@
     <string name="chat_list_empty_title">暫無聊天</string>
     <string name="chat_list_empty_subtitle">開始新的對話吧！</string>
     <string name="search_hint">搜尋</string>
-    <string name="contacts_search_hint">搜尋聯絡人</string>
+    <string name="contacts_search_hint">搜尋聯絡人和群組</string>
     <string name="contacts_empty_title">聯絡人</string>
     <string name="contacts_empty_subtitle">敬請期待…</string>
     <string name="profile_placeholder_name">使用者名稱</string>
@@ -248,6 +248,7 @@
     <string name="group_profile_error_pin_update">更新群聊置頂狀態失敗</string>
     <string name="group_profile_error_leave">退出群聊失敗</string>
     <string name="group_profile_error_update_name">更新群組名稱失敗</string>
+    <string name="group_create_min_members_error">建立群組至少需要選擇2位成員</string>
     <string name="search_placeholder">搜尋</string>
     <string name="search_cancel">取消</string>
     <string name="search_header_title">搜尋</string>
@@ -295,6 +296,31 @@
     <string name="add_friend_button_sended">已送出</string>
     <string name="add_friend_button_pending">待確認</string>
     <string name="add_friend_user_id">ID: %s</string>
+    <string name="section_groups">群組</string>
+    <string name="section_contacts">聯絡人</string>
+    <string name="section_friend_requests">好友請求</string>
+
+    <!-- Group Search and Join -->
+    <string name="group_search_section">群組</string>
+    <string name="group_join_button">加入</string>
+    <string name="group_joined_button">已加入</string>
+    <string name="group_join_success">成功加入群組</string>
+    <string name="group_join_failed">加入群組失敗</string>
+    <string name="group_members_count">%d 位成員</string>
+
+    <!-- Create Group Screen -->
+    <string name="create_group_title">新建群組</string>
+    <string name="create_group_avatar_hint">點擊設定群組頭像</string>
+    <string name="create_group_name_hint">群組名稱</string>
+    <string name="create_group_search_members">搜尋聯絡人</string>
+    <string name="create_group_selected_members">已選成員 (%d)</string>
+    <string name="create_group_no_members_selected">未選擇成員</string>
+    <string name="create_group_your_contacts">你的聯絡人</string>
+    <string name="create_group_save">建立</string>
+    <string name="create_group_cancel">取消</string>
+    <string name="create_group_creating">正在建立群組…</string>
+    <string name="create_group_name_required">請輸入群組名稱</string>
+
     <string name="user_profile_alias_label">備註名</string>
     <string name="user_profile_alias_placeholder">請輸入備註</string>
     <string name="user_profile_alias_save">儲存備註</string>

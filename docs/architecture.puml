@@ -1,0 +1,169 @@
+@startuml CS501 Micro Chat - MVVM Architecture
+
+' Compact layout settings
+skinparam packageStyle rectangle
+skinparam shadowing false
+skinparam backgroundColor #FEFEFE
+skinparam defaultFontSize 12
+skinparam packagePadding 6
+skinparam nodesep 12
+skinparam ranksep 12
+skinparam componentPadding 6
+
+' ========== Presentation Layer (UI) ==========
+package "Presentation Layer" #E3F2FD {
+  package "Screens (Jetpack Compose)" {
+    [LoginScreen] <<Composable>>
+    [HomeScreen] <<Composable>>
+    [ChatListScreen] <<Composable>>
+    [ContactsScreen] <<Composable>>
+    [ChatDetailScreen] <<Composable>>
+    [ProfileScreen] <<Composable>>
+  }
+
+  package "ViewModels" {
+    [AuthViewModel] <<ViewModel>>
+    [HomeViewModel] <<ViewModel>>
+    [ChatDetailViewModel] <<ViewModel>>
+    [ProfileViewModel] <<ViewModel>>
+  }
+
+  package "Navigation" {
+    [NavController] <<Navigation>>
+    [MainNavigation] <<NavHost>>
+  }
+}
+
+' ========== Domain Layer (Business Logic) ==========
+package "Domain Layer" #FFF9C4 {
+  package "Repositories" {
+    [AuthRepository] <<Repository>>
+    [ChatRepository] <<Repository>>
+    [StorageRepository] <<Repository>>
+    [TranslationRepository] <<Repository>>
+  }
+}
+
+' ========== Data Layer ==========
+package "Data Layer" #C8E6C9 {
+  package "Remote Data Sources" {
+    [FirebaseDataSource] <<DataSource>>
+    [OpenAIService] <<API>>
+  }
+
+  package "Firebase Services" {
+    [Firestore] <<Database>>
+    [FirebaseAuth] <<Auth>>
+    [FirebaseStorage] <<Storage>>
+  }
+}
+
+' ========== AI & Platform Services ==========
+package "AI Services" #FFE0B2 {
+  [OpenAI Whisper] <<STT>>
+  [OpenAI Translation] <<API>>
+  note right of [OpenAI Translation]
+    **Current:**
+    - Speech-to-Text (Whisper)
+    - Text Translation
+    **Future:**
+    - Conversation Summary
+  end note
+}
+
+package "Platform Services" #F3E5F5 {
+  [Android TTS] <<Native>>
+  [Image Picker] <<Native>>
+  [Permission Manager] <<Native>>
+}
+
+' ========================================================
+' ========== Data Flow (MVVM Pattern) ==========
+' ========================================================
+
+' UI -> ViewModel
+[LoginScreen] --> [AuthViewModel] : collectAsState()
+[HomeScreen] --> [HomeViewModel] : collectAsState()
+[ChatListScreen] --> [HomeViewModel] : collectAsState()
+[ContactsScreen] --> [HomeViewModel] : collectAsState()
+[ChatDetailScreen] --> [ChatDetailViewModel] : collectAsState()
+[ProfileScreen] --> [ProfileViewModel] : collectAsState()
+
+' Navigation Flow
+[NavController] ..> [LoginScreen] : navigate
+[NavController] ..> [HomeScreen] : navigate
+[NavController] ..> [ChatDetailScreen] : navigate
+[NavController] ..> [ProfileScreen] : navigate
+[MainNavigation] --> [NavController] : controls
+
+' ViewModel -> Repository
+[AuthViewModel] --> [AuthRepository] : @Inject
+[HomeViewModel] --> [ChatRepository] : @Inject
+[HomeViewModel] --> [TranslationRepository] : @Inject
+[ChatDetailViewModel] --> [ChatRepository] : @Inject
+[ProfileViewModel] --> [AuthRepository] : @Inject
+[ProfileViewModel] --> [StorageRepository] : @Inject
+
+' Repository -> DataSource
+[AuthRepository] --> [FirebaseDataSource]
+[ChatRepository] --> [FirebaseDataSource]
+[StorageRepository] --> [FirebaseDataSource]
+[TranslationRepository] --> [OpenAIService]
+
+' DataSource -> Firebase
+[FirebaseDataSource] --> [Firestore] : CRUD operations
+[FirebaseDataSource] --> [FirebaseAuth] : authentication
+[FirebaseDataSource] --> [FirebaseStorage] : upload/download
+
+' AI Services
+[OpenAIService] --> [OpenAI Whisper] : STT
+[OpenAIService] --> [OpenAI Translation] : translate
+
+' Platform Services
+[ProfileViewModel] --> [Android TTS] : text-to-speech
+[ProfileViewModel] --> [Image Picker] : avatar upload
+[ChatDetailViewModel] --> [Permission Manager] : audio recording
+
+
+' ========================================================
+' ========== Notes & Annotations ==========
+' ========================================================
+
+note right of [HomeViewModel]
+  **StateFlows:**
+  - conversations: StateFlow<List<Conversation>>
+  - contacts: StateFlow<List<Contact>>
+  - isLoading: StateFlow<Boolean>
+  - error: StateFlow<String?>
+
+  **Flow Collection:**
+  - observeUserConversations()
+  - Real-time Firebase updates
+end note
+
+note right of [ChatDetailViewModel]
+  **StateFlows:**
+  - messages: StateFlow<List<Message>>
+  - currentConversation: StateFlow<Conversation?>
+  - translationResult: StateFlow<String?>
+
+  **Actions:**
+  - sendMessage()
+  - translateMessage()
+  - recordAudio()
+end note
+
+
+note bottom of "Navigation"
+  **Navigation Flow:**
+  LoginScreen → HomeScreen
+  HomeScreen → ChatDetailScreen
+  HomeScreen → ProfileScreen
+  HomeScreen → ContactsScreen
+
+  **Deep Links:**
+  chat_detail/{conversationId}
+end note
+
+
+@enduml

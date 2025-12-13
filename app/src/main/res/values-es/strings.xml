@@ -96,7 +96,7 @@
     <string name="chat_list_empty_title">Sin chats</string>
     <string name="chat_list_empty_subtitle">¡Inicia una nueva conversación!</string>
     <string name="search_hint">Buscar</string>
-    <string name="contacts_search_hint">Buscar contactos</string>
+    <string name="contacts_search_hint">Buscar contactos y grupos</string>
     <string name="contacts_empty_title">Contactos</string>
     <string name="contacts_empty_subtitle">Próximamente…</string>
     <string name="profile_placeholder_name">Nombre de usuario</string>
@@ -250,6 +250,7 @@
     <string name="group_profile_error_pin_update">No se pudo actualizar el estado de fijación del grupo</string>
     <string name="group_profile_error_leave">No se pudo salir del grupo</string>
     <string name="group_profile_error_update_name">No se pudo actualizar el nombre del grupo</string>
+    <string name="group_create_min_members_error">Se requieren al menos 2 miembros para crear un grupo</string>
     <string name="search_placeholder">Buscar</string>
     <string name="search_cancel">Cancelar</string>
     <string name="search_header_title">Buscar</string>
@@ -296,4 +297,28 @@
     <string name="add_friend_button_sended">Enviado</string>
     <string name="add_friend_button_pending">Pendiente</string>
     <string name="add_friend_user_id">ID: %s</string>
+    <string name="section_groups">Grupos</string>
+    <string name="section_contacts">Contactos</string>
+    <string name="section_friend_requests">Solicitudes de amistad</string>
+
+    <!-- Group Search and Join -->
+    <string name="group_search_section">Grupos</string>
+    <string name="group_join_button">Unirse</string>
+    <string name="group_joined_button">Unido</string>
+    <string name="group_join_success">Te uniste al grupo exitosamente</string>
+    <string name="group_join_failed">Error al unirse al grupo</string>
+    <string name="group_members_count">%d miembros</string>
+
+    <!-- Create Group Screen -->
+    <string name="create_group_title">Nuevo grupo</string>
+    <string name="create_group_avatar_hint">Toca para establecer el avatar del grupo</string>
+    <string name="create_group_name_hint">Nombre del grupo</string>
+    <string name="create_group_search_members">Buscar contactos</string>
+    <string name="create_group_selected_members">Miembros seleccionados (%d)</string>
+    <string name="create_group_no_members_selected">Sin miembros seleccionados</string>
+    <string name="create_group_your_contacts">Tus contactos</string>
+    <string name="create_group_save">Crear</string>
+    <string name="create_group_cancel">Cancelar</string>
+    <string name="create_group_creating">Creando grupo…</string>
+    <string name="create_group_name_required">El nombre del grupo es obligatorio</string>
 </resources>

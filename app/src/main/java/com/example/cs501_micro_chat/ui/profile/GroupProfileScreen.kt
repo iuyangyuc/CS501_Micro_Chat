@@ -92,6 +92,11 @@ fun GroupProfileScreen(
             when (event) {
                 is GroupProfileEvent.OpenChat -> onStartChat(event.conversationId, event.name, event.avatarUrl)
                 GroupProfileEvent.LeftGroup -> onLeftGroup()
+                GroupProfileEvent.GroupDismissed -> {
+                    snackbarStyle = GroupSnackbarStyle.SUCCESS
+                    snackbarHostState.showSnackbar(context.getString(R.string.group_profile_dismissed_success))
+                    onLeftGroup() // 解散后也返回上一页
+                }
                 is GroupProfileEvent.SearchHistory -> onOpenSearch(event.conversationId)
                 is GroupProfileEvent.ShowMessage -> {
                     snackbarStyle = GroupSnackbarStyle.ERROR
@@ -144,6 +149,8 @@ fun GroupProfileScreen(
                     }
                 }
                 var showClearHistoryDialog by remember { mutableStateOf(false) }
+                var showDismissGroupDialog by remember { mutableStateOf(false) }
+
                 GroupProfileContent(
                     state = state,
                     onNameChange = viewModel::onNameChange,
@@ -153,8 +160,10 @@ fun GroupProfileScreen(
                     onTogglePinned = viewModel::togglePinned,
                     onClearHistory = { showClearHistoryDialog = true },
                     onLeaveGroup = viewModel::leaveGroup,
+                    onDismissGroup = { showDismissGroupDialog = true },
                     onMemberClick = onMemberClick
                 )
+
                 if (showClearHistoryDialog) {
                     ConfirmDialog(
                         title = stringResource(R.string.clear_history_title),
@@ -166,6 +175,20 @@ fun GroupProfileScreen(
                             viewModel.clearHistory()
                         },
                         onDismiss = { showClearHistoryDialog = false }
+                    )
+                }
+
+                if (showDismissGroupDialog) {
+                    ConfirmDialog(
+                        title = stringResource(R.string.group_profile_dismiss_title),
+                        description = stringResource(R.string.group_profile_dismiss_description),
+                        confirmText = stringResource(R.string.group_profile_dismiss_confirm),
+                        cancelText = stringResource(R.string.user_profile_delete_confirm_cancel),
+                        onConfirm = {
+                            showDismissGroupDialog = false
+                            viewModel.dismissGroup()
+                        },
+                        onDismiss = { showDismissGroupDialog = false }
                     )
                 }
             }
@@ -183,6 +206,7 @@ private fun GroupProfileContent(
     onTogglePinned: () -> Unit,
     onClearHistory: () -> Unit,
     onLeaveGroup: () -> Unit,
+    onDismissGroup: () -> Unit,
     onMemberClick: (String) -> Unit
 ) {
     Column(
@@ -307,16 +331,33 @@ private fun GroupProfileContent(
                     icon = Icons.Outlined.Clear,
                     label = stringResource(R.string.user_profile_clear_history),
                     onClick = onClearHistory,
-                    enabled = !state.isRemoved && state.conversationId.isNotBlank(),
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant
+                    enabled = !state.isRemoved && state.conversationId.isNotBlank()
                 )
-                ActionButton(
-                    icon = Icons.Filled.Delete,
-                    label = if (state.isLeaving) stringResource(R.string.group_profile_leaving) else stringResource(R.string.group_profile_leave),
-                    onClick = onLeaveGroup,
-                    enabled = !state.isLeaving && !state.isRemoved,
-                    containerColor = Color(0xFFEF4444)
-                )
+
+                // 如果是群主，显示解散群组按钮；否则显示退出群组按钮
+                if (state.isOwner) {
+                    ActionButton(
+                        icon = Icons.Filled.Delete,
+                        label = if (state.isDismissing)
+                            stringResource(R.string.group_profile_dismissing)
+                        else
+                            stringResource(R.string.group_profile_dismiss),
+                        onClick = onDismissGroup,
+                        enabled = !state.isDismissing && !state.isRemoved,
+                        containerColor = Color(0xFFDC2626)
+                    )
+                } else {
+                    ActionButton(
+                        icon = Icons.Filled.Delete,
+                        label = if (state.isLeaving)
+                            stringResource(R.string.group_profile_leaving)
+                        else
+                            stringResource(R.string.group_profile_leave),
+                        onClick = onLeaveGroup,
+                        enabled = !state.isLeaving && !state.isRemoved,
+                        containerColor = Color(0xFFEF4444)
+                    )
+                }
             }
         }
     }

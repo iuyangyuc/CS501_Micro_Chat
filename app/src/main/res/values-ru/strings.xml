@@ -96,7 +96,7 @@
     <string name="chat_list_empty_title">Нет чатов</string>
     <string name="chat_list_empty_subtitle">Начните новый разговор!</string>
     <string name="search_hint">Поиск</string>
-    <string name="contacts_search_hint">Поиск контактов</string>
+    <string name="contacts_search_hint">Поиск контактов и групп</string>
     <string name="contacts_empty_title">Контакты</string>
     <string name="contacts_empty_subtitle">Скоро…</string>
     <string name="profile_placeholder_name">Имя пользователя</string>
@@ -250,6 +250,7 @@
     <string name="group_profile_error_pin_update">Не удалось обновить закрепление группы</string>
     <string name="group_profile_error_leave">Не удалось выйти из группы</string>
     <string name="group_profile_error_update_name">Не удалось обновить название группы</string>
+    <string name="group_create_min_members_error">Для создания группы требуется минимум 2 участника</string>
     <string name="search_placeholder">Поиск</string>
     <string name="search_cancel">Отмена</string>
     <string name="search_header_title">Поиск</string>
@@ -296,4 +297,28 @@
     <string name="add_friend_button_sended">Отправлено</string>
     <string name="add_friend_button_pending">Ожидание</string>
     <string name="add_friend_user_id">ID: %s</string>
+    <string name="section_groups">Группы</string>
+    <string name="section_contacts">Контакты</string>
+    <string name="section_friend_requests">Запросы в друзья</string>
+
+    <!-- Group Search and Join -->
+    <string name="group_search_section">Группы</string>
+    <string name="group_join_button">Вступить</string>
+    <string name="group_joined_button">Уже в группе</string>
+    <string name="group_join_success">Вы успешно вступили в группу</string>
+    <string name="group_join_failed">Не удалось вступить в группу</string>
+    <string name="group_members_count">%d участников</string>
+
+    <!-- Create Group Screen -->
+    <string name="create_group_title">Новая группа</string>
+    <string name="create_group_avatar_hint">Нажмите, чтобы установить аватар группы</string>
+    <string name="create_group_name_hint">Название группы</string>
+    <string name="create_group_search_members">Поиск контактов</string>
+    <string name="create_group_selected_members">Выбранные участники (%d)</string>
+    <string name="create_group_no_members_selected">Участники не выбраны</string>
+    <string name="create_group_your_contacts">Ваши контакты</string>
+    <string name="create_group_save">Создать</string>
+    <string name="create_group_cancel">Отмена</string>
+    <string name="create_group_creating">Создание группы…</string>
+    <string name="create_group_name_required">Название группы обязательно</string>
 </resources>

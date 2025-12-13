@@ -6,13 +6,14 @@
  *
  * Firebase 路径: /groups/{groupId}
  *
- * @property id 群组唯一标识符（与对应的 Conversation ID 相同）
+ * @property id 群组唯一标识符
  * @property name 群组名称
  * @property description 群组描述
  * @property avatarUrl 群组头像 URL
  * @property ownerId 群主用户 ID
  * @property adminIds 管理员用户 ID 列表
  * @property memberIds 成员用户 ID 列表
+ * @property conversationId 对应的会话 ID
  * @property maxMembers 最大成员数
  * @property createdAt 创建时间戳
  * @property settings 群组设置
@@ -27,6 +28,7 @@ data class Group(
     val ownerId: String = "",
     val adminIds: List<String> = emptyList(),
     val memberIds: List<String> = emptyList(),
+    val conversationId: String = "",  // 对应的会话ID
     val maxMembers: Int = 500,
     val createdAt: Long = System.currentTimeMillis(),
     val settings: GroupSettings = GroupSettings()
@@ -40,6 +42,7 @@ data class Group(
         "ownerId" to ownerId,
         "adminIds" to adminIds,
         "memberIds" to memberIds,
+        "conversationId" to conversationId,
         "maxMembers" to maxMembers,
         "createdAt" to createdAt,
         "settings" to settings.toMap()

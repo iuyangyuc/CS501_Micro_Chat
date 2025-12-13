@@ -103,7 +103,7 @@
     <string name="chat_list_empty_title">暂无聊天</string>
     <string name="chat_list_empty_subtitle">开始一个新对话吧！</string>
     <string name="search_hint">搜索</string>
-    <string name="contacts_search_hint">搜索联系人</string>
+    <string name="contacts_search_hint">搜索联系人和群组</string>
     <string name="contacts_empty_title">联系人</string>
     <string name="contacts_empty_subtitle">敬请期待…</string>
     <string name="profile_placeholder_name">用户名</string>
@@ -265,6 +265,14 @@
     <string name="group_profile_error_pin_update">更新群聊置顶状态失败</string>
     <string name="group_profile_error_leave">退出群聊失败</string>
     <string name="group_profile_error_update_name">更新群组名称失败</string>
+    <string name="group_profile_dismiss">解散群组</string>
+    <string name="group_profile_dismissing">正在解散...</string>
+    <string name="group_profile_dismiss_title">解散群组</string>
+    <string name="group_profile_dismiss_description">确定要解散这个群组吗？此操作无法撤销。该群组将从所有成员的联系人列表中移除。</string>
+    <string name="group_profile_dismiss_confirm">解散</string>
+    <string name="group_profile_dismissed_success">群组已成功解散</string>
+    <string name="group_profile_error_dismiss">解散群组失败</string>
+    <string name="group_create_min_members_error">创建群组至少需要选择2个成员</string>
     <string name="search_placeholder">搜索</string>
     <string name="search_cancel">取消</string>
     <string name="search_header_title">搜索</string>
@@ -303,4 +311,28 @@
     <string name="add_friend_button_sended">已发送</string>
     <string name="add_friend_button_pending">待确认</string>
     <string name="add_friend_user_id">ID: %s</string>
+    <string name="section_groups">群组</string>
+    <string name="section_contacts">联系人</string>
+    <string name="section_friend_requests">好友请求</string>
+
+    <!-- Group Search and Join -->
+    <string name="group_search_section">群组</string>
+    <string name="group_join_button">加入</string>
+    <string name="group_joined_button">已加入</string>
+    <string name="group_join_success">成功加入群组</string>
+    <string name="group_join_failed">加入群组失败</string>
+    <string name="group_members_count">%d 位成员</string>
+
+    <!-- Create Group Screen -->
+    <string name="create_group_title">新建群组</string>
+    <string name="create_group_avatar_hint">点击设置群组头像</string>
+    <string name="create_group_name_hint">群组名称</string>
+    <string name="create_group_search_members">搜索联系人</string>
+    <string name="create_group_selected_members">已选成员 (%d)</string>
+    <string name="create_group_no_members_selected">未选择成员</string>
+    <string name="create_group_your_contacts">你的联系人</string>
+    <string name="create_group_save">创建</string>
+    <string name="create_group_cancel">取消</string>
+    <string name="create_group_creating">正在创建群组…</string>
+    <string name="create_group_name_required">请输入群组名称</string>
 </resources>
