@@ -3,24 +3,25 @@ package com.example.cs501_micro_chat.ui.main
 /**
  * HomeScreen.kt
  *
- * 主界面 - 登录后的主要交互界面（基于 Figma 设计）
- * Home Screen - Main interaction interface after login (Based on Figma design)
+ * Main screen – primary interaction interface after user login
+ * (based on the Figma design).
  *
- * 主要功能 / Main Functions:
- * - 底部导航栏（聊天、联系人、我的）/ Bottom navigation (Chat, Contacts, Me)
- * - 顶部渐变蓝色 AppBar / Top gradient blue AppBar
- * - 聊天列表页面 / Chat list page
- * - 联系人页面 / Contacts page
- * - 个人设置页面 / Profile settings page
+ * Main Features:
+ * - Bottom navigation bar (Chat, Contacts, Me)
+ * - Top gradient blue AppBar
+ * - Chat list screen
+ * - Contacts screen
+ * - Profile / settings screen
  *
- * 设计参考 / Design Reference:
- * - Figma Chat Interface Design
- * - 颜色：#3296FA → #66B3FF (渐变蓝)
- * - 响应式设计，适配不同屏幕尺寸
+ * Design Reference:
+ * - Figma chat interface design
+ * - Color gradient: #3296FA → #66B3FF (blue gradient)
+ * - Responsive layout for different screen sizes
  *
  * @author CS501 Team
  * @date 2025-11-04
  */
+
 
 import android.Manifest
 import android.content.pm.PackageManager
@@ -171,9 +172,10 @@ private const val PROFILE_UPDATED_KEY = "profile_updated"
 
 
 /**
- * 主界面底部导航项（基于 Figma 设计）
- * Bottom navigation items for home screen (Based on Figma design)
+ * Bottom navigation items displayed on the home screen,
+ * designed according to the Figma layout.
  */
+
 sealed class HomeDestination(
     val route: String,
     val icon: ImageVector,
@@ -198,7 +200,8 @@ sealed class HomeDestination(
     )
 }
 
-// 在外部定义 items 列表，避免类初始化问题
+// Define the items list outside to avoid class initialization issues
+
 private val homeDestinationItems: List<HomeDestination>
     get() = listOf(
         HomeDestination.Chats,
@@ -207,12 +210,13 @@ private val homeDestinationItems: List<HomeDestination>
     )
 
 /**
- * 主界面组合项（基于 Figma 设计）
- * Home screen composable (Based on Figma design)
+ * Home screen composable
+ * (based on the Figma design).
  *
- * @param onLogout 登出回调 / Logout callback
- * @param modifier 修饰符 / Modifier
+ * @param onLogout Callback triggered when the user logs out
+ * @param modifier Modifier applied to this composable
  */
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
@@ -240,13 +244,15 @@ fun HomeScreen(
     } == true
     val surfaceColor = MaterialTheme.colorScheme.surface
 
-    // 创建共享的 HomeViewModel（用于添加好友等全局功能）
+    // Create a shared HomeViewModel for global features (e.g., adding friends)
+
     val sharedHomeViewModel: HomeViewModel = hiltViewModel()
 
-    // ========== 固定布局：顶栏 + 内容 + 底栏 ==========
+    // ========== Fixed layout: top bar + content + bottom bar ==========
+
     Scaffold(
         topBar = {
-            // ========== 固定顶栏（所有页面共用，包括 chat_detail） ==========
+            // ========== Fixed top bar (shared across all screens, including chat_detail) ==========
             Surface(
                 color = Color.Transparent
             ) {
@@ -261,7 +267,8 @@ fun HomeScreen(
                         .statusBarsPadding()
                         .padding(horizontal = 4.dp, vertical = 8.dp)
                 ) {
-                    // 顶栏内容平滑切换
+                    // Smooth transition of top bar content
+
                     AnimatedContent(
                         targetState = currentRoute,
                         transitionSpec = {
@@ -272,7 +279,8 @@ fun HomeScreen(
                     ) { route ->
                         when {
                             route?.startsWith("chat_detail") == true -> {
-                                // 使用 ChatDetailViewModel 来获取正确的头像
+                                // Use ChatDetailViewModel to retrieve the correct avatar
+
                                 val chatDetailViewModel: ChatDetailViewModel = hiltViewModel(navBackStackEntry!!)
                                 val otherUserId by chatDetailViewModel.otherUserId.collectAsStateWithLifecycle()
                                 val otherUserAvatarUrl by chatDetailViewModel.otherUserAvatarUrl.collectAsStateWithLifecycle()
@@ -281,12 +289,14 @@ fun HomeScreen(
                                 val conversationNameVm by chatDetailViewModel.conversationName.collectAsStateWithLifecycle()
                                 val conversationAvatarVm by chatDetailViewModel.conversationAvatarUrl.collectAsStateWithLifecycle()
 
-                                // 从路由参数获取对话名称
+                                // Get the conversation name from route parameters
+
                                 val conversationNameArg = navBackStackEntry?.arguments?.getString("conversationName")?.let {
                                     URLDecoder.decode(it, StandardCharsets.UTF_8.toString())
                                 } ?: ""
 
-                                // 从路由参数获取初始头像（作为 fallback）
+                                // Get the initial avatar from route parameters (used as a fallback)
+
                                 val fallbackAvatarArg = navBackStackEntry?.arguments?.getString("conversationAvatar")?.let {
                                     URLDecoder.decode(it, StandardCharsets.UTF_8.toString())
                                 } ?: ""
@@ -300,7 +310,8 @@ fun HomeScreen(
 
                                 ChatDetailTopBar(
                                     conversationName = resolvedConversationName,
-                                    // 优先使用 ViewModel 中解析好的头像 URL，如果为空则使用路由参数
+                                    // Prefer the resolved avatar URL from the ViewModel; fall back to the route parameter if null
+
                                     conversationAvatar = resolvedConversationAvatar,
                                     onBack = { navController.popBackStack() },
                                     onProfileClick = {
@@ -392,7 +403,8 @@ fun HomeScreen(
             }
         },
         bottomBar = {
-            // ========== 固定底栏（非全屏路由时显示） ==========
+            // ========== Fixed bottom bar (visible on non-fullscreen routes) ==========
+
             if (!isFullScreenRoute) {
                 NavigationBar(
                     containerColor = surfaceColor,
@@ -436,7 +448,8 @@ fun HomeScreen(
             }
         }
     ) { paddingValues ->
-        // ========== 内容区域（NavHost） ==========
+        // ========== Content area (NavHost) ==========
+
         NavHost(
             navController = navController,
             startDestination = HomeDestination.Chats.route,
@@ -553,7 +566,7 @@ fun HomeScreen(
                     )
                 }
 
-                // ChatDetail 页面 - 从右侧滑入
+                // ChatDetail screen – slides in from the right
                 composable(
                     route = "chat_detail/{conversationId}/{conversationName}/{conversationAvatar}?targetDate={targetDate}",
                     arguments = listOf(
@@ -802,8 +815,9 @@ fun HomeScreen(
 }
 
 /**
- * HomeScreen 的顶栏内容
+ * Top bar content for the HomeScreen
  */
+
 @Composable
 fun HomeTopBar(
     currentRoute: String?,
@@ -811,9 +825,9 @@ fun HomeTopBar(
     onNavigateToChat: (String, String, String) -> Unit,
     onNavigateToCreateGroup: () -> Unit
 ) {
-    // 控制下拉菜单的显示状态
+    // Controls the visibility of the dropdown menu
     var showAddMenu by remember { mutableStateOf(false) }
-    // 控制添加好友弹窗的显示状态
+    // Controls the visibility of the add-friend dialog
     var showAddFriendDialog by remember { mutableStateOf(false) }
 
     Row(
@@ -837,7 +851,7 @@ fun HomeTopBar(
             fontWeight = FontWeight.SemiBold
         )
 
-        // Chats 和 Contacts 页面都显示加号按钮和下拉菜单
+        // Both Chats and Contacts screens display the add button and dropdown menu
         if (currentRoute == HomeDestination.Chats.route || currentRoute == HomeDestination.Contacts.route) {
             Box {
                 IconButton(onClick = { showAddMenu = true }) {
@@ -848,13 +862,13 @@ fun HomeTopBar(
                     )
                 }
 
-                // 下拉菜单
+                // Dropdown menu
                 DropdownMenu(
                     expanded = showAddMenu,
                     onDismissRequest = { showAddMenu = false },
                     modifier = Modifier.background(MaterialTheme.colorScheme.surface)
                 ) {
-                    // 新增联系人选项
+                    // Add contact option
                     DropdownMenuItem(
                         text = {
                             Row(
@@ -888,7 +902,7 @@ fun HomeTopBar(
                         color = MaterialTheme.colorScheme.outlineVariant
                     )
 
-                    // 新增群组选项
+                    // Add group option
                     DropdownMenuItem(
                         text = {
                             Row(
@@ -923,7 +937,7 @@ fun HomeTopBar(
         }
     }
 
-    // 添加好友搜索弹窗
+    // Add-friend search dialog
     if (showAddFriendDialog) {
         AddFriendDialog(
             homeViewModel = homeViewModel,
@@ -1195,7 +1209,7 @@ fun AboutTopBar(
 }
 
 /**
- * ChatDetail 的顶栏内容
+ * Top bar content for ChatDetail
  */
 @Composable
 fun ChatDetailTopBar(
@@ -1263,7 +1277,7 @@ fun ChatDetailTopBar(
 }
 
 /**
- * ChatDetail 的内容区域（不包含顶栏）
+ * Content area for ChatDetail (excluding the top bar)
  */
 private sealed interface ChatListItem {
     data class DateHeader(val date: LocalDate) : ChatListItem
@@ -1759,7 +1773,7 @@ fun ChatDetailContent(
             } else {
                 Column(modifier = Modifier.fillMaxSize()) {
 
-                    // ===== Summary Selection Bar（来自 main）=====
+                    // ===== Summary Selection Bar（from main）=====
                     if (isSummarySelectionMode) {
                         SummarySelectionBar(
                             selectedCount = selectedSummaryMessages.size,
@@ -1769,7 +1783,7 @@ fun ChatDetailContent(
                         )
                     }
 
-                    // ===== 日期分组逻辑（来自 xyh）=====
+                    // ===== Date grouping logic (from xyh) =====
                     val chatItems = remember(messages) {
                         val sorted = messages.sortedBy { it.timestamp }
                         buildList<ChatListItem> {
@@ -1790,7 +1804,7 @@ fun ChatDetailContent(
                         }
                     }
 
-                    // ===== 渲染 LazyColumn（日期 + 消息 + summary 选择）=====
+                    // ===== Render the LazyColumn (dates + messages + summary selection) =====
                     LazyColumn(
                         state = listState,
                         modifier = Modifier.fillMaxSize(),
@@ -1808,12 +1822,12 @@ fun ChatDetailContent(
                         ) { item ->
                             when (item) {
 
-                                // === 日期头部 ===
+                                // === Date header ===
                                 is ChatListItem.DateHeader -> {
                                     DateDivider(date = item.date)
                                 }
 
-                                // === 消息项 ===
+                                // === Message item ===
                                 is ChatListItem.MessageItem -> {
                                     val message = item.message
 
@@ -1829,7 +1843,7 @@ fun ChatDetailContent(
                                         onTranscribeClick = { viewModel.transcribeVoiceMessage(it) },
                                         onClearTranscription = { viewModel.clearTranscriptionFor(it) },
 
-                                        // ===== summary selection 模式（来自 main）=====
+                                        // ===== Summary selection mode (from main) =====
                                         summarySelectionMode = isSummarySelectionMode,
                                         isSelectedForSummary = selectedSummaryMessages.contains(messageKey(message)),
                                         onSummaryToggle = { toggleSummarySelection(it) },
@@ -1845,7 +1859,7 @@ fun ChatDetailContent(
         }
 
 
-        // 输入栏
+        // Input bar
         Surface(
             color = surfaceColorChat,
             shadowElevation = 8.dp
@@ -2152,8 +2166,7 @@ private fun DateDivider(date: LocalDate) {
 }
 
 /**
- * 聊天列表页面（基于 Figma 设计）- 从 Firebase 读取真实数据
- * Chat list screen (Based on Figma design) - Reads real data from Firebase
+ * Chat list screen (based on the Figma design) that reads real data from Firebase
  */
 @Composable
 fun ChatListScreen(
@@ -2165,12 +2178,12 @@ fun ChatListScreen(
     val isUsersLoading by viewModel.isUsersLoading.collectAsStateWithLifecycle()
     val areContactsReady by viewModel.isContactsReady.collectAsStateWithLifecycle()
 
-    // 搜索相关状态
+    // Search-related state
     val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
     val searchResults by viewModel.searchResults.collectAsStateWithLifecycle()
     val isSearching by viewModel.isSearching.collectAsStateWithLifecycle()
 
-    // 控制搜索框是否激活
+    // Controls whether the search bar is active
     var isSearchActive by remember { mutableStateOf(false) }
 
     val backgroundColor = MaterialTheme.colorScheme.background
@@ -2195,14 +2208,14 @@ fun ChatListScreen(
                     .fillMaxSize()
                     .background(backgroundColor)
             ) {
-                // 搜索栏
+                // Search bar
                 Surface(
                     color = surfaceColor,
                     shadowElevation = 2.dp
                 ) {
                     Column {
                         if (isSearchActive) {
-                            // 激活状态：可编辑的搜索框
+                            // Active state: editable search bar
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -2240,7 +2253,7 @@ fun ChatListScreen(
                                 )
                             }
                         } else {
-                            // 默认状态：占位符搜索框
+                            // Default state: placeholder search bar
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -2268,9 +2281,9 @@ fun ChatListScreen(
                     }
                 }
 
-                // 显示搜索结果或对话列表
+                // Display search results or the conversation list
                 if (isSearchActive && searchQuery.isNotBlank()) {
-                    // 搜索结果
+                    // Search results
                     ConversationSearchResultsList(
                         searchResults = searchResults,
                         isSearching = isSearching,
@@ -2282,7 +2295,7 @@ fun ChatListScreen(
                         }
                     )
                 } else {
-                    // 正常对话列表
+                    // Regular conversation list
                     ConversationsList(
                         conversations = conversations,
                         isLoading = isLoading,
@@ -2296,7 +2309,6 @@ fun ChatListScreen(
 }
 
 /**
- * 会话列表项（基于 Figma 设计）- 显示真实会话数据
  * Conversation list item (Based on Figma design) - Displays real conversation data
  */
 @Composable
@@ -2305,7 +2317,7 @@ fun ConversationListItem(
     viewModel: HomeViewModel,
     onClick: () -> Unit = {}
 ) {
-    // 监听 userCache 的变化，确保用户信息加载后界面会更新
+    // Observe changes in userCache to ensure the UI updates after user data is loaded
     val userCache by viewModel.userCache.collectAsStateWithLifecycle()
 
     val formattedTime = if (conversation.lastMessage.isNotBlank()) {
@@ -2314,11 +2326,11 @@ fun ConversationListItem(
         ""
     }
 
-    // 使用新的方法获取显示名称和头像
+    // Use the new method to retrieve the display name and avatar
     val displayName = viewModel.getDisplayName(conversation)
     val avatarUrl = viewModel.getAvatarUrl(conversation)
 
-    // 调试日志
+    // Debug log
     Log.d("ConversationListItem", "Conversation ID: ${conversation.id}")
     Log.d("ConversationListItem", "Participants: ${conversation.participants}")
     Log.d("ConversationListItem", "Display Name: $displayName")
@@ -2334,7 +2346,7 @@ fun ConversationListItem(
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // 头像 - 使用 Coil 加载网络图片
+        // Avatar - load network image using Coil
         if (avatarUrl.isNotBlank()) {
             Log.d("ConversationListItem", "Loading image for $displayName: $avatarUrl")
             AsyncImage(
@@ -2352,7 +2364,7 @@ fun ConversationListItem(
                 }
             )
         } else {
-            // 没有头像URL时显示首字母
+            // Display the initial letter when no avatar URL is available
             Log.d("ConversationListItem", "No avatarUrl for $displayName, showing initials")
             Box(
                 modifier = Modifier
@@ -2372,7 +2384,7 @@ fun ConversationListItem(
 
         Spacer(modifier = Modifier.width(12.dp))
 
-        // 会话信息
+        // Conversation info
         Column(
             modifier = Modifier.weight(1f)
         ) {
@@ -2451,7 +2463,6 @@ private fun extractVoiceSeconds(text: String): String? {
 }
 
 /**
- * 对话搜索结果列表
  * Conversation search results list
  */
 @Composable
@@ -2532,7 +2543,6 @@ fun ConversationSearchResultsList(
 }
 
 /**
- * 正常对话列表
  * Normal conversations list
  */
 @Composable
@@ -2544,7 +2554,7 @@ fun ConversationsList(
 ) {
     val dividerColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
 
-    // 加载指示器
+    // Loading indicator
     if (isLoading && conversations.isEmpty()) {
         Box(
             modifier = Modifier.fillMaxSize(),
@@ -2553,7 +2563,7 @@ fun ConversationsList(
             CircularProgressIndicator(color = PrimaryBlue)
         }
     }
-    // 空状态
+    // Empty state
     else if (conversations.isEmpty()) {
         Box(
             modifier = Modifier.fillMaxSize(),
@@ -2582,7 +2592,7 @@ fun ConversationsList(
             }
         }
     }
-    // 会话列表
+    // chatting list
     else {
         LazyColumn(
             modifier = Modifier.fillMaxSize()
@@ -2607,7 +2617,6 @@ fun ConversationsList(
 }
 
 /**
- * 联系人页面（基于 Figma 设计）- 显示分组和联系人列表
  * Contacts screen (Based on Figma design) - Shows groups and contacts list
  */
 @Composable
@@ -2621,19 +2630,19 @@ fun ContactsScreen(
     val privateContacts by viewModel.privateContacts.collectAsStateWithLifecycle()
     val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
 
-    // 搜索相关状态
+    // Search-related state
     val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
     val searchResults by viewModel.searchResults.collectAsStateWithLifecycle()
     val isSearching by viewModel.isSearching.collectAsStateWithLifecycle()
 
-    // 待确认的好友请求
+    // Pending friend requests
     val pendingFriendRequests by homeViewModel.pendingFriendRequests.collectAsStateWithLifecycle()
 
     val backgroundColor = MaterialTheme.colorScheme.background
     val surfaceColor = MaterialTheme.colorScheme.surface
     val searchBarColor = MaterialTheme.colorScheme.surfaceVariant
 
-    // 控制搜索框是否激活
+    // Controls whether the search bar is active
     var isSearchActive by remember { mutableStateOf(false) }
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -2642,14 +2651,14 @@ fun ContactsScreen(
                 .fillMaxSize()
                 .background(backgroundColor)
         ) {
-            // 搜索栏
+            // Search bar
             Surface(
                 color = surfaceColor,
                 shadowElevation = 2.dp
             ) {
                 Column {
                     if (isSearchActive) {
-                        // 激活状态：可编辑的搜索框
+                        // Active state: editable search bar
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -2687,7 +2696,7 @@ fun ContactsScreen(
                             )
                         }
                     } else {
-                        // 默认状态：占位符搜索框
+                        // Default state: placeholder search bar
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -2715,9 +2724,9 @@ fun ContactsScreen(
                 }
             }
 
-            // 显示搜索结果或联系人列表
+            // Display search results or the contacts list
             if (isSearchActive && searchQuery.isNotBlank()) {
-                // 搜索结果
+                // Search results
                 SearchResultsList(
                     searchResults = searchResults,
                     isSearching = isSearching,
@@ -2730,7 +2739,7 @@ fun ContactsScreen(
                     onAvatarClick = onAvatarClick
                 )
             } else {
-                // 正常联系人列表
+                // Regular contacts list
                 ContactsList(
                     groups = groups,
                     privateContacts = privateContacts,
@@ -2747,7 +2756,6 @@ fun ContactsScreen(
 }
 
 /**
- * 搜索结果列表
  * Search results list
  */
 @Composable
@@ -2830,7 +2838,6 @@ fun SearchResultsList(
 }
 
 /**
- * 正常联系人列表
  * Normal contacts list
  */
 @Composable
@@ -2847,14 +2854,14 @@ fun ContactsList(
     val dividerColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
     val collator = remember { Collator.getInstance(Locale.getDefault()).apply { strength = Collator.PRIMARY } }
 
-    // 对私聊联系人按字母排序
+    // Sort private chat contacts alphabetically
     val sortedPrivateContacts = remember(privateContacts, collator) {
         privateContacts.sortedWith { a, b ->
             collator.compare(viewModel.getDisplayName(a), viewModel.getDisplayName(b))
         }
     }
 
-    // 将私聊联系人按字母分组
+    // Group private chat contacts alphabetically
     val privateSections = remember(sortedPrivateContacts) {
         sortedPrivateContacts.groupBy { contact ->
             val name = viewModel.getDisplayName(contact).trim()
@@ -2863,7 +2870,7 @@ fun ContactsList(
         }.toSortedMap()
     }
 
-    // 加载指示器
+    // Loading indicator
     if (isLoading && groups.isEmpty() && privateContacts.isEmpty()) {
         Box(
             modifier = Modifier.fillMaxSize(),
@@ -2872,7 +2879,7 @@ fun ContactsList(
             CircularProgressIndicator(color = PrimaryBlue)
         }
     }
-    // 空状态
+    // Empty state
     else if (groups.isEmpty() && privateContacts.isEmpty() && pendingFriendRequests.isEmpty()) {
         Box(
             modifier = Modifier.fillMaxSize(),
@@ -2901,12 +2908,12 @@ fun ContactsList(
             }
         }
     }
-    // 联系人列表
+    // Contacts list
     else {
         LazyColumn(
             modifier = Modifier.fillMaxSize()
         ) {
-            // 待确认的好友请求（置顶）
+            // Pending friend requests (pinned to the top)
             if (pendingFriendRequests.isNotEmpty()) {
                 item(key = "pending_requests_header") {
                     SectionHeader(title = stringResource(R.string.section_friend_requests))
@@ -2928,7 +2935,7 @@ fun ContactsList(
                 }
             }
 
-            // 群组联系人
+            // Group contacts
             if (groups.isNotEmpty()) {
                 item(key = "groups_header") {
                     SectionHeader(title = stringResource(R.string.section_groups))
@@ -2951,7 +2958,7 @@ fun ContactsList(
                 }
             }
 
-            // 私聊联系人（按字母分组）
+            // Private chat contacts (grouped alphabetically)
             if (sortedPrivateContacts.isNotEmpty()) {
                 item(key = "contacts_header") {
                     SectionHeader(title = stringResource(R.string.section_contacts))
@@ -2992,7 +2999,6 @@ fun ContactsList(
 }
 
 /**
- * 分组标题
  * Section header for contacts list
  */
 @Composable
@@ -3014,7 +3020,6 @@ fun SectionHeader(title: String) {
 }
 
 /**
- * 待确认的好友请求列表项
  * Pending friend request item with accept/reject buttons
  */
 @Composable
@@ -3032,7 +3037,7 @@ fun PendingFriendRequestItem(
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // 头像
+        // Avatar
         val avatarModifier = Modifier
             .size(52.dp)
             .clip(CircleShape)
@@ -3060,7 +3065,7 @@ fun PendingFriendRequestItem(
 
         Spacer(modifier = Modifier.width(12.dp))
 
-        // 联系人信息
+        // Contact info
         Column(
             modifier = Modifier.weight(1f)
         ) {
@@ -3079,7 +3084,7 @@ fun PendingFriendRequestItem(
 
         Spacer(modifier = Modifier.width(8.dp))
 
-        // Accept 按钮
+        // Accept button
         Button(
             onClick = onAccept,
             colors = ButtonDefaults.buttonColors(
@@ -3098,7 +3103,7 @@ fun PendingFriendRequestItem(
 
         Spacer(modifier = Modifier.width(8.dp))
 
-        // Reject 按钮
+        // Reject button
         OutlinedButton(
             onClick = onReject,
             colors = ButtonDefaults.outlinedButtonColors(
@@ -3118,7 +3123,6 @@ fun PendingFriendRequestItem(
 }
 
 /**
- * 联系人列表项
  * Contact list item
  */
 @Composable
@@ -3128,15 +3132,15 @@ fun ContactListItem(
     onClick: () -> Unit,
     onAvatarClick: (Contact) -> Unit = {}
 ) {
-    // 监听 conversationCache 的变化，确保 GROUP 信息加载后界面会更新
+    // Observe changes in conversationCache to ensure the UI updates after group information is loaded
     val conversationCache by viewModel.conversationCache.collectAsStateWithLifecycle()
     val pinnedConversationIds by viewModel.pinnedConversationIds.collectAsStateWithLifecycle()
 
-    // 使用 ViewModel 的方法获取显示名称和头像（对 GROUP 会从 Conversation 中获取）
+    // Use ViewModel methods to retrieve the display name and avatar (for GROUP, fetched from the Conversation)
     val displayName = viewModel.getDisplayName(contact)
     val avatarUrl = viewModel.getAvatarUrl(contact)
 
-    // 调试日志
+    // debug log
     Log.d("ContactListItem", "Contact ID: ${contact.contactId}")
     Log.d("ContactListItem", "Contact Type: ${contact.type}")
     Log.d("ContactListItem", "Conversation ID: ${contact.conversationId}")
@@ -3154,7 +3158,7 @@ fun ContactListItem(
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // 头像
+        // Avatar
         val avatarModifier = Modifier
             .size(52.dp)
             .clip(CircleShape)
@@ -3175,7 +3179,7 @@ fun ContactListItem(
                 }
             )
         } else {
-            // 没有头像URL时显示首字母
+            // Display the initial letter when no avatar URL is available
             Log.d("ContactListItem", "No avatarUrl for $displayName, showing initials")
             Box(
                 modifier = avatarModifier.background(if (contact.isGroup()) Color(0xFFFF9800) else PrimaryBlue),
@@ -3192,7 +3196,7 @@ fun ContactListItem(
 
         Spacer(modifier = Modifier.width(12.dp))
 
-        // 联系人信息
+        // Contact info
         Column(
             modifier = Modifier.weight(1f)
         ) {
@@ -3208,7 +3212,7 @@ fun ContactListItem(
                     overflow = TextOverflow.Ellipsis
                 )
 
-                // 群组图标
+                // Group icon
                 if (contact.isGroup()) {
                     Spacer(modifier = Modifier.width(4.dp))
                     Icon(
@@ -3220,7 +3224,7 @@ fun ContactListItem(
                 }
             }
 
-            // 显示原始姓名（如果设置了备注）
+            // Display the original name if a remark is set
             if (contact.alias.isNotBlank()) {
                 val originalName = contact.contactName.ifBlank { stringResource(R.string.contacts_original_name_unknown) }
                 Text(
@@ -3233,7 +3237,7 @@ fun ContactListItem(
             }
         }
 
-        // 收藏图标
+        // Favorite icon
         val isPinned = contact.conversationId.isNotBlank() && pinnedConversationIds.contains(contact.conversationId)
         if (contact.isFavorite || isPinned) {
             Icon(
@@ -3247,7 +3251,6 @@ fun ContactListItem(
 }
 
 /**
- * 个人设置页面（包含退出登录）
  * Profile settings screen (Includes logout)
  */
 @OptIn(ExperimentalLayoutApi::class)
@@ -3284,7 +3287,7 @@ fun ProfileScreen(
             .background(backgroundColor)
             .verticalScroll(scrollState)
     ) {
-        // 用户信息卡片
+        // User info card
         val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
         val headerElevation = if (isDark) 10.dp else 4.dp
         Surface(
@@ -3314,7 +3317,7 @@ fun ProfileScreen(
                 Row(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // 头像
+                    // Avatar
                     Box(
                         modifier = Modifier
                             .size(64.dp)
@@ -3369,7 +3372,7 @@ fun ProfileScreen(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // 设置项列表
+        // Config list
         Surface(
             modifier = Modifier.fillMaxWidth(),
             color = surfaceColor
@@ -3474,7 +3477,7 @@ fun ProfileScreen(
 
         Spacer(modifier = Modifier.weight(1f))
 
-        // 退出登录按钮
+        // log out button
         Button(
             onClick = onLogout,
             modifier = Modifier
@@ -3501,7 +3504,6 @@ fun ProfileScreen(
 } // End ProfileScreen function
 
 /**
- * 设置项组件
  * Setting item component
  */
 @Composable
@@ -3549,7 +3551,6 @@ fun SettingItem(
 }
 
 /**
- * 添加好友弹窗
  * Add Friend Dialog
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -3563,12 +3564,13 @@ fun AddFriendDialog(
     val groupSearchResults by homeViewModel.addGroupSearchResults.collectAsStateWithLifecycle()
     val isSearching by homeViewModel.isAddFriendSearching.collectAsStateWithLifecycle()
 
-    // 观察 allContacts 的变化，确保联系人状态更新时 UI 会重新组合
+    // Observe changes in allContacts to ensure the UI recomposes when contact states update
+
     val allContacts by homeViewModel.allContacts.collectAsStateWithLifecycle()
 
     val context = LocalContext.current
 
-    // 当对话框打开时，强制刷新联系人列表以确保数据最新
+    // Force refresh the contacts list when the dialog opens to ensure the data is up to date
     LaunchedEffect(Unit) {
         Log.d("AddFriendDialog", "Dialog opened, refreshing contacts...")
         homeViewModel.refreshContacts()
@@ -3595,7 +3597,7 @@ fun AddFriendDialog(
             Column(
                 modifier = Modifier.fillMaxSize()
             ) {
-                // 顶部标题栏
+                // Top Bar title
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -3626,7 +3628,7 @@ fun AddFriendDialog(
                     color = MaterialTheme.colorScheme.outlineVariant
                 )
 
-                // 搜索栏
+                // Searching input field
                 OutlinedTextField(
                     value = searchQuery,
                     onValueChange = { homeViewModel.searchUsersAndGroupsForAdd(it) },
@@ -3678,14 +3680,14 @@ fun AddFriendDialog(
                     shape = RoundedCornerShape(12.dp)
                 )
 
-                // 搜索结果区域
+                // Search results area
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .weight(1f)
                 ) {
                     when {
-                        // 加载中状态
+                        // Loading state
                         isSearching -> {
                             Box(
                                 modifier = Modifier.fillMaxSize(),
@@ -3697,7 +3699,7 @@ fun AddFriendDialog(
                                 )
                             }
                         }
-                        // 空搜索状态
+                        // Empty search state
                         searchQuery.isEmpty() -> {
                             Box(
                                 modifier = Modifier.fillMaxSize(),
@@ -3726,7 +3728,7 @@ fun AddFriendDialog(
                                 }
                             }
                         }
-                        // 无结果状态
+                        // No results state
                         searchResults.isEmpty() && groupSearchResults.isEmpty() -> {
                             Box(
                                 modifier = Modifier.fillMaxSize(),
@@ -3756,13 +3758,13 @@ fun AddFriendDialog(
                                 }
                             }
                         }
-                        // 显示搜索结果
+                        // Display search results
                         else -> {
                             LazyColumn(
                                 modifier = Modifier.fillMaxSize(),
                                 contentPadding = PaddingValues(vertical = 8.dp)
                             ) {
-                                // 群组搜索结果
+                                // Group search results
                                 if (groupSearchResults.isNotEmpty()) {
                                     item {
                                         Text(
@@ -3803,7 +3805,7 @@ fun AddFriendDialog(
                                     }
                                 }
 
-                                // 用户搜索结果
+                                // User search results
                                 if (searchResults.isNotEmpty()) {
                                     item {
                                         Text(
@@ -3818,8 +3820,8 @@ fun AddFriendDialog(
                                         items = searchResults,
                                         key = { "user_${it.id}" }
                                     ) { user ->
-                                        // 观察 allContacts 的变化，确保联系人状态更新时按钮会更新
-                                        // allContacts 是 State，当它变化时会触发重新组合
+                                        // Observe changes in allContacts to ensure the button updates when contact states change
+                                        // allContacts is a State; changes to it trigger recomposition
                                         val contactStatus = remember(allContacts, user.id) {
                                             homeViewModel.getContactStatus(user.id)
                                         }
@@ -3845,7 +3847,6 @@ fun AddFriendDialog(
 }
 
 /**
- * 群组搜索结果项
  * Group Search Result Item
  */
 @Composable
@@ -3859,7 +3860,7 @@ fun GroupSearchResultItem(
             .padding(horizontal = 16.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // 群组头像
+        // Group Avatar
         if (group.avatarUrl.isNotBlank()) {
             AsyncImage(
                 model = group.avatarUrl,
@@ -3888,7 +3889,7 @@ fun GroupSearchResultItem(
 
         Spacer(modifier = Modifier.width(12.dp))
 
-        // 群组信息
+        // Group Info
         Column(
             modifier = Modifier.weight(1f)
         ) {
@@ -3907,7 +3908,7 @@ fun GroupSearchResultItem(
 
         Spacer(modifier = Modifier.width(8.dp))
 
-        // 加入按钮
+        // Add Button
         Button(
             onClick = onJoinClick,
             colors = ButtonDefaults.buttonColors(
@@ -3932,7 +3933,6 @@ fun GroupSearchResultItem(
 }
 
 /**
- * 用户搜索结果项
  * User Search Result Item
  */
 @Composable
@@ -3947,7 +3947,7 @@ fun UserSearchResultItem(
             .padding(horizontal = 16.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // 用户头像
+        // User Avatar
         if (user.avatarUrl.isNotBlank()) {
             AsyncImage(
                 model = user.avatarUrl,
@@ -3976,7 +3976,7 @@ fun UserSearchResultItem(
 
         Spacer(modifier = Modifier.width(12.dp))
 
-        // 用户信息
+        // User Info
         Column(
             modifier = Modifier.weight(1f)
         ) {
@@ -3995,12 +3995,12 @@ fun UserSearchResultItem(
 
         Spacer(modifier = Modifier.width(8.dp))
 
-        // 根据联系人状态显示不同的按钮
+        // Display different buttons based on the contact status
         when (contactStatus) {
             "added" -> {
-                // 已经是好友 - 显示灰色的 "Added" 按钮，不可点击
+                // Already friends: show a gray "Added" button that is not clickable
                 Button(
-                    onClick = { /* 不可点击 */ },
+                    onClick = { /* Cannot Click */ },
                     enabled = false,
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.surfaceVariant,
@@ -4025,9 +4025,9 @@ fun UserSearchResultItem(
                 }
             }
             "pending" -> {
-                // 已发送请求等待接受 - 显示灰色的 "Sended" 按钮，不可点击
+                // Request sent and pending approval: show a gray "Sent" button that is not clickable
                 Button(
-                    onClick = { /* 不可点击 */ },
+                    onClick = { /* Cannot Click */ },
                     enabled = false,
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.surfaceVariant,
@@ -4052,9 +4052,9 @@ fun UserSearchResultItem(
                 }
             }
             "new" -> {
-                // 收到对方的好友请求 - 显示提示文字
+                // Incoming friend request: display a prompt message
                 Button(
-                    onClick = { /* 不可点击 */ },
+                    onClick = { /* cannot click */ },
                     enabled = false,
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.surfaceVariant,
@@ -4072,7 +4072,7 @@ fun UserSearchResultItem(
                 }
             }
             else -> {
-                // 未添加状态 - 显示蓝色的 "Add" 按钮，可点击
+                // Not added: show a blue "Add" button that is clickable
                 Button(
                     onClick = onAddClick,
                     colors = ButtonDefaults.buttonColors(

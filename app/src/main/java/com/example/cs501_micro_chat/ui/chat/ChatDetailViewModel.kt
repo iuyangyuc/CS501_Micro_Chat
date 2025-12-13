@@ -266,7 +266,6 @@ class ChatDetailViewModel @Inject constructor(
             val convo = conversation ?: return@onSuccess
             _conversationId.value = convo.id
             _conversationType.value = convo.type
-            _conversationName.value = convo.name
             _conversationAvatarUrl.value = convo.avatarUrl
             if (convo.type == com.example.cs501_micro_chat.data.model.ConversationType.PRIVATE) {
                 val currentId = _currentUserId.value
@@ -274,9 +273,16 @@ class ChatDetailViewModel @Inject constructor(
                 _otherUserId.value = other
                 if (other.isNotBlank()) {
                     loadOtherUserAvatar(other)
+                    // Load contact info to get alias (nickname)
+                    loadContactDisplayName(other, convo.name)
+                } else {
+                    _conversationName.value = convo.name
                 }
             } else {
                 _otherUserId.value = ""
+                // For GROUP, load contact info to get alias if exists
+                // For GROUP contacts, the contactId is the conversationId
+                loadContactDisplayName(conversationId, convo.name)
             }
             val blocked = convo.blockedParticipants[_currentUserId.value] == true
             _isConversationBlocked.value = blocked
@@ -284,6 +290,29 @@ class ChatDetailViewModel @Inject constructor(
             _clearedAt.value = clearedTs
         }.onFailure { error ->
             Log.e("ChatDetailViewModel", "Failed to load conversation meta", error)
+        }
+    }
+
+    /**
+     * Load contact info to get display name (alias takes priority over contactName)
+     */
+    private fun loadContactDisplayName(contactId: String, fallbackName: String) {
+        viewModelScope.launch {
+            val contactResult = chatRepository.getContact(contactId)
+            contactResult.onSuccess { contact ->
+                if (contact != null) {
+                    // Use getDisplayName() which returns alias if not empty, otherwise contactName
+                    val displayName = contact.getDisplayName()
+                    _conversationName.value = displayName.ifBlank { fallbackName }
+                    Log.d("ChatDetailViewModel", "📛 Contact display name loaded: alias='${contact.alias}', contactName='${contact.contactName}', final='${_conversationName.value}'")
+                } else {
+                    _conversationName.value = fallbackName
+                    Log.d("ChatDetailViewModel", "📛 No contact found for $contactId, using fallback: $fallbackName")
+                }
+            }.onFailure { error ->
+                _conversationName.value = fallbackName
+                Log.e("ChatDetailViewModel", "📛 Failed to load contact for $contactId, using fallback: $fallbackName", error)
+            }
         }
     }
 

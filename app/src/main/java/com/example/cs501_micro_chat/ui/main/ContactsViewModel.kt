@@ -53,11 +53,11 @@ class ContactsViewModel @Inject constructor(
     private val _pinnedConversationIds = MutableStateFlow<Set<String>>(emptySet())
     val pinnedConversationIds: StateFlow<Set<String>> = _pinnedConversationIds.asStateFlow()
 
-    // 缓存 Conversation 数据，用于显示 GROUP 的真实信息
+    // Cache Conversation data to display real GROUP information
     private val _conversationCache = MutableStateFlow<Map<String, Conversation>>(emptyMap())
     val conversationCache: StateFlow<Map<String, Conversation>> = _conversationCache.asStateFlow()
 
-    // 搜索相关状态
+    // Search-related state
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
 
@@ -75,7 +75,7 @@ class ContactsViewModel @Inject constructor(
     }
 
     /**
-     * 加载当前用户的所有联系人
+     * Load all contacts for the current user
      */
     fun loadContacts() {
         val userId = auth.currentUser?.uid
@@ -92,7 +92,7 @@ class ContactsViewModel @Inject constructor(
             try {
                 Log.d(TAG, "Loading contacts for user: $userId")
 
-                // 从 ChatRepository 获取联系人列表
+                // Fetch the contacts list from ChatRepository
                 val flow = chatRepository.observeContacts()
                 if (flow == null) {
                     _error.value = "无法获取联系人列表"
@@ -103,12 +103,13 @@ class ContactsViewModel @Inject constructor(
                 flow.collect { allContacts ->
                     Log.d(TAG, "Received ${allContacts.size} contacts")
 
-                    // 过滤出已确认的联系人
-                    // 规则：
-                    // - GROUP: 直接显示
-                    // - PRIVATE 且 isNew = false, isPending = false: 已确认好友，显示
-                    // - PRIVATE 且 isNew = false, isPending = true: 已发送请求等待接受，不显示
-                    // - PRIVATE 且 isNew = true, isPending = false: 收到请求等待确认，不显示（在顶部请求区域显示）
+                    // Filter confirmed contacts
+                    // Rules:
+                    // - GROUP: always display
+                    // - PRIVATE with isNew = false and isPending = false: confirmed friend, display
+                    // - PRIVATE with isNew = false and isPending = true: request sent and pending approval, do not display
+                    // - PRIVATE with isNew = true and isPending = false: incoming request pending confirmation, do not display
+                    //   (shown in the top requests section)o
                     val confirmedContacts = allContacts.filter { contact ->
                         val shouldShow = if (contact.type == "GROUP") {
                             Log.d(TAG, "✅ Contact ${contact.contactId} (GROUP): SHOW")
