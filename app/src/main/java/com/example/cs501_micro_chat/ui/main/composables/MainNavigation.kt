@@ -8,7 +8,6 @@ import androidx.compose.ui.Modifier
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import com.example.cs501_micro_chat.ui.debug.DebugScreen
 import com.example.cs501_micro_chat.ui.login.LoginRoute
 import com.example.cs501_micro_chat.ui.main.HomeScreen
 import com.example.cs501_micro_chat.ui.signup.SignupRoute
@@ -17,7 +16,6 @@ private object AuthDestinations {
     const val Signup = "signup"
     const val Login = "login"
     const val Home = "home"
-    const val fireConnDebug = "fDebug"
 }
 
 @Composable
@@ -28,7 +26,6 @@ fun MicroChatApp() {
         NavHost(
             navController = navController,
             startDestination = AuthDestinations.Login
-//            startDestination = AuthDestinations.fireConnDebug  // 临时：重新创建测试数据
         ) {
             composable(route = AuthDestinations.Signup) {
                 SignupRoute(
@@ -74,11 +71,6 @@ fun MicroChatApp() {
                             }
                         }
                     }
-                )
-            }
-            composable(route = AuthDestinations.fireConnDebug) {
-                DebugScreen(
-                    onNavigateBack = { navController.popBackStack() }
                 )
             }
         }

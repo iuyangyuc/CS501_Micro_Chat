@@ -1,7 +1,6 @@
 /**
  * MicroChatApplication.kt
  *
- * 应用程序入口类 - 初始化 Hilt 和 Firebase
  * Application Entry Point - Initializes Hilt and Firebase
  *
  * @author CS501 Team
@@ -20,7 +19,7 @@ import java.io.StringWriter
 class MicroChatApplication : Application() {
     override fun onCreate() {
         super.onCreate()
-        // Firebase 会自动初始化，但我们可以在这里做额外的配置
+        // Firebase auto-initializes, but we can do additional configuration here
         FirebaseApp.initializeApp(this)
 
         installCrashHandler()
@@ -30,7 +29,7 @@ class MicroChatApplication : Application() {
         val defaultHandler = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
             logUncaughtCrash(thread, throwable)
-            // 交给系统默认处理（崩溃对用户可见）
+            // Pass to system default handler (crash visible to user)
             defaultHandler?.uncaughtException(thread, throwable)
         }
     }
@@ -51,7 +50,7 @@ class MicroChatApplication : Application() {
                 }
             )
         } catch (_: Exception) {
-            // 保底，不阻塞崩溃流程
+            // Fallback, don't block crash flow
         }
     }
 }

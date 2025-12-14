@@ -39,7 +39,7 @@ class GroupProfileViewModel @Inject constructor(
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, errorMessage = null) }
 
-            // 获取当前用户ID
+            // Get current user ID
             val currentUserId = chatRepository.currentUserIdOrNull()
 
             chatRepository.getConversation(conversationId).onSuccess { conversation ->
@@ -49,7 +49,7 @@ class GroupProfileViewModel @Inject constructor(
                     return@onSuccess
                 }
 
-                // 获取群组信息以判断是否为群主
+                // Get group info to check if current user is the owner
                 chatRepository.getGroup(conversationId).onSuccess { group ->
                     val isOwner = group?.ownerId == currentUserId
                     _uiState.update {
@@ -64,7 +64,7 @@ class GroupProfileViewModel @Inject constructor(
                         )
                     }
                 }.onFailure {
-                    // 即使获取群组信息失败，也显示会话基本信息
+                    // Even if getting group info fails, still show basic conversation info
                     _uiState.update {
                         it.copy(
                             conversationId = convo.id,
@@ -235,12 +235,12 @@ class GroupProfileViewModel @Inject constructor(
     }
 
     /**
-     * 解散群组（仅群主可用）
+     * Dismiss group (only available for group owner)
      */
     fun dismissGroup() {
         val groupId = _uiState.value.conversationId
         if (groupId.isBlank()) return
-        if (!_uiState.value.isOwner) return // 只有群主可以解散
+        if (!_uiState.value.isOwner) return // Only owner can dismiss
 
         viewModelScope.launch {
             _uiState.update { it.copy(isDismissing = true) }
