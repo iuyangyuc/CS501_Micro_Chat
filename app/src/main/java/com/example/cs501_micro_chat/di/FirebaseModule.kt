@@ -1,7 +1,6 @@
 /**
  * FirebaseModule.kt
  *
- * Hilt 依赖注入模块 - 提供 Firebase 相关的单例实例
  * Hilt Dependency Injection Module - Provides Firebase singleton instances
  *
  * @author CS501 Team
@@ -30,7 +29,7 @@ import javax.inject.Singleton
 object FirebaseModule {
 
     /**
-     * 提供 Firebase Authentication 实例
+     * Provides Firebase Authentication instance
      */
     @Provides
     @Singleton
@@ -39,7 +38,7 @@ object FirebaseModule {
     }
 
     /**
-     * 提供 Firebase Firestore 实例
+     * Provides Firebase Firestore instance
      */
     @Provides
     @Singleton
@@ -48,7 +47,7 @@ object FirebaseModule {
     }
 
     /**
-     * 提供 Firebase Storage 实例
+     * Provides Firebase Storage instance
      */
     @Provides
     @Singleton
@@ -68,7 +67,7 @@ object FirebaseModule {
     }
 
     /**
-     * 提供 AuthRepository 实例
+     * Provides AuthRepository instance
      */
     @Provides
     @Singleton
@@ -80,7 +79,7 @@ object FirebaseModule {
     }
 
     /**
-     * 提供 FirebaseDataSource 实例
+     * Provides FirebaseDataSource instance
      */
     @Provides
     @Singleton
@@ -92,7 +91,7 @@ object FirebaseModule {
     }
 
     /**
-     * 提供 ChatRepository 实例
+     * Provides ChatRepository instance
      */
     @Provides
     @Singleton
@@ -104,7 +103,7 @@ object FirebaseModule {
     }
 
     /**
-     * 提供 StorageRepository 实例
+     * Provides StorageRepository instance
      */
     @Provides
     @Singleton

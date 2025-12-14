@@ -28,12 +28,12 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // 设置全局异常处理器以捕获崩溃
+        // Set up global exception handler to catch crashes
         Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
             Log.e("MainActivity", "Uncaught exception in thread ${thread.name}", throwable)
-            // 打印详细的堆栈跟踪
+            // Print detailed stack trace
             throwable.printStackTrace()
-            // 重新抛出异常以显示默认的崩溃对话框
+            // Re-throw exception to show default crash dialog
             Thread.getDefaultUncaughtExceptionHandler()?.uncaughtException(thread, throwable)
         }
 

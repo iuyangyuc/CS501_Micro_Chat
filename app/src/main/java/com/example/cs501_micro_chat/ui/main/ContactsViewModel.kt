@@ -53,11 +53,11 @@ class ContactsViewModel @Inject constructor(
     private val _pinnedConversationIds = MutableStateFlow<Set<String>>(emptySet())
     val pinnedConversationIds: StateFlow<Set<String>> = _pinnedConversationIds.asStateFlow()
 
-    // 缓存 Conversation 数据，用于显示 GROUP 的真实信息
+    // Cache Conversation data to display real GROUP information
     private val _conversationCache = MutableStateFlow<Map<String, Conversation>>(emptyMap())
     val conversationCache: StateFlow<Map<String, Conversation>> = _conversationCache.asStateFlow()
 
-    // 搜索相关状态
+    // Search-related state
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
 
@@ -75,7 +75,7 @@ class ContactsViewModel @Inject constructor(
     }
 
     /**
-     * 加载当前用户的所有联系人
+     * Load all contacts for the current user
      */
     fun loadContacts() {
         val userId = auth.currentUser?.uid
@@ -92,7 +92,7 @@ class ContactsViewModel @Inject constructor(
             try {
                 Log.d(TAG, "Loading contacts for user: $userId")
 
-                // 从 ChatRepository 获取联系人列表
+                // Fetch the contacts list from ChatRepository
                 val flow = chatRepository.observeContacts()
                 if (flow == null) {
                     _error.value = "无法获取联系人列表"
@@ -103,18 +103,19 @@ class ContactsViewModel @Inject constructor(
                 flow.collect { allContacts ->
                     Log.d(TAG, "Received ${allContacts.size} contacts")
 
-                    // 过滤出已确认的联系人
-                    // 规则：
-                    // - GROUP: 直接显示
-                    // - PRIVATE 且 isNew = false, isPending = false: 已确认好友，显示
-                    // - PRIVATE 且 isNew = false, isPending = true: 已发送请求等待接受，不显示
-                    // - PRIVATE 且 isNew = true, isPending = false: 收到请求等待确认，不显示（在顶部请求区域显示）
+                    // Filter confirmed contacts
+                    // Rules:
+                    // - GROUP: always display
+                    // - PRIVATE with isNew = false and isPending = false: confirmed friend, display
+                    // - PRIVATE with isNew = false and isPending = true: request sent and pending approval, do not display
+                    // - PRIVATE with isNew = true and isPending = false: incoming request pending confirmation, do not display
+                    //   (shown in the top requests section)o
                     val confirmedContacts = allContacts.filter { contact ->
                         val shouldShow = if (contact.type == "GROUP") {
                             Log.d(TAG, "✅ Contact ${contact.contactId} (GROUP): SHOW")
                             true
                         } else {
-                            // 个人联系人：只显示已确认的好友
+                            // Personal contacts: display confirmed friends only
                             val result = !contact.isNew && !contact.isPending
                             val reason = when {
                                 contact.isNew && contact.isPending -> "isNew=true & isPending=true (异常状态)"
@@ -133,13 +134,13 @@ class ContactsViewModel @Inject constructor(
                     _contacts.value = confirmedContacts
                     _isLoading.value = false
 
-                    // 为 GROUP 类型的联系人加载 Conversation 信息
+                    // Load Conversation information for GROUP-type contacts
                     loadConversationsForGroups(confirmedContacts)
 
-                    // 分类并排序
+                    // sorting
                     val (groups, privateContacts) = confirmedContacts.partition { it.isGroup() }
 
-                    // 按显示名称的字典序排序
+                    // Sort by display name in alphabetical order
                     _groups.value = groups.sortedBy { it.getDisplayName().lowercase() }
                     _privateContacts.value = privateContacts.sortedBy { it.getDisplayName().lowercase() }
 
@@ -163,12 +164,12 @@ class ContactsViewModel @Inject constructor(
     }
 
     /**
-     * 为 GROUP 类型的联系人加载 Conversation 信息
+     * Load Conversation information for GROUP-type contacts
      */
     private fun loadConversationsForGroups(contacts: List<Contact>) {
         viewModelScope.launch {
             try {
-                // 获取所有 GROUP 类型的 conversationId
+                // Retrieve all conversationIds for GROUP-type contacts
                 val groupConversationIds = contacts
                     .filter { it.isGroup() && it.conversationId.isNotBlank() }
                     .map { it.conversationId }
@@ -181,7 +182,7 @@ class ContactsViewModel @Inject constructor(
 
                 Log.d(TAG, "Loading ${groupConversationIds.size} group conversations")
 
-                // 批量获取 Conversation 信息
+                // Fetch Conversation information in bulk
                 val newCache = mutableMapOf<String, Conversation>()
                 groupConversationIds.forEach { conversationId ->
                     val result = chatRepository.getConversation(conversationId)
@@ -195,7 +196,7 @@ class ContactsViewModel @Inject constructor(
                     }
                 }
 
-                // 更新缓存
+                // update cache
                 _conversationCache.value = newCache
                 Log.d(TAG, "Conversation cache updated with ${newCache.size} entries")
             } catch (e: Exception) {
@@ -205,8 +206,8 @@ class ContactsViewModel @Inject constructor(
     }
 
     /**
-     * 获取联系人的显示名称
-     * 对于 GROUP，从 Conversation 中获取真实名称
+     * Get the display name of a contact
+     * For GROUP contacts, retrieve the actual name from the Conversation
      */
     fun getDisplayName(contact: Contact): String {
         if (contact.isGroup()) {
@@ -219,8 +220,8 @@ class ContactsViewModel @Inject constructor(
     }
 
     /**
-     * 获取联系人的头像 URL
-     * 对于 GROUP，从 Conversation 中获取真实头像
+     * Get the avatar URL of a contact
+     * For GROUP contacts, retrieve the actual avatar from the Conversation
      */
     fun getAvatarUrl(contact: Contact): String {
         if (contact.isGroup()) {
@@ -233,14 +234,14 @@ class ContactsViewModel @Inject constructor(
     }
 
     /**
-     * 刷新联系人列表
+     * Refresh the contacts list
      */
     fun refresh() {
         loadContacts()
     }
 
     /**
-     * 更新搜索关键词
+     * Update the search keyword
      */
     fun updateSearchQuery(query: String) {
         _searchQuery.value = query
@@ -253,28 +254,29 @@ class ContactsViewModel @Inject constructor(
     }
 
     /**
-     * 搜索联系人
-     * 在当前用户的 contacts 中搜索，支持搜索 contactName 和 contactId
+     * Search contacts
+     * Searches within the current user's contacts, supporting contactName and contactId
      */
+
     private fun searchContacts(query: String) {
         _isSearching.value = true
 
         val normalizedQuery = query.lowercase().trim()
 
-        // 在所有联系人中搜索（包括 groups 和 privateContacts）
+        // Search across all contacts (including groups and private contacts)
         val allContacts = _contacts.value
 
         val results = allContacts.filter { contact ->
-            // 获取显示名称
+            // Get display name
             val displayName = getDisplayName(contact)
 
-            // 搜索条件：contactId 或 contactName（包括备注名）
+            // Search criteria: contactId or contactName (including remarks)
             contact.contactId.lowercase().contains(normalizedQuery) ||
             displayName.lowercase().contains(normalizedQuery) ||
             contact.contactName.lowercase().contains(normalizedQuery)
         }
 
-        // 按相关性排序：完全匹配 > 开头匹配 > 包含匹配
+        // Sort by relevance: exact match > prefix match > partial match
         val sortedResults = results.sortedWith(compareBy(
             { contact ->
                 val displayName = getDisplayName(contact).lowercase()
@@ -294,7 +296,7 @@ class ContactsViewModel @Inject constructor(
     }
 
     /**
-     * 清空搜索
+     * Clear search state
      */
     fun clearSearch() {
         _searchQuery.value = ""

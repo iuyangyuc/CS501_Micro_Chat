@@ -1,13 +1,12 @@
 /**
  * HomeViewModel.kt
  *
- * 主界面 ViewModel - 管理聊天列表数据
  * Home Screen ViewModel - Manages chat list data
  *
- * 主要功能 / Main Functions:
- * - 从 Firebase 获取会话列表 / Fetch conversation list from Firebase
- * - 实时监听会话更新 / Real-time conversation updates
- * - 格式化时间显示 / Format time display
+ * Main Functions:
+ * - Fetch conversation list from Firebase
+ * - Real-time conversation updates
+ * - Format time display
  *
  * @author CS501 Team
  * @date 2025-11-06
@@ -54,7 +53,7 @@ class HomeViewModel @Inject constructor(
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error.asStateFlow()
 
-    // 用户信息缓存：userId -> User
+    // User info cache: userId -> User
     private val _userCache = MutableStateFlow<Map<String, com.example.cs501_micro_chat.data.model.User>>(emptyMap())
     val userCache: StateFlow<Map<String, com.example.cs501_micro_chat.data.model.User>> = _userCache.asStateFlow()
     private val _isUsersLoading = MutableStateFlow(false)
@@ -62,7 +61,7 @@ class HomeViewModel @Inject constructor(
     private val _isContactsReady = MutableStateFlow(false)
     val isContactsReady: StateFlow<Boolean> = _isContactsReady.asStateFlow()
 
-    // 搜索相关状态
+    // Search related states
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
 
@@ -72,7 +71,7 @@ class HomeViewModel @Inject constructor(
     private val _isSearching = MutableStateFlow(false)
     val isSearching: StateFlow<Boolean> = _isSearching.asStateFlow()
 
-    // 添加好友搜索相关状态
+    // Add friend search related states
     private val _addFriendSearchQuery = MutableStateFlow("")
     val addFriendSearchQuery: StateFlow<String> = _addFriendSearchQuery.asStateFlow()
 
@@ -82,23 +81,23 @@ class HomeViewModel @Inject constructor(
     private val _isAddFriendSearching = MutableStateFlow(false)
     val isAddFriendSearching: StateFlow<Boolean> = _isAddFriendSearching.asStateFlow()
 
-    // 添加群组搜索相关状态
+    // Add group search results
     private val _addGroupSearchResults = MutableStateFlow<List<com.example.cs501_micro_chat.data.model.Group>>(emptyList())
     val addGroupSearchResults: StateFlow<List<com.example.cs501_micro_chat.data.model.Group>> = _addGroupSearchResults.asStateFlow()
 
-    // 已有联系人的 ID 集合（用于判断用户是否已添加）
+    // Set of existing contact IDs (used to check whether a user has already been added)
     private val _existingContactIds = MutableStateFlow<Set<String>>(emptySet())
     val existingContactIds: StateFlow<Set<String>> = _existingContactIds.asStateFlow()
 
-    // 所有联系人的完整信息（用于判断详细状态）
+    // Full information for all contacts (used to determine detailed status)
     private val _allContacts = MutableStateFlow<List<Contact>>(emptyList())
     val allContacts: StateFlow<List<Contact>> = _allContacts.asStateFlow()
 
-    // 待确认的好友请求列表（isNew = true 的联系人）
+    // List of pending friend requests (contacts with isNew = true)
     private val _pendingFriendRequests = MutableStateFlow<List<Contact>>(emptyList())
     val pendingFriendRequests: StateFlow<List<Contact>> = _pendingFriendRequests.asStateFlow()
 
-    // 置顶会话 ID 集合
+    // Set of pinned conversation IDs
     private val _pinnedConversationIds = MutableStateFlow<Set<String>>(emptySet())
     val pinnedConversationIds: StateFlow<Set<String>> = _pinnedConversationIds.asStateFlow()
 
@@ -111,13 +110,13 @@ class HomeViewModel @Inject constructor(
     }
 
     /**
-     * 加载当前用户的所有会话
+     * Load all conversations for the current user
      */
     fun loadConversations() {
         val userId = auth.currentUser?.uid
         if (userId == null) {
             Log.e(TAG, "User not logged in")
-            _error.value = "用户未登录"
+            _error.value = "User not logged in"
             return
         }
 
@@ -128,10 +127,10 @@ class HomeViewModel @Inject constructor(
             try {
                 Log.d(TAG, "Loading conversations for user: $userId")
 
-                // 从 ChatRepository 获取会话列表
+                // Fetch the conversation list from ChatRepository
                 val flow = chatRepository.observeUserConversations()
                 if (flow == null) {
-                    _error.value = "无法获取会话列表"
+                    _error.value = "Unable to fetch conversation list"
                     _isLoading.value = false
                     return@launch
                 }
@@ -142,29 +141,29 @@ class HomeViewModel @Inject constructor(
                     _conversations.value = applyPinnedSorting(adjusted)
                     _isLoading.value = false
 
-                    // 加载会话中所有参与者的用户信息
+                    // Load user information for all participants in the conversations
                     loadUsersForConversations(adjusted)
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Error loading conversations", e)
-                _error.value = "加载会话失败: ${e.message}"
+                _error.value = "Failed to load conversations: ${e.message}"
                 _isLoading.value = false
             }
         }
     }
 
     /**
-     * 加载会话中所有参与者的用户信息
+     * Load user information for all participants in the conversations
      */
     private fun loadUsersForConversations(conversations: List<Conversation>) {
         viewModelScope.launch {
             _isUsersLoading.value = true
             try {
-                // 收集所有需要加载的用户 ID
+                // Collect all user IDs that need to be loaded
                 val userIds = conversations.flatMap { it.participants }.toSet()
                 val currentUserId = auth.currentUser?.uid
 
-                // 过滤掉当前用户自己，其余全部刷新，避免头像缓存过期
+                // Exclude the current user and refresh all others to avoid stale avatar cache
                 val idsToLoad = userIds.filter { it != currentUserId }
                 if (idsToLoad.isEmpty()) {
                     _isUsersLoading.value = false
@@ -173,11 +172,11 @@ class HomeViewModel @Inject constructor(
 
                 Log.d(TAG, "Loading ${idsToLoad.size} users (refreshing cache): $idsToLoad")
 
-                // 批量获取用户信息（即便已缓存也强制刷新，保证头像同步）
+                // Batch fetch user info (force refresh even if cached to ensure avatar sync)
                 val result = chatRepository.getUsers(idsToLoad)
                 result.onSuccess { users ->
                     Log.d(TAG, "Loaded/updated ${users.size} users")
-                    // 覆盖式合并，确保头像等字段使用最新值
+                    // Overwrite merge to ensure fields like avatar use the latest values
                     _userCache.value = _userCache.value + users
                 }.onFailure { error ->
                     Log.e(TAG, "Failed to load users", error)
@@ -191,7 +190,7 @@ class HomeViewModel @Inject constructor(
     }
 
     /**
-     * 格式化时间显示
+     * Format time display
      */
     fun formatTime(timestamp: Long): String {
         val now = System.currentTimeMillis()
@@ -207,25 +206,25 @@ class HomeViewModel @Inject constructor(
         )
 
         return when {
-            // 今天 - 显示时间
+            // Today - show time
             instantDate == todayDate -> {
                 val formatted = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(timestamp))
                 Log.d(TAG, "formatTime -> today: $formatted")
                 formatted
             }
-            // 昨天 - 返回本地化“昨天”
+            // Yesterday - return localized "Yesterday"
             instantDate == yesterdayDate -> {
                 val yesterdayLabel = "Yesterday" // UI layer can swap to stringResource
                 Log.d(TAG, "formatTime -> yesterday: $yesterdayLabel")
                 yesterdayLabel
             }
-            // 一周内 - 显示星期
+            // Within a week - show weekday
             diff < 7 * 24 * 60 * 60 * 1000 -> {
                 val formatted = SimpleDateFormat("EEEE", Locale.getDefault()).format(Date(timestamp))
                 Log.d(TAG, "formatTime -> weekday: $formatted")
                 formatted
             }
-            // 更早 - 显示日期
+            // Older - show date
             else -> {
                 val formatted = SimpleDateFormat("MM/dd", Locale.getDefault()).format(Date(timestamp))
                 Log.d(TAG, "formatTime -> date: $formatted")
@@ -235,7 +234,7 @@ class HomeViewModel @Inject constructor(
     }
 
     /**
-     * 获取当前用户的未读消息数
+     * Get unread message count for the current user
      */
     fun getUnreadCount(conversation: Conversation): Int {
         val userId = auth.currentUser?.uid ?: return 0
@@ -243,32 +242,32 @@ class HomeViewModel @Inject constructor(
     }
 
     /**
-     * 从 participants 中获取对方用户的 ID
-     * 对于私聊，返回 participants 中不是当前用户的那个 ID
+     * Get the other user's ID from participants
+     * For private chats, returns the ID that is not the current user
      */
     fun getOtherUserId(conversation: Conversation): String? {
         val currentUserId = auth.currentUser?.uid ?: return null
 
-        // 如果 participants 为空或只有一个人，返回 null
+        // If participants is empty or has only one person, return null
         if (conversation.participants.size < 2) {
             return null
         }
 
-        // 返回第一个不是当前用户的 ID
+        // Return the first ID that is not the current user
         return conversation.participants.firstOrNull { it != currentUserId }
     }
 
     /**
-     * 获取会话的显示名称
-     * 对于私聊，从缓存中获取对方用户的真实用户名
+     * Get display name for conversation
+     * For private chats, get the other user's real username from cache
      */
     fun getDisplayName(conversation: Conversation): String {
-        // 对于群聊，使用 conversation.name
+        // For group chats, use conversation.name
         if (conversation.type == com.example.cs501_micro_chat.data.model.ConversationType.GROUP) {
-            return conversation.name.ifEmpty { "群聊" }
+            return conversation.name.ifEmpty { "Group Chat" }
         }
 
-        // 对于私聊，从缓存中获取对方用户的真实用户名
+        // For private chats, get the other user's real username from cache
         val otherUserId = getOtherUserId(conversation)
         if (otherUserId != null) {
             val contactAlias = _allContacts.value.firstOrNull { it.contactId == otherUserId }?.getDisplayName()
@@ -284,7 +283,7 @@ class HomeViewModel @Inject constructor(
             }
         }
 
-        // 如果缓存中没有，返回默认值
+        // If not in cache, return default value
         val currentName = auth.currentUser?.displayName.orEmpty()
         val currentEmailPrefix = auth.currentUser?.email?.substringBefore("@").orEmpty()
         val convoName = conversation.name
@@ -293,18 +292,18 @@ class HomeViewModel @Inject constructor(
             return convoName
         }
 
-        return otherUserId?.takeIf { it.isNotBlank() } ?: "加载中..."
+        return otherUserId?.takeIf { it.isNotBlank() } ?: "Loading..."
     }
 
     /**
-     * 获取会话的头像 URL
-     * 对于私聊，从缓存中获取对方用户的真实头像
+     * Get avatar URL for conversation
+     * For private chats, get the other user's real avatar from cache
      */
     fun getAvatarUrl(conversation: Conversation): String {
-        // 对于群聊，使用 conversation.avatarUrl
+        // For group chats, use conversation.avatarUrl
         if (conversation.type == com.example.cs501_micro_chat.data.model.ConversationType.GROUP) {
             if (conversation.avatarUrl.isNotBlank()) return conversation.avatarUrl
-            // 兜底：从联系人缓存读取群头像
+            // Fallback: read group avatar from contact cache
             val contact = _allContacts.value.firstOrNull { it.conversationId == conversation.id || it.contactId == conversation.id }
             if (contact != null && contact.contactAvatarUrl.isNotBlank()) {
                 return contact.contactAvatarUrl
@@ -312,10 +311,10 @@ class HomeViewModel @Inject constructor(
             return ""
         }
 
-        // 对于私聊，从缓存中获取对方用户的真实头像
+        // For private chats, get the other user's real avatar from cache
         val otherUserId = getOtherUserId(conversation)
         if (otherUserId != null) {
-            // 优先使用联系人里的头像（联系人的头像更新最快）
+            // Prefer contact avatar (contact avatar updates fastest)
             val contactAvatar = _allContacts.value.firstOrNull { it.contactId == otherUserId }?.contactAvatarUrl
             if (!contactAvatar.isNullOrBlank()) {
                 return contactAvatar
@@ -327,19 +326,19 @@ class HomeViewModel @Inject constructor(
             }
         }
 
-        // 如果缓存中没有，回退到会话内置头像或空
+        // If not in cache, fall back to conversation's built-in avatar or empty
         return conversation.avatarUrl
     }
 
     /**
-     * 清除错误消息
+     * Clear error message
      */
     fun clearError() {
         _error.value = null
     }
 
     /**
-     * 更新搜索关键词
+     * Update search query
      */
     fun updateSearchQuery(query: String) {
         _searchQuery.value = query
@@ -352,25 +351,25 @@ class HomeViewModel @Inject constructor(
     }
 
     /**
-     * 搜索对话
-     * 在当前用户的所有对话中搜索，支持搜索对话名称和最后一条消息
+     * Search conversations
+     * Search in all conversations of the current user, supports searching by conversation name and last message
      */
     private fun searchConversations(query: String) {
         _isSearching.value = true
 
         val normalizedQuery = query.lowercase().trim()
 
-        // 在所有对话中搜索
+        // Search in all conversations
         val results = _conversations.value.filter { conversation ->
-            // 获取显示名称
+            // Get display name
             val displayName = getDisplayName(conversation)
 
-            // 搜索条件：对话名称 或 最后一条消息内容
+            // Search criteria: conversation name OR last message content
             displayName.lowercase().contains(normalizedQuery) ||
             conversation.lastMessage.lowercase().contains(normalizedQuery)
         }
 
-        // 按相关性排序：完全匹配 > 开头匹配 > 包含匹配
+        // Sort by relevance: exact match > prefix match > contains match
         val sortedResults = results.sortedWith(compareBy(
             { conversation ->
                 val displayName = getDisplayName(conversation).lowercase()
@@ -380,7 +379,7 @@ class HomeViewModel @Inject constructor(
                     else -> 2
                 }
             },
-            // 二级排序：按时间倒序
+            // Secondary sort: by time descending
             { -it.lastMessageTime }
         ))
 
@@ -391,7 +390,7 @@ class HomeViewModel @Inject constructor(
     }
 
     /**
-     * 清空搜索
+     * Clear search
      */
     fun clearSearch() {
         _searchQuery.value = ""
@@ -409,7 +408,7 @@ class HomeViewModel @Inject constructor(
         val trimmed = name.trim()
         if (trimmed.isEmpty()) return Result.failure(Exception("Group name cannot be empty"))
 
-        // 验证：至少需要选择1个成员（加上群主共2人）
+        // Validation: at least 1 member is required (plus the creator makes 2)
         if (memberIds.isEmpty()) {
             return Result.failure(Exception("At least 1 member is required to create a group"))
         }
@@ -454,7 +453,7 @@ class HomeViewModel @Inject constructor(
     }
 
     /**
-     * 搜索全局用户（用于添加好友）
+     * Search global users (for adding friends)
      */
     fun searchUsersForAddFriend(query: String) {
         _addFriendSearchQuery.value = query
@@ -470,7 +469,7 @@ class HomeViewModel @Inject constructor(
             try {
                 val result = chatRepository.searchUsers(query)
                 result.onSuccess { users ->
-                    // 过滤掉当前用户自己
+                    // Filter out current user
                     val currentUserId = auth.currentUser?.uid
                     val filteredUsers = users
                         .filter { it.id != currentUserId }
@@ -486,12 +485,12 @@ class HomeViewModel @Inject constructor(
                     Log.d(TAG, "Global user search for '$query' found ${filteredUsers.size} results")
                 }.onFailure { error ->
                     Log.e(TAG, "Failed to search users", error)
-                    _error.value = "搜索失败: ${error.message}"
+                    _error.value = "Search failed: ${error.message}"
                     _addFriendSearchResults.value = emptyList()
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Error searching users", e)
-                _error.value = "搜索失败: ${e.message}"
+                _error.value = "Search failed: ${e.message}"
                 _addFriendSearchResults.value = emptyList()
             } finally {
                 _isAddFriendSearching.value = false
@@ -500,8 +499,8 @@ class HomeViewModel @Inject constructor(
     }
 
     /**
-     * 加载已有联系人列表（用于判断用户是否已添加）
-     * 同时加载待确认的好友请求和已发送的好友请求
+     * Load existing contacts list (used to check if a user has already been added)
+     * Also loads pending friend requests and sent friend requests
      */
     private fun loadExistingContacts() {
         val userId = auth.currentUser?.uid
@@ -513,7 +512,7 @@ class HomeViewModel @Inject constructor(
 
         viewModelScope.launch {
             try {
-                // 监听联系人列表变化
+                // Observe contact list changes
                 val flow = chatRepository.observeContacts()
                 if (flow == null) {
                     Log.e(TAG, "Cannot observe contacts")
@@ -522,7 +521,7 @@ class HomeViewModel @Inject constructor(
                 }
 
                 flow.collect { contacts ->
-                    // 存储所有联系人信息
+                    // Store all contact information
                     _allContacts.value = contacts
 
                     Log.d(TAG, "📱 Contacts updated from Firebase:")
@@ -530,18 +529,18 @@ class HomeViewModel @Inject constructor(
                         Log.d(TAG, "  - ${contact.contactId} (${contact.contactName}): isNew=${contact.isNew}, isPending=${contact.isPending}, conversationId=${contact.conversationId}")
                     }
 
-                    // 提取所有联系人的 ID（包括 PRIVATE 和 GROUP）
-                    // 包括：已确认的好友、待确认的请求、已发送的请求
+                    // Extract all contact IDs (including PRIVATE and GROUP)
+                    // Including: confirmed friends, pending requests, sent requests
                     val contactIds = contacts.map { it.contactId }.toSet()
                     _existingContactIds.value = contactIds
                     Log.d(TAG, "Loaded ${contactIds.size} existing contact IDs: $contactIds")
 
-                    // 提取待确认的好友请求（别人发给我的，isNew = true）
+                    // Extract pending friend requests (received from others, isNew = true)
                     val pendingRequests = contacts.filter { it.isNew && it.type == "PRIVATE" }
                     _pendingFriendRequests.value = pendingRequests
                     Log.d(TAG, "Loaded ${pendingRequests.size} pending friend requests")
 
-                    // 统计已发送的请求数量（我发给别人的，isPending = true）
+                    // Count sent requests (sent by me, isPending = true)
                     val sentRequests = contacts.filter { it.isPending && it.type == "PRIVATE" }
                     Log.d(TAG, "Loaded ${sentRequests.size} sent friend requests")
 
@@ -555,24 +554,24 @@ class HomeViewModel @Inject constructor(
     }
 
     /**
-     * 检查用户是否已经是联系人
+     * Check if a user is already a contact
      */
     fun isUserAlreadyAdded(userId: String): Boolean {
         return _existingContactIds.value.contains(userId)
     }
 
     /**
-     * 获取用户的联系人状态
-     * @return "added" - 已添加为好友, "pending" - 已发送请求等待接受, "new" - 收到对方请求, null - 不是联系人
+     * Get contact status for a user
+     * @return "added" - already friends, "pending" - request sent waiting for acceptance, "new" - received request from them, null - not a contact
      */
     fun getContactStatus(userId: String): String? {
         val contact = _allContacts.value.find { it.contactId == userId }
 
         val status = when {
             contact == null -> null
-            contact.isPending -> "pending" // 已发送请求，等待对方接受
-            contact.isNew -> "new" // 收到对方的请求
-            else -> "added" // 已经是好友
+            contact.isPending -> "pending" // Request sent, waiting for acceptance
+            contact.isNew -> "new" // Received request from them
+            else -> "added" // Already friends
         }
 
         Log.d(TAG, "==================== getContactStatus DEBUG ====================")
@@ -606,7 +605,7 @@ class HomeViewModel @Inject constructor(
     }
 
     /**
-     * 清空添加好友搜索
+     * Clear add friend search
      */
     fun clearAddFriendSearch() {
         _addFriendSearchQuery.value = ""
@@ -616,7 +615,7 @@ class HomeViewModel @Inject constructor(
     }
 
     /**
-     * 搜索用户和群组（用于添加好友/加入群组）
+     * Search users and groups (for adding friends/joining groups)
      */
     fun searchUsersAndGroupsForAdd(query: String) {
         _addFriendSearchQuery.value = query
@@ -631,11 +630,11 @@ class HomeViewModel @Inject constructor(
         viewModelScope.launch {
             _isAddFriendSearching.value = true
             try {
-                // 并行搜索用户和群组
+                // Search users and groups in parallel
                 val userResult = chatRepository.searchUsers(query)
                 val groupResult = chatRepository.searchGroups(query)
 
-                // 处理用户搜索结果
+                // Process user search results
                 userResult.onSuccess { users ->
                     val currentUserId = auth.currentUser?.uid
                     val filteredUsers = users
@@ -654,10 +653,10 @@ class HomeViewModel @Inject constructor(
                     _addFriendSearchResults.value = emptyList()
                 }
 
-                // 处理群组搜索结果
+                // Process group search results
                 groupResult.onSuccess { groups ->
                     val currentUserId = auth.currentUser?.uid
-                    // 过滤掉用户已经加入的群组
+                    // Filter out groups the user has already joined
                     val filteredGroups = groups.filter { group ->
                         currentUserId == null || !group.memberIds.contains(currentUserId)
                     }
@@ -678,7 +677,7 @@ class HomeViewModel @Inject constructor(
     }
 
     /**
-     * 加入群组
+     * Join a group
      */
     fun joinGroup(groupId: String, onSuccess: () -> Unit = {}, onError: (String) -> Unit = {}) {
         viewModelScope.launch {
@@ -686,9 +685,9 @@ class HomeViewModel @Inject constructor(
                 val result = chatRepository.joinGroup(groupId)
                 result.onSuccess {
                     Log.d(TAG, "Successfully joined group: $groupId")
-                    // 从搜索结果中移除已加入的群组
+                    // Remove the joined group from search results
                     _addGroupSearchResults.value = _addGroupSearchResults.value.filter { it.id != groupId }
-                    // 刷新会话列表
+                    // Refresh conversation list
                     loadConversations()
                     onSuccess()
                 }.onFailure { error ->
@@ -703,7 +702,7 @@ class HomeViewModel @Inject constructor(
     }
 
     /**
-     * 手动刷新联系人列表（用于调试或确保数据最新）
+     * Manually refresh contacts list (for debugging or ensuring data is up-to-date)
      */
     fun refreshContacts() {
         Log.d(TAG, "🔄 Manually refreshing contacts from Firebase...")
@@ -715,7 +714,7 @@ class HomeViewModel @Inject constructor(
                     return@launch
                 }
 
-                // 直接从 Firebase 获取最新的联系人列表
+                // Fetch the latest contact list directly from Firebase
                 val result = chatRepository.getContacts()
                 result.onSuccess { contacts ->
                     Log.d(TAG, "✅ Refreshed contacts: ${contacts.size} total")
@@ -747,7 +746,7 @@ class HomeViewModel @Inject constructor(
     }
 
     /**
-     * 发送好友请求
+     * Send friend request
      */
     fun sendFriendRequest(targetUser: User) {
         viewModelScope.launch {
@@ -755,11 +754,11 @@ class HomeViewModel @Inject constructor(
                 val targetUserId = targetUser.id
                 val currentUserId = auth.currentUser?.uid
                 if (currentUserId.isNullOrBlank()) {
-                    _error.value = "用户未登录"
+                    _error.value = "User not logged in"
                     return@launch
                 }
                 if (targetUserId.isBlank()) {
-                    _error.value = "目标用户信息不完整，无法发送请求"
+                    _error.value = "Target user info incomplete, cannot send request"
                     return@launch
                 }
 
@@ -788,21 +787,21 @@ class HomeViewModel @Inject constructor(
                     _allContacts.value = updatedContacts
                     _existingContactIds.value = _existingContactIds.value + targetUserId
 
-                    // 清空搜索结果
+                    // Clear search results
                     clearAddFriendSearch()
                 }.onFailure { error ->
                     Log.e(TAG, "Failed to send friend request", error)
-                    _error.value = "发送好友请求失败: ${error.message}"
+                    _error.value = "Failed to send friend request: ${error.message}"
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Error sending friend request", e)
-                _error.value = "发送好友请求失败: ${e.message}"
+                _error.value = "Failed to send friend request: ${e.message}"
             }
         }
     }
 
     /**
-     * 接受好友请求
+     * Accept friend request
      */
     fun acceptFriendRequest(requesterId: String) {
         viewModelScope.launch {
@@ -811,21 +810,21 @@ class HomeViewModel @Inject constructor(
                 val result = chatRepository.acceptFriendRequest(requesterId)
                 result.onSuccess {
                     Log.d(TAG, "Friend request accepted successfully")
-                    // 重新加载对话列表
+                    // Reload conversation list
                     loadConversations()
                 }.onFailure { error ->
                     Log.e(TAG, "Failed to accept friend request", error)
-                    _error.value = "接受好友请求失败: ${error.message}"
+                    _error.value = "Failed to accept friend request: ${error.message}"
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Error accepting friend request", e)
-                _error.value = "接受好友请求失败: ${e.message}"
+                _error.value = "Failed to accept friend request: ${e.message}"
             }
         }
     }
 
     /**
-     * 拒绝好友请求
+     * Reject friend request
      */
     fun rejectFriendRequest(requesterId: String) {
         viewModelScope.launch {
@@ -836,11 +835,11 @@ class HomeViewModel @Inject constructor(
                     Log.d(TAG, "Friend request rejected successfully")
                 }.onFailure { error ->
                     Log.e(TAG, "Failed to reject friend request", error)
-                    _error.value = "拒绝好友请求失败: ${error.message}"
+                    _error.value = "Failed to reject friend request: ${error.message}"
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Error rejecting friend request", e)
-                _error.value = "拒绝好友请求失败: ${e.message}"
+                _error.value = "Failed to reject friend request: ${e.message}"
             }
         }
     }

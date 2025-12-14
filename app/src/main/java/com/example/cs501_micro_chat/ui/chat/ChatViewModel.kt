@@ -1,14 +1,13 @@
 /**
  * ChatViewModel.kt
  *
- * 聊天界面 ViewModel 示例 - 展示如何使用 ChatRepository
  * Chat Screen ViewModel Example - Demonstrates how to use ChatRepository
  *
- * 功能示例：
- * - 加载和监听会话列表
- * - 发送和接收消息
- * - 创建群组
- * - 管理联系人
+ * Function Examples:
+ * - Load and observe conversation list
+ * - Send and receive messages
+ * - Create groups
+ * - Manage contacts
  *
  * @author CS501 Team
  */
@@ -26,7 +25,7 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 /**
- * 聊天 UI 状态
+ * Chat UI State
  */
 data class ChatUiState(
     val conversations: List<Conversation> = emptyList(),
@@ -49,16 +48,16 @@ class ChatViewModel @Inject constructor(
         loadContacts()
     }
 
-    // ==================== 会话相关 Conversation Operations ====================
+    // ==================== Conversation Operations ====================
 
     /**
-     * 加载用户的所有会话
+     * Load all conversations for user
      */
     private fun loadConversations() {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true)
 
-            // 实时监听会话列表变化
+            // Real-time observe conversation list changes
             chatRepository.observeUserConversations()?.collect { conversations ->
                 _uiState.value = _uiState.value.copy(
                     conversations = conversations,
@@ -70,7 +69,7 @@ class ChatViewModel @Inject constructor(
     }
 
     /**
-     * 创建或获取与某用户的私聊会话
+     * Create or get private conversation with a user
      */
     fun startChatWithUser(otherUserId: String) {
         viewModelScope.launch {
@@ -82,7 +81,7 @@ class ChatViewModel @Inject constructor(
                         isLoading = false,
                         error = null
                     )
-                    // 导航到聊天界面（由 UI 层处理）
+                    // Navigate to chat screen (handled by UI layer)
                 }
                 .onFailure { error ->
                     _uiState.value = _uiState.value.copy(
@@ -94,13 +93,13 @@ class ChatViewModel @Inject constructor(
     }
 
     /**
-     * 删除会话
+     * Delete conversation
      */
     fun deleteConversation(conversationId: String) {
         viewModelScope.launch {
             chatRepository.deleteConversation(conversationId)
                 .onSuccess {
-                    // 会话删除成功，列表会自动更新（通过监听）
+                    // Conversation deleted successfully, list will auto-update (via observer)
                 }
                 .onFailure { error ->
                     _uiState.value = _uiState.value.copy(error = error.message)
@@ -108,16 +107,16 @@ class ChatViewModel @Inject constructor(
         }
     }
 
-    // ==================== 消息相关 Message Operations ====================
+    // ==================== Message Operations ====================
 
     /**
-     * 加载会话的消息列表
+     * Load message list for conversation
      */
     fun loadMessages(conversationId: String) {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true)
 
-            // 首先加载历史消息
+            // First load history messages
             chatRepository.getMessages(conversationId, limit = 50)
                 .onSuccess { messages ->
                     _uiState.value = _uiState.value.copy(
@@ -126,21 +125,21 @@ class ChatViewModel @Inject constructor(
                     )
                 }
 
-            // 然后实时监听新消息
+            // Then real-time observe new messages
             chatRepository.observeMessages(conversationId).collect { messages ->
                 _uiState.value = _uiState.value.copy(
                     currentMessages = messages,
                     isLoading = false
                 )
 
-                // 清空未读数
+                // Clear unread count
                 chatRepository.clearUnreadCount(conversationId)
             }
         }
     }
 
     /**
-     * 发送文本消息
+     * Send text message
      */
     fun sendTextMessage(conversationId: String, content: String) {
         if (content.isBlank()) return
@@ -151,7 +150,7 @@ class ChatViewModel @Inject constructor(
                 content = content,
                 type = MessageType.TEXT
             ).onSuccess { message ->
-                // 消息发送成功，列表会自动更新（通过监听）
+                // Message sent successfully, list will auto-update (via observer)
             }.onFailure { error ->
                 _uiState.value = _uiState.value.copy(error = error.message)
             }
@@ -159,17 +158,17 @@ class ChatViewModel @Inject constructor(
     }
 
     /**
-     * 发送图片消息
+     * Send image message
      */
     fun sendImageMessage(conversationId: String, imageUrl: String) {
         viewModelScope.launch {
             chatRepository.sendMessage(
                 conversationId = conversationId,
-                content = "图片",
+                content = "Image",
                 type = MessageType.IMAGE,
                 mediaUrl = imageUrl
             ).onSuccess {
-                // 发送成功
+                // Send successful
             }.onFailure { error ->
                 _uiState.value = _uiState.value.copy(error = error.message)
             }
@@ -177,13 +176,13 @@ class ChatViewModel @Inject constructor(
     }
 
     /**
-     * 删除消息
+     * Delete message
      */
     fun deleteMessage(conversationId: String, messageId: String) {
         viewModelScope.launch {
             chatRepository.deleteMessage(conversationId, messageId)
                 .onSuccess {
-                    // 消息删除成功
+                    // Message deleted successfully
                 }
                 .onFailure { error ->
                     _uiState.value = _uiState.value.copy(error = error.message)
@@ -191,10 +190,10 @@ class ChatViewModel @Inject constructor(
         }
     }
 
-    // ==================== 群组相关 Group Operations ====================
+    // ==================== Group Operations ====================
 
     /**
-     * 创建群组
+     * Create group
      */
     fun createGroup(
         groupName: String,
@@ -206,14 +205,14 @@ class ChatViewModel @Inject constructor(
 
             chatRepository.createGroup(
                 name = groupName,
-                description = "欢迎加入 $groupName",
+                description = "Welcome to $groupName",
                 avatarUrl = avatarUrl,
                 memberIds = memberIds
             ).onSuccess { group ->
-                // 发送系统消息
+                // Send system message
                 chatRepository.sendMessage(
                     conversationId = group.id,
-                    content = "群聊已创建，欢迎大家！",
+                    content = "Group created, welcome everyone!",
                     type = MessageType.SYSTEM
                 )
 
@@ -231,17 +230,17 @@ class ChatViewModel @Inject constructor(
     }
 
     /**
-     * 添加群成员
+     * Add group members
      */
     fun addGroupMembers(groupId: String, memberIds: List<String>) {
         viewModelScope.launch {
             chatRepository.addGroupMembers(groupId, memberIds)
                 .onSuccess {
-                    // 发送系统消息
+                    // Send system message
                     val memberNames = memberIds.joinToString(", ")
                     chatRepository.sendMessage(
                         conversationId = groupId,
-                        content = "$memberNames 加入了群聊",
+                        content = "$memberNames joined the group",
                         type = MessageType.SYSTEM
                     )
                 }
@@ -252,13 +251,13 @@ class ChatViewModel @Inject constructor(
     }
 
     /**
-     * 退出群组
+     * Leave group
      */
     fun leaveGroup(groupId: String) {
         viewModelScope.launch {
             chatRepository.leaveGroup(groupId)
                 .onSuccess {
-                    // 退出成功
+                    // Left successfully
                 }
                 .onFailure { error ->
                     _uiState.value = _uiState.value.copy(error = error.message)
@@ -267,13 +266,13 @@ class ChatViewModel @Inject constructor(
     }
 
     /**
-     * 解散群组
+     * Dismiss group
      */
     fun dismissGroup(groupId: String) {
         viewModelScope.launch {
             chatRepository.dismissGroup(groupId)
                 .onSuccess {
-                    // 群组已解散
+                    // Group dismissed
                 }
                 .onFailure { error ->
                     _uiState.value = _uiState.value.copy(error = error.message)
@@ -281,14 +280,14 @@ class ChatViewModel @Inject constructor(
         }
     }
 
-    // ==================== 联系人相关 Contact Operations ====================
+    // ==================== Contact Operations ====================
 
     /**
-     * 加载联系人列表
+     * Load contact list
      */
     private fun loadContacts() {
         viewModelScope.launch {
-            // 实时监听联系人列表变化
+            // Real-time observe contact list changes
             chatRepository.observeContacts()?.collect { contacts ->
                 _uiState.value = _uiState.value.copy(
                     contacts = contacts,
@@ -299,7 +298,7 @@ class ChatViewModel @Inject constructor(
     }
 
     /**
-     * 添加联系人
+     * Add contact
      */
     fun addContact(userId: String, alias: String = "") {
         viewModelScope.launch {
@@ -323,13 +322,13 @@ class ChatViewModel @Inject constructor(
     }
 
     /**
-     * 删除联系人
+     * Delete contact
      */
     fun deleteContact(contactId: String) {
         viewModelScope.launch {
             chatRepository.deleteContact(contactId)
                 .onSuccess {
-                    // 删除成功
+                    // Delete successful
                 }
                 .onFailure { error ->
                     _uiState.value = _uiState.value.copy(error = error.message)
@@ -338,13 +337,13 @@ class ChatViewModel @Inject constructor(
     }
 
     /**
-     * 更新联系人备注
+     * Update contact alias
      */
     fun updateContactAlias(contactId: String, alias: String) {
         viewModelScope.launch {
             chatRepository.updateContactAlias(contactId, alias)
                 .onSuccess {
-                    // 更新成功
+                    // Update successful
                 }
                 .onFailure { error ->
                     _uiState.value = _uiState.value.copy(error = error.message)
@@ -353,7 +352,7 @@ class ChatViewModel @Inject constructor(
     }
 
     /**
-     * 搜索用户
+     * Search users
      */
     fun searchUsers(query: String, onResult: (List<User>) -> Unit) {
         viewModelScope.launch {
@@ -367,10 +366,10 @@ class ChatViewModel @Inject constructor(
         }
     }
 
-    // ==================== 工具方法 Utility Methods ====================
+    // ==================== Utility Methods ====================
 
     /**
-     * 清除错误信息
+     * Clear error message
      */
     fun clearError() {
         _uiState.value = _uiState.value.copy(error = null)

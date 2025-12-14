@@ -1,14 +1,13 @@
 /**
  * ChatRepository.kt
  *
- * 聊天数据仓库 - 处理聊天相关的业务逻辑
  * Chat Repository - Handles chat-related business logic
  *
- * 职责：
- * - 会话管理（创建、获取、更新、删除）
- * - 消息管理（发送、接收、标记已读）
- * - 群组管理（创建、更新、成员管理）
- * - 联系人管理
+ * Responsibilities:
+ * - Conversation management (create, get, update, delete)
+ * - Message management (send, receive, mark as read)
+ * - Group management (create, update, member management)
+ * - Contact management
  *
  * @author CS501 Team
  */
@@ -31,10 +30,10 @@ class ChatRepository @Inject constructor(
     private val currentUserId: String?
         get() = auth.currentUser?.uid
 
-    // ==================== 会话相关 Conversation Operations ====================
+    // ==================== Conversation Operations ====================
 
     /**
-     * 获取用户的所有会话
+     * Get all conversations for the user
      */
     suspend fun getUserConversations(): Result<List<Conversation>> {
         val userId = currentUserId ?: return Result.failure(Exception("User not logged in"))
@@ -42,7 +41,7 @@ class ChatRepository @Inject constructor(
     }
 
     /**
-     * 监听用户的会话列表
+     * Observe user's conversation list
      */
     fun observeUserConversations(): Flow<List<Conversation>>? {
         val userId = currentUserId ?: return null
@@ -50,7 +49,7 @@ class ChatRepository @Inject constructor(
     }
 
     /**
-     * 创建或获取与某用户的私聊会话
+     * Create or get private conversation with another user
      */
     suspend fun createOrGetPrivateConversation(otherUserId: String): Result<Conversation> {
         val userId = currentUserId ?: return Result.failure(Exception("User not logged in"))
@@ -58,30 +57,30 @@ class ChatRepository @Inject constructor(
     }
 
     /**
-     * 获取会话信息
+     * Get conversation info
      */
     suspend fun getConversation(conversationId: String): Result<Conversation?> {
         return firebaseDataSource.getConversation(conversationId)
     }
 
     /**
-     * 更新会话信息
+     * Update conversation info
      */
     suspend fun updateConversation(conversation: Conversation): Result<Unit> {
         return firebaseDataSource.updateConversation(conversation)
     }
 
     /**
-     * 删除会话
+     * Delete conversation
      */
     suspend fun deleteConversation(conversationId: String): Result<Unit> {
         return firebaseDataSource.deleteConversation(conversationId)
     }
 
-    // ==================== 消息相关 Message Operations ====================
+    // ==================== Message Operations ====================
 
     /**
-     * 发送消息
+     * Send message
      */
     suspend fun sendMessage(
         conversationId: String,
@@ -93,7 +92,7 @@ class ChatRepository @Inject constructor(
 
         val isBlocked = firebaseDataSource.isConversationParticipantBlocked(conversationId, userId).getOrElse { false }
 
-        // 获取当前用户信息
+        // Get current user info
         val userResult = firebaseDataSource.getUser(userId)
         val user = userResult.getOrNull() ?: return Result.failure(Exception("Failed to get user info"))
 
@@ -124,21 +123,21 @@ class ChatRepository @Inject constructor(
     }
 
     /**
-     * 获取会话的消息列表
+     * Get message list for a conversation
      */
     suspend fun getMessages(conversationId: String, limit: Int = 50): Result<List<Message>> {
         return firebaseDataSource.getMessages(conversationId, limit)
     }
 
     /**
-     * 监听会话的新消息
+     * Observe new messages in a conversation
      */
     fun observeMessages(conversationId: String): Flow<List<Message>> {
         return firebaseDataSource.observeMessages(conversationId)
     }
 
     /**
-     * 标记消息为已读
+     * Mark message as read
      */
     suspend fun markMessageAsRead(conversationId: String, messageId: String): Result<Unit> {
         val userId = currentUserId ?: return Result.failure(Exception("User not logged in"))
@@ -146,7 +145,7 @@ class ChatRepository @Inject constructor(
     }
 
     /**
-     * 清空会话未读数
+     * Clear unread count for a conversation
      */
     suspend fun clearUnreadCount(conversationId: String): Result<Unit> {
         val userId = currentUserId ?: return Result.failure(Exception("User not logged in"))
@@ -154,14 +153,14 @@ class ChatRepository @Inject constructor(
     }
 
     /**
-     * 删除消息
+     * Delete message
      */
     suspend fun deleteMessage(conversationId: String, messageId: String): Result<Unit> {
         return firebaseDataSource.deleteMessage(conversationId, messageId)
     }
 
     /**
-     * 记录当前用户清空聊天的时间戳（单向清除）
+     * Record timestamp when current user clears chat (one-way clear)
      */
     suspend fun clearConversationForCurrentUser(conversationId: String): Result<Unit> {
         val userId = currentUserId ?: return Result.failure(Exception("User not logged in"))
@@ -170,10 +169,10 @@ class ChatRepository @Inject constructor(
 
     fun currentUserIdOrNull(): String? = currentUserId
 
-    // ==================== 群组相关 Group Operations ====================
+    // ==================== Group Operations ====================
 
     /**
-     * 创建群组
+     * Create group
      */
     suspend fun createGroup(
         name: String,
@@ -189,42 +188,42 @@ class ChatRepository @Inject constructor(
             avatarUrl = avatarUrl,
             ownerId = userId,
             adminIds = listOf(userId),
-            memberIds = memberIds + userId // 确保创建者也在成员列表中
+            memberIds = memberIds + userId // Ensure creator is also in member list
         )
 
         return firebaseDataSource.createGroup(group)
     }
 
     /**
-     * 获取群组信息
+     * Get group info
      */
     suspend fun getGroup(groupId: String): Result<Group?> {
         return firebaseDataSource.getGroup(groupId)
     }
 
     /**
-     * 更新群组信息
+     * Update group info
      */
     suspend fun updateGroup(group: Group): Result<Unit> {
         return firebaseDataSource.updateGroup(group)
     }
 
     /**
-     * 添加群成员
+     * Add group members
      */
     suspend fun addGroupMembers(groupId: String, memberIds: List<String>): Result<Unit> {
         return firebaseDataSource.addGroupMembers(groupId, memberIds)
     }
 
     /**
-     * 移除群成员
+     * Remove group member
      */
     suspend fun removeGroupMember(groupId: String, memberId: String): Result<Unit> {
         return firebaseDataSource.removeGroupMember(groupId, memberId)
     }
 
     /**
-     * 退出群组
+     * Leave group
      */
     suspend fun leaveGroup(groupId: String): Result<Unit> {
         val userId = currentUserId ?: return Result.failure(Exception("User not logged in"))
@@ -232,29 +231,29 @@ class ChatRepository @Inject constructor(
     }
 
     /**
-     * 转让群主
+     * Transfer group ownership
      */
     suspend fun transferGroupOwnership(groupId: String, newOwnerId: String): Result<Unit> {
         return firebaseDataSource.transferGroupOwnership(groupId, newOwnerId)
     }
 
     /**
-     * 解散群组
+     * Dismiss group
      */
     suspend fun dismissGroup(groupId: String): Result<Unit> {
         return firebaseDataSource.dismissGroup(groupId)
     }
 
-    // ==================== 联系人相关 Contact Operations ====================
+    // ==================== Contact Operations ====================
 
     /**
-     * 发送好友请求
-     * 1. **检查双方的旧 contacts 中是否有旧的 conversationId**
-     * 2. 如果找到旧的 conversationId，在新的 contact 中保留它
-     * 3. 在目标用户的 contacts 中添加当前用户，设置 isNew = true（待确认）
-     * 4. 在当前用户的 contacts 中添加目标用户，设置 isPending = true（已发送，等待接受）
+     * Send friend request
+     * 1. Check if there's an old conversationId in both users' contacts
+     * 2. If found, preserve the old conversationId in the new contact
+     * 3. Add current user to target user's contacts with isNew = true (pending confirmation)
+     * 4. Add target user to current user's contacts with isPending = true (sent, waiting for acceptance)
      *
-     * 注意：即使保留了 conversationId，因为 isNew 或 isPending 为 true，会话也不会显示在聊天列表中
+     * Note: Even if conversationId is preserved, conversation won't show in chat list because isNew or isPending is true
      */
     suspend fun sendFriendRequest(targetUserId: String, alias: String = ""): Result<Unit> {
         val userId = currentUserId ?: return Result.failure(Exception("User not logged in"))
@@ -262,7 +261,7 @@ class ChatRepository @Inject constructor(
         try {
             Log.d("ChatRepository", "🔄 sendFriendRequest: currentUser=$userId, targetUser=$targetUserId")
 
-            // 获取当前用户信息
+            // Get current user info
             val currentUserResult = firebaseDataSource.getUser(userId)
             val currentUser = currentUserResult.getOrNull()
             if (currentUser == null) {
@@ -271,7 +270,7 @@ class ChatRepository @Inject constructor(
             }
             Log.d("ChatRepository", "✅ Current user found: ${currentUser.username} (${currentUser.id})")
 
-            // 获取目标用户信息
+            // Get target user info
             val targetUserResult = firebaseDataSource.getUser(targetUserId)
             val targetUser = targetUserResult.getOrNull()
             if (targetUser == null) {
@@ -280,20 +279,20 @@ class ChatRepository @Inject constructor(
             }
             Log.d("ChatRepository", "✅ Target user found: ${targetUser.username} (${targetUser.id})")
 
-            // **关键步骤：检查双方的旧 contacts 中是否有旧的 conversationId**
+            // Key step: Check for old conversationId in both users' contacts
             Log.d("ChatRepository", "  🔍 Checking for old conversationId in both users' contacts...")
 
-            // 检查发送方（当前用户）的旧 contact
+            // Check sender's (current user) old contact
             val senderOldContactResult = firebaseDataSource.getContact(userId, targetUserId)
             val senderOldConversationId = senderOldContactResult.getOrNull()?.conversationId?.takeIf { it.isNotBlank() }
             Log.d("ChatRepository", "    📋 Sender's old conversationId: ${senderOldConversationId ?: "null"}")
 
-            // 检查接收方（目标用户）的旧 contact
+            // Check receiver's (target user) old contact
             val receiverOldContactResult = firebaseDataSource.getContact(targetUserId, userId)
             val receiverOldConversationId = receiverOldContactResult.getOrNull()?.conversationId?.takeIf { it.isNotBlank() }
             Log.d("ChatRepository", "    📋 Receiver's old conversationId: ${receiverOldConversationId ?: "null"}")
 
-            // 优先使用任何一方保留的旧 conversationId
+            // Prefer any preserved old conversationId
             val existingConversationId = senderOldConversationId ?: receiverOldConversationId ?: ""
 
             if (existingConversationId.isNotBlank()) {
@@ -302,18 +301,18 @@ class ChatRepository @Inject constructor(
                 Log.d("ChatRepository", "  🆕 No old conversationId found, will create new one on acceptance")
             }
 
-            // 在目标用户的 contacts 中创建一个待确认的联系人（当前用户）
-            // **保留旧的 conversationId（如果存在）**
+            // Create pending contact in target user's contacts (current user)
+            // Preserve old conversationId if exists
             val receiverContact = Contact(
-                userId = targetUserId, // 目标用户的ID
-                contactId = userId, // 当前用户的ID
+                userId = targetUserId, // Target user's ID
+                contactId = userId, // Current user's ID
                 contactName = currentUser.username,
                 contactAvatarUrl = currentUser.avatarUrl,
                 alias = "",
                 type = "PRIVATE",
-                isNew = true, // 标记为待确认（接收者看到的）
+                isNew = true, // Mark as pending confirmation (receiver sees this)
                 isPending = false,
-                conversationId = existingConversationId // **保留旧的 conversationId**
+                conversationId = existingConversationId // Preserve old conversationId
             )
             Log.d("ChatRepository", "📝 Creating receiver contact: user=${receiverContact.userId}, contact=${receiverContact.contactId}, isNew=${receiverContact.isNew}, isPending=${receiverContact.isPending}, conversationId=$existingConversationId")
 
@@ -324,18 +323,18 @@ class ChatRepository @Inject constructor(
             }
             Log.d("ChatRepository", "✅ Receiver contact added successfully")
 
-            // 在当前用户的 contacts 中创建一个已发送的联系人（目标用户）
-            // **保留旧的 conversationId（如果存在）**
+            // Create sent contact in current user's contacts (target user)
+            // Preserve old conversationId if exists
             val senderContact = Contact(
-                userId = userId, // 当前用户的ID
-                contactId = targetUserId, // 目标用户的ID
+                userId = userId, // Current user's ID
+                contactId = targetUserId, // Target user's ID
                 contactName = targetUser.username,
                 contactAvatarUrl = targetUser.avatarUrl,
                 alias = alias,
                 type = "PRIVATE",
                 isNew = false,
-                isPending = true, // 标记为已发送等待接受（发送者看到的）
-                conversationId = existingConversationId // **保留旧的 conversationId**
+                isPending = true, // Mark as sent waiting for acceptance (sender sees this)
+                conversationId = existingConversationId // Preserve old conversationId
             )
             Log.d("ChatRepository", "📝 Creating sender contact: user=${senderContact.userId}, contact=${senderContact.contactId}, isNew=${senderContact.isNew}, isPending=${senderContact.isPending}, conversationId=$existingConversationId")
 
@@ -355,11 +354,11 @@ class ChatRepository @Inject constructor(
     }
 
     /**
-     * 接受好友请求
-     * 1. 从 contacts 中获取 conversationId（在发送请求时已经保留了旧的 conversationId）
-     * 2. 如果有 conversationId，检查会话是否存在，不存在则重建；如果没有则创建新的
-     * 3. 将当前用户 contacts 中的 isNew 设置为 false
-     * 4. 将请求者 contacts 中的 isPending 设置为 false
+     * Accept friend request
+     * 1. Get conversationId from contacts (already preserved when sending request)
+     * 2. If conversationId exists, check if conversation exists, recreate if not; otherwise create new
+     * 3. Set isNew = false in current user's contacts
+     * 4. Set isPending = false in requester's contacts
      */
     suspend fun acceptFriendRequest(requesterId: String): Result<Unit> {
         val userId = currentUserId ?: return Result.failure(Exception("User not logged in"))
@@ -367,17 +366,17 @@ class ChatRepository @Inject constructor(
         try {
             Log.d("ChatRepository", "🤝 Accepting friend request from: $requesterId")
 
-            // 获取请求者信息
+            // Get requester info
             val requesterResult = firebaseDataSource.getUser(requesterId)
             val requester = requesterResult.getOrNull()
                 ?: return Result.failure(Exception("Requester not found"))
 
-            // 获取当前用户信息
+            // Get current user info
             val currentUserResult = firebaseDataSource.getUser(userId)
             val currentUser = currentUserResult.getOrNull()
                 ?: return Result.failure(Exception("Current user not found"))
 
-            // 从当前的 contacts 中获取 conversationId（在 sendFriendRequest 时已经保留）
+            // Get conversationId from current contacts (preserved during sendFriendRequest)
             Log.d("ChatRepository", "  🔍 Checking conversationId from contacts...")
 
             val receiverContactResult = firebaseDataSource.getContact(userId, requesterId)
@@ -388,18 +387,18 @@ class ChatRepository @Inject constructor(
             val requesterConversationId = requesterContactResult.getOrNull()?.conversationId
             Log.d("ChatRepository", "    📋 Requester's conversationId: ${requesterConversationId ?: "null"}")
 
-            // 使用已保留的 conversationId
+            // Use preserved conversationId
             val existingConversationId = receiverConversationId?.takeIf { it.isNotBlank() }
                 ?: requesterConversationId?.takeIf { it.isNotBlank() }
 
             val conversationId: String
 
             if (!existingConversationId.isNullOrBlank()) {
-                // 使用已保留的 conversationId
+                // Use preserved conversationId
                 Log.d("ChatRepository", "  ♻️ Using preserved conversationId: $existingConversationId")
                 conversationId = existingConversationId
 
-                // 检查会话是否仍然存在
+                // Check if conversation still exists
                 val existingConversation = firebaseDataSource.getConversation(conversationId).getOrNull()
                 if (existingConversation == null) {
                     Log.d("ChatRepository", "  ⚠️ Conversation doesn't exist, recreating it with same ID")
@@ -417,7 +416,7 @@ class ChatRepository @Inject constructor(
                     Log.d("ChatRepository", "  ✅ Conversation already exists, no need to recreate")
                 }
             } else {
-                // 第一次加好友，创建新的会话
+                // First time adding friend, create new conversation
                 Log.d("ChatRepository", "  🆕 No conversationId found, creating new conversation")
                 conversationId = firebaseDataSource.generateConversationId()
                 val conversation = Conversation(
@@ -432,7 +431,7 @@ class ChatRepository @Inject constructor(
                 firebaseDataSource.createConversation(conversation).getOrThrow()
             }
 
-            // 更新当前用户的 contact（将 isNew 设置为 false，确保有 conversationId）
+            // Update current user's contact (set isNew = false, ensure conversationId exists)
             Log.d("ChatRepository", "  📝 Updating current user's contact")
             val myContact = Contact(
                 userId = userId,
@@ -440,13 +439,13 @@ class ChatRepository @Inject constructor(
                 contactName = requester.username,
                 contactAvatarUrl = requester.avatarUrl,
                 type = "PRIVATE",
-                isNew = false, // 从 true 变为 false
+                isNew = false, // From true to false
                 isPending = false,
                 conversationId = conversationId
             )
             firebaseDataSource.addContact(myContact).getOrThrow()
 
-            // 更新请求者的 contact（将 isPending 设置为 false，确保有 conversationId）
+            // Update requester's contact (set isPending = false, ensure conversationId exists)
             Log.d("ChatRepository", "  📝 Updating requester's contact")
             val theirContact = Contact(
                 userId = requesterId,
@@ -455,12 +454,12 @@ class ChatRepository @Inject constructor(
                 contactAvatarUrl = currentUser.avatarUrl,
                 type = "PRIVATE",
                 isNew = false,
-                isPending = false, // 从 true 变为 false
+                isPending = false, // From true to false
                 conversationId = conversationId
             )
             firebaseDataSource.addContact(theirContact).getOrThrow()
 
-            // 解除双方可能遗留的屏蔽标记
+            // Unblock both parties if previously blocked
             firebaseDataSource.setConversationParticipantBlocked(conversationId, userId, false)
             firebaseDataSource.setConversationParticipantBlocked(conversationId, requesterId, false)
 
@@ -473,8 +472,8 @@ class ChatRepository @Inject constructor(
     }
 
     /**
-     * 拒绝好友请求
-     * 删除双方的 contact 记录，让双方回到互不相知的状态
+     * Reject friend request
+     * Delete contact records from both users to restore unknown state
      */
     suspend fun rejectFriendRequest(requesterId: String): Result<Unit> {
         val userId = currentUserId ?: return Result.failure(Exception("User not logged in"))
@@ -482,12 +481,12 @@ class ChatRepository @Inject constructor(
         Log.d("ChatRepository", "🚫 Rejecting friend request from: $requesterId")
 
         try {
-            // 删除接收者（当前用户）的 contact
+            // Remove contact from receiver (current user)
             Log.d("ChatRepository", "  🗑️ Removing contact from receiver: /users/$userId/contacts/$requesterId")
             firebaseDataSource.removeContact(userId, requesterId).getOrThrow()
             Log.d("ChatRepository", "  ✅ Receiver contact removed")
 
-            // 删除发送者的 contact
+            // Remove contact from sender
             Log.d("ChatRepository", "  🗑️ Removing contact from sender: /users/$requesterId/contacts/$userId")
             firebaseDataSource.removeContact(requesterId, userId).getOrThrow()
             Log.d("ChatRepository", "  ✅ Sender contact removed")
@@ -501,22 +500,22 @@ class ChatRepository @Inject constructor(
     }
 
     /**
-     * 添加联系人（旧版本，保留兼容性）
+     * Add contact (legacy version, kept for compatibility)
      */
     suspend fun addContact(contactId: String, alias: String = ""): Result<Unit> {
         val userId = currentUserId ?: return Result.failure(Exception("User not logged in"))
 
-        // 获取联系人信息
+        // Get contact user info
         val contactUserResult = firebaseDataSource.getUser(contactId)
         val contactUser = contactUserResult.getOrNull()
             ?: return Result.failure(Exception("Contact user not found"))
 
-        // 创建或获取私聊会话
+        // Create or get private conversation
         val conversationResult = createOrGetPrivateConversation(contactId)
         val conversation = conversationResult.getOrNull()
             ?: return Result.failure(Exception("Failed to create conversation"))
 
-        // 解除双方可能遗留的屏蔽标记
+        // Unblock both parties if previously blocked
         runCatching { firebaseDataSource.setConversationParticipantBlocked(conversation.id, userId, false) }
         runCatching { firebaseDataSource.setConversationParticipantBlocked(conversation.id, contactId, false) }
 
@@ -533,7 +532,7 @@ class ChatRepository @Inject constructor(
     }
 
     /**
-     * 获取联系人列表
+     * Get contact list
      */
     suspend fun getContacts(): Result<List<Contact>> {
         val userId = currentUserId ?: return Result.failure(Exception("User not logged in"))
@@ -541,7 +540,7 @@ class ChatRepository @Inject constructor(
     }
 
     /**
-     * 获取单个联系人
+     * Get single contact
      */
     suspend fun getContact(contactId: String): Result<Contact?> {
         val userId = currentUserId ?: return Result.failure(Exception("User not logged in"))
@@ -549,7 +548,7 @@ class ChatRepository @Inject constructor(
     }
 
     /**
-     * 监听联系人列表
+     * Observe contact list
      */
     fun observeContacts(): Flow<List<Contact>>? {
         val userId = currentUserId ?: return null
@@ -557,7 +556,7 @@ class ChatRepository @Inject constructor(
     }
 
     /**
-     * 删除联系人
+     * Delete contact
      */
     suspend fun deleteContact(contactId: String): Result<Unit> {
         val userId = currentUserId ?: return Result.failure(Exception("User not logged in"))
@@ -575,7 +574,7 @@ class ChatRepository @Inject constructor(
     }
 
     /**
-     * 更新联系人备注
+     * Update contact alias
      */
     suspend fun updateContactAlias(contactId: String, alias: String): Result<Unit> {
         val userId = currentUserId ?: return Result.failure(Exception("User not logged in"))
@@ -583,7 +582,7 @@ class ChatRepository @Inject constructor(
     }
 
     /**
-     * 监听置顶会话
+     * Observe pinned conversations
      */
     fun observePinnedConversations(): Flow<Set<String>>? {
         val userId = currentUserId ?: return null
@@ -591,7 +590,7 @@ class ChatRepository @Inject constructor(
     }
 
     /**
-     * 设置置顶状态
+     * Set pinned status
      */
     suspend fun setPinnedConversation(conversationId: String, pinned: Boolean): Result<Unit> {
         val userId = currentUserId ?: return Result.failure(Exception("User not logged in"))
@@ -599,7 +598,7 @@ class ChatRepository @Inject constructor(
     }
 
     /**
-     * 检查会话是否置顶
+     * Check if conversation is pinned
      */
     suspend fun isConversationPinned(conversationId: String): Result<Boolean> {
         val userId = currentUserId ?: return Result.failure(Exception("User not logged in"))
@@ -607,7 +606,7 @@ class ChatRepository @Inject constructor(
     }
 
     /**
-     * 更新联系人置顶状态（用于同步联系人列表中的星标）
+     * Update contact favorite status (for syncing favorites in contact list)
      */
     suspend fun updateContactFavorite(contactId: String, isFavorite: Boolean): Result<Unit> {
         val userId = currentUserId ?: return Result.failure(Exception("User not logged in"))
@@ -615,38 +614,38 @@ class ChatRepository @Inject constructor(
     }
 
     /**
-     * 搜索用户
+     * Search users
      */
     suspend fun searchUsers(query: String): Result<List<User>> {
         return firebaseDataSource.searchUsers(query)
     }
 
     /**
-     * 搜索群组（通过群组名称搜索）
+     * Search groups (by group name)
      */
     suspend fun searchGroups(query: String): Result<List<com.example.cs501_micro_chat.data.model.Group>> {
         return firebaseDataSource.searchGroups(query)
     }
 
     /**
-     * 加入群组
+     * Join group
      */
     suspend fun joinGroup(groupId: String): Result<Unit> {
         val userId = currentUserId ?: return Result.failure(Exception("User not logged in"))
         return firebaseDataSource.joinGroup(groupId, userId)
     }
 
-    // ==================== 用户相关 User Operations ====================
+    // ==================== User Operations ====================
 
     /**
-     * 获取用户信息
+     * Get user info
      */
     suspend fun getUser(userId: String): Result<User?> {
         return firebaseDataSource.getUser(userId)
     }
 
     /**
-     * 批量获取用户信息
+     * Batch get user info
      */
     suspend fun getUsers(userIds: List<String>): Result<Map<String, User>> {
         return firebaseDataSource.getUsers(userIds)

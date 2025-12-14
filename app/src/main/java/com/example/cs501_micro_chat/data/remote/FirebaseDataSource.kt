@@ -1,22 +1,21 @@
 /**
  * FirebaseDataSource.kt
  * 
- * Firebase 数据源 - 处理所有与 Firebase Firestore 的交互
  * Firebase Data Source - Handles all interactions with Firebase Firestore
  * 
- * Firebase 数据库结构 / Database Structure:
- * 
+ * Database Structure:
+ *
  * /users/{userId}
- *   - 用户基本信息
- *   /contacts/{contactId} - 用户的联系人列表
- * 
+ *   - User basic information
+ *   /contacts/{contactId} - User's contact list
+ *
  * /conversations/{conversationId}
- *   - 会话基本信息（私聊或群聊）
- *   /messages/{messageId} - 会话中的消息
- * 
+ *   - Conversation basic information (private or group chat)
+ *   /messages/{messageId} - Messages in the conversation
+ *
  * /groups/{groupId}
- *   - 群组详细信息
- * 
+ *   - Group detailed information
+ *
  * @author CS501 Team
  */
 package com.example.cs501_micro_chat.data.remote
@@ -88,17 +87,17 @@ class FirebaseDataSource @Inject constructor(
         }
     }
 
-    // ==================== 用户相关 User Operations ====================
-    
+    // ==================== User Operations ====================
+
     /**
-     * 创建或更新用户信息
+     * Create or update user information
      */
     suspend fun createOrUpdateUser(user: User): Result<Unit> = runCatching {
         usersCollection.document(user.id).set(user.toMap()).await()
     }
 
     /**
-     * 获取用户信息
+     * Get user information
      */
     suspend fun getUser(userId: String): Result<User?> = runCatching {
         Log.d(TAG, "🔍 getUser: Fetching user with ID: '$userId' (length: ${userId.length})")
@@ -110,7 +109,7 @@ class FirebaseDataSource @Inject constructor(
             Log.d(TAG, "  📄 Document data: ${snapshot.data}")
 
             try {
-                // 手动构造 User 对象，处理 Timestamp 类型
+                // Manually construct User object, handle Timestamp type
                 val data = snapshot.data
                 if (data != null) {
                     val createdAt = when (val created = data["createdAt"]) {
@@ -154,7 +153,7 @@ class FirebaseDataSource @Inject constructor(
             Log.e(TAG, "  ❌ User document does NOT exist at path: /users/$userId")
             Log.d(TAG, "  🔍 Attempting to list all user IDs to debug...")
 
-            // 尝试列出所有用户ID来帮助调试
+            // Attempt to list all user IDs for debugging
             try {
                 val allUsers = usersCollection.limit(10).get().await()
                 Log.d(TAG, "  📋 First 10 user IDs in database:")
@@ -170,8 +169,8 @@ class FirebaseDataSource @Inject constructor(
     }
 
     /**
-     * 批量获取用户信息
-     * @param userIds 用户 ID 列表
+     * Batch get user information
+     * @param userIds List of user IDs
      * @return Map<userId, User?>
      */
     suspend fun getUsers(userIds: List<String>): Result<Map<String, User>> = runCatching {
@@ -181,7 +180,7 @@ class FirebaseDataSource @Inject constructor(
 
         val users = mutableMapOf<String, User>()
 
-        // Firebase 的 whereIn 限制为 10 个元素，需要分批查询
+        // Firebase whereIn is limited to 10 elements, need to query in batches
         userIds.distinct().chunked(10).forEach { chunk ->
             val snapshot = usersCollection
                 .whereIn("__name__", chunk)
@@ -199,7 +198,7 @@ class FirebaseDataSource @Inject constructor(
     }
 
     /**
-     * 监听用户在线状态
+     * Observe user online status
      */
     fun observeUserStatus(userId: String): Flow<UserStatus> = callbackFlow {
         val listener = usersCollection.document(userId)
@@ -215,7 +214,7 @@ class FirebaseDataSource @Inject constructor(
     }
 
     /**
-     * 更新用户在线状态
+     * Update user online status
      */
     suspend fun updateUserStatus(userId: String, status: UserStatus): Result<Unit> = runCatching {
         usersCollection.document(userId).update(
@@ -239,7 +238,7 @@ class FirebaseDataSource @Inject constructor(
             return@runCatching emptyList()
         }
 
-        // 1. 通过用户名搜索（前缀匹配）- 尝试原始大小写
+        // 1. Search by username (prefix match) - try original case
         try {
             val byUsername = usersCollection
                 .whereGreaterThanOrEqualTo("username", trimmedQuery)
@@ -254,7 +253,7 @@ class FirebaseDataSource @Inject constructor(
             Log.d(TAG, "Username search (original case) failed: ${e.message}")
         }
 
-        // 1b. 通过用户名搜索（小写前缀匹配）
+        // 1b. Search by username (lowercase prefix match)
         if (lowerQuery != trimmedQuery) {
             try {
                 val byUsernameLower = usersCollection
@@ -271,7 +270,7 @@ class FirebaseDataSource @Inject constructor(
             }
         }
 
-        // 2. 通过邮箱搜索（前缀匹配）
+        // 2. Search by email (prefix match)
         try {
             val byEmail = usersCollection
                 .whereGreaterThanOrEqualTo("email", lowerQuery)
@@ -286,7 +285,7 @@ class FirebaseDataSource @Inject constructor(
             Log.d(TAG, "Email search failed: ${e.message}")
         }
 
-        // 3. 如果结果太少，尝试精确匹配 ID
+        // 3. If too few results, try exact ID match
         if (results.isEmpty()) {
             try {
                 val byId = usersCollection
@@ -301,12 +300,12 @@ class FirebaseDataSource @Inject constructor(
             }
         }
 
-        // 4. 如果还是没结果，尝试获取所有用户并在本地进行大小写不敏感的匹配
+        // 4. If still no results, fall back to client-side case-insensitive search
         if (results.isEmpty()) {
             try {
                 Log.d(TAG, "Falling back to client-side search for: $trimmedQuery")
                 val allUsers = usersCollection
-                    .limit(100) // 限制返回数量以提高性能
+                    .limit(100) // Limit results for performance
                     .get()
                     .await()
                     .documents
@@ -314,12 +313,12 @@ class FirebaseDataSource @Inject constructor(
 
                 Log.d(TAG, "Client-side search: Retrieved ${allUsers.size} users")
 
-                // 记录所有用户的ID和用户名以便调试
+                // Log all user IDs and usernames for debugging
                 allUsers.forEach { user ->
                     Log.d(TAG, "  👤 Found user: id='${user.id}' username='${user.username}' email='${user.email}'")
                 }
 
-                // 在客户端进行大小写不敏感的搜索
+                // Client-side case-insensitive search
                 val matchedUsers = allUsers.filter { user ->
                     val usernameMatch = user.username.contains(trimmedQuery, ignoreCase = true)
                     val emailMatch = user.email.contains(lowerQuery, ignoreCase = true)
@@ -339,23 +338,22 @@ class FirebaseDataSource @Inject constructor(
             }
         }
 
-        // 去重并按相关性排序
+        // Deduplicate and sort by relevance
         results.distinctBy { it.id }
             .sortedWith(compareBy(
-                // 优先显示用户名完全匹配的
+                // Prioritize exact username match
                 { !it.username.equals(trimmedQuery, ignoreCase = true) },
-                // 其次显示邮箱完全匹配的
+                // Then exact email match
                 { !it.email.equals(lowerQuery, ignoreCase = true) },
-                // 然后显示用户名包含搜索词的
+                // Then username contains search term
                 { !it.username.contains(trimmedQuery, ignoreCase = true) },
-                // 最后按用户名字母顺序
+                // Finally sort alphabetically by username
                 { it.username.lowercase() }
             ))
-            .take(10) // 最多返回10个结果
+            .take(10) // Return max 10 results
     }
 
     /**
-     * 搜索群组（通过群组名称搜索）
      * Search groups by name
      */
     suspend fun searchGroups(query: String): Result<List<Group>> = runCatching {
@@ -368,7 +366,7 @@ class FirebaseDataSource @Inject constructor(
 
         Log.d(TAG, "🔍 searchGroups: query='$trimmedQuery'")
 
-        // 1. 通过群组名称搜索（前缀匹配）
+        // 1. Search by group name (prefix match)
         try {
             val byName = groupsCollection
                 .whereGreaterThanOrEqualTo("name", trimmedQuery)
@@ -386,7 +384,7 @@ class FirebaseDataSource @Inject constructor(
             Log.d(TAG, "Group name prefix search failed: ${e.message}")
         }
 
-        // 2. 如果结果太少，尝试客户端搜索
+        // 2. If too few results, fall back to client-side search
         if (results.isEmpty()) {
             try {
                 Log.d(TAG, "Falling back to client-side group search for: $trimmedQuery")
@@ -401,7 +399,7 @@ class FirebaseDataSource @Inject constructor(
 
                 Log.d(TAG, "Client-side group search: Retrieved ${allGroups.size} groups")
 
-                // 在客户端进行大小写不敏感的搜索
+                // Client-side case-insensitive search
                 val matchedGroups = allGroups.filter { group ->
                     group.name.contains(trimmedQuery, ignoreCase = true) ||
                     group.id == trimmedQuery
@@ -414,36 +412,36 @@ class FirebaseDataSource @Inject constructor(
             }
         }
 
-        // 去重并按相关性排序
+        // Deduplicate and sort by relevance
         results.distinctBy { it.id }
             .sortedWith(compareBy(
-                // 优先显示名称完全匹配的
+                // Prioritize exact name match
                 { !it.name.equals(trimmedQuery, ignoreCase = true) },
-                // 然后显示名称包含搜索词的
+                // Then name contains search term
                 { !it.name.contains(trimmedQuery, ignoreCase = true) },
-                // 最后按名称字母顺序
+                // Finally sort alphabetically by name
                 { it.name.lowercase() }
             ))
-            .take(10) // 最多返回10个结果
+            .take(10) // Return max 10 results
     }
 
     /**
-     * 加入群组
-     * Join a group: add user to group members and create contact for user
+     * Join a group
+     * Add user to group members and create contact for user
      */
     suspend fun joinGroup(groupId: String, userId: String): Result<Unit> = runCatching {
         Log.d(TAG, "🚀 joinGroup: groupId=$groupId, userId=$userId")
 
-        // 1. 获取群组信息
+        // 1. Get group info
         val group = getGroup(groupId).getOrNull() ?: throw Exception("Group not found")
 
-        // 2. 检查用户是否已经是成员
+        // 2. Check if user is already a member
         if (group.memberIds.contains(userId)) {
             Log.d(TAG, "⚠️ User $userId is already a member of group $groupId")
-            return@runCatching // 已经是成员，直接返回成功
+            return@runCatching // Already a member, return success
         }
 
-        // 3. 更新群组成员列表
+        // 3. Update group member list
         val updatedMembers = group.memberIds + userId
         groupsCollection
             .document(groupId)
@@ -451,14 +449,14 @@ class FirebaseDataSource @Inject constructor(
             .await()
         Log.d(TAG, "✅ Updated groups/$groupId/memberIds")
 
-        // 4. 更新对应会话的参与者列表
+        // 4. Update conversation participants list
         conversationsCollection
             .document(groupId)
             .update("participants", updatedMembers)
             .await()
         Log.d(TAG, "✅ Updated conversations/$groupId/participants")
 
-        // 5. 为用户创建 contact 记录
+        // 5. Create contact record for user
         val contact = Contact(
             userId = userId,
             contactId = groupId,
@@ -484,10 +482,10 @@ class FirebaseDataSource @Inject constructor(
         Log.d(TAG, "🎉 Successfully joined group $groupId")
     }
 
-    // ==================== 联系人相关 Contact Operations ====================
+    // ==================== Contact Operations ====================
 
     /**
-     * 添加联系人
+     * Add contact
      */
     suspend fun addContact(contact: Contact): Result<Unit> = runCatching {
         Log.d(TAG, "🔄 addContact: user=${contact.userId}, contact=${contact.contactId}")
@@ -516,7 +514,7 @@ class FirebaseDataSource @Inject constructor(
     }
 
     /**
-     * 获取联系人列表
+     * Get contact list
      */
     suspend fun getContacts(userId: String): Result<List<Contact>> = runCatching {
         usersCollection
@@ -529,7 +527,7 @@ class FirebaseDataSource @Inject constructor(
     }
 
     /**
-     * 获取单个联系人信息
+     * Get single contact information
      */
     suspend fun getContact(userId: String, contactId: String): Result<Contact?> = runCatching {
         usersCollection
@@ -542,8 +540,8 @@ class FirebaseDataSource @Inject constructor(
     }
 
     /**
-     * 监听联系人列表变化
-     * 自动补充 contactName 和 contactAvatarUrl（如果为空）
+     * Observe contact list changes
+     * Automatically fills in contactName and contactAvatarUrl (if empty)
      */
     fun observeContacts(userId: String): Flow<List<Contact>> = callbackFlow {
         val scope = this // Capture the ProducerScope to use inside the listener
@@ -558,15 +556,15 @@ class FirebaseDataSource @Inject constructor(
                     return@addSnapshotListener
                 }
 
-                // 获取联系人基础信息
+                // Get contact basic info
                 val contacts = snapshot?.documents?.mapNotNull { doc ->
-                    // 打印原始 Firebase 数据用于调试
+                    // Print raw Firebase data for debugging
                     Log.d(TAG, "📄 Firebase Contact Document ${doc.id}:")
                     Log.d(TAG, "  - Raw data: ${doc.data}")
                     Log.d(TAG, "  - isNew: ${doc.get("isNew")} (${doc.get("isNew")?.javaClass?.simpleName})")
                     Log.d(TAG, "  - isPending: ${doc.get("isPending")} (${doc.get("isPending")?.javaClass?.simpleName})")
 
-                    // 手动构造 Contact 对象，确保 isPending 字段被正确读取
+                    // Manually construct Contact object to ensure isPending field is read correctly
                     try {
                         val data = doc.data
                         if (data != null) {
@@ -588,7 +586,7 @@ class FirebaseDataSource @Inject constructor(
 
                             Log.d(TAG, "  → Manually constructed Contact: isNew=${contact.isNew}, isPending=${contact.isPending}, conversationId=${contact.conversationId}")
 
-                            // 检查是否缺少字段
+                            // Check if missing fields
                             if (!data.containsKey("isPending")) {
                                 Log.w(TAG, "  ⚠️ Contact ${contact.contactId} missing 'isPending' field in Firebase document (old data)")
                                 if (contact.conversationId.isEmpty() && !contact.isNew) {
@@ -607,14 +605,14 @@ class FirebaseDataSource @Inject constructor(
                     }
                 } ?: emptyList()
 
-                // 异步补充每个联系人的详细信息（如果缺失）
+                // Asynchronously enrich each contact's details (if missing)
                 scope.launch {
                     try {
                         Log.d(TAG, "🔧 Starting contact enrichment for ${contacts.size} contacts")
                         val enrichedContacts = contacts.map { contact ->
                             Log.d(TAG, "  📝 Before enrichment - ${contact.contactId}: isNew=${contact.isNew}, isPending=${contact.isPending}")
 
-                            // 如果 contactName 或 contactAvatarUrl 为空，从对应用户获取
+                            // If contactName or contactAvatarUrl is empty, get from corresponding user
                             val result = if (contact.type == "PRIVATE" && (contact.contactName.isEmpty() || contact.contactAvatarUrl.isEmpty())) {
                                 val user = getUser(contact.contactId).getOrNull()
                                 val enriched = contact.copy(
@@ -641,7 +639,7 @@ class FirebaseDataSource @Inject constructor(
     }
 
     /**
-     * 删除联系人
+     * Delete contact
      */
     suspend fun deleteContact(userId: String, contactId: String): Result<Unit> = runCatching {
         usersCollection
@@ -653,12 +651,12 @@ class FirebaseDataSource @Inject constructor(
     }
 
     /**
-     * 移除联系人（别名，与 deleteContact 相同）
+     * Remove contact (alias, same as deleteContact)
      */
     suspend fun removeContact(userId: String, contactId: String): Result<Unit> = deleteContact(userId, contactId)
 
     /**
-     * 更新联系人备注
+     * Update contact alias
      */
     suspend fun updateContactAlias(userId: String, contactId: String, alias: String): Result<Unit> = runCatching {
         usersCollection
@@ -670,7 +668,7 @@ class FirebaseDataSource @Inject constructor(
     }
 
     /**
-     * 更新联系人置顶状态
+     * Update contact favorite status
      */
     suspend fun updateContactFavorite(userId: String, contactId: String, isFavorite: Boolean): Result<Unit> = runCatching {
         usersCollection
@@ -682,7 +680,7 @@ class FirebaseDataSource @Inject constructor(
     }
 
     /**
-     * 监听置顶会话
+     * Observe pinned conversations
      */
     fun observePinnedConversations(userId: String): Flow<Set<String>> = callbackFlow {
         val listener = usersCollection
@@ -702,7 +700,7 @@ class FirebaseDataSource @Inject constructor(
     }
 
     /**
-     * 设置置顶状态
+     * Set pinned status
      */
     suspend fun setPinnedConversation(userId: String, conversationId: String, pinned: Boolean): Result<Unit> = runCatching {
         val docRef = usersCollection
@@ -722,7 +720,7 @@ class FirebaseDataSource @Inject constructor(
     }
 
     /**
-     * 检查会话是否置顶
+     * Check if conversation is pinned
      */
     suspend fun isConversationPinned(userId: String, conversationId: String): Result<Boolean> = runCatching {
         usersCollection
@@ -735,7 +733,7 @@ class FirebaseDataSource @Inject constructor(
     }
 
     /**
-     * 设置会话对某个用户的屏蔽状态
+     * Set conversation blocked status for a participant
      */
     suspend fun setConversationParticipantBlocked(conversationId: String, participantId: String, blocked: Boolean): Result<Unit> = runCatching {
         val field = "blockedParticipants.$participantId"
@@ -748,7 +746,7 @@ class FirebaseDataSource @Inject constructor(
     }
 
     /**
-     * 检查用户是否被屏蔽
+     * Check if user is blocked
      */
     suspend fun isConversationParticipantBlocked(conversationId: String, participantId: String): Result<Boolean> = runCatching {
         val snapshot = conversationsCollection
@@ -759,20 +757,20 @@ class FirebaseDataSource @Inject constructor(
         blockedMap[participantId] == true
     }
 
-    // ==================== 会话相关 Conversation Operations ====================
+    // ==================== Conversation Operations ====================
 
     /**
-     * 创建或获取私聊会话
+     * Create or get private conversation
      *
-     * 优化逻辑：
-     * 1. 从 currentUserId 的 contacts 中查找是否已有与 otherUserId 的会话
-     * 2. 如果找到，返回该会话
-     * 3. 如果没有，创建新会话并同时在 currentUserId 的 contacts 中添加联系人信息
+     * Optimized logic:
+     * 1. Check if there's already a conversation with otherUserId in currentUserId's contacts
+     * 2. If found, return that conversation
+     * 3. If not found, create new conversation and add contact info to currentUserId's contacts
      */
     suspend fun createOrGetPrivateConversation(currentUserId: String, otherUserId: String): Result<Conversation> = runCatching {
         Log.d(TAG, "createOrGetPrivateConversation: currentUser=$currentUserId, otherUser=$otherUserId")
 
-        // 1. 从当前用户的 contacts 中查找是否已有与 otherUserId 的联系人
+        // 1. Check if there's already a contact with otherUserId in current user's contacts
         val contactDoc = usersCollection
             .document(currentUserId)
             .collection("contacts")
@@ -782,7 +780,7 @@ class FirebaseDataSource @Inject constructor(
 
         val existingContact = contactDoc.toObject(Contact::class.java)
 
-        // 2. 如果联系人存在且有 conversationId，获取该会话
+        // 2. If contact exists and has conversationId, get that conversation
         if (existingContact != null && existingContact.conversationId.isNotEmpty()) {
             Log.d(TAG, "Found existing conversation: ${existingContact.conversationId}")
             val conversation = getConversation(existingContact.conversationId).getOrNull()
@@ -792,7 +790,7 @@ class FirebaseDataSource @Inject constructor(
             Log.w(TAG, "Conversation ${existingContact.conversationId} not found in Firestore, creating new one")
         }
 
-        // 3. 如果没有找到会话，创建新会话
+        // 3. If no conversation found, create new one
         Log.d(TAG, "Creating new conversation")
         val otherUser = getUser(otherUserId).getOrNull()
         val conversationId = conversationsCollection.document().id
@@ -807,17 +805,17 @@ class FirebaseDataSource @Inject constructor(
             unreadCounts = mapOf(currentUserId to 0, otherUserId to 0)
         )
 
-        // 保存会话到 Firestore
+        // Save conversation to Firestore
         conversationsCollection.document(conversationId).set(conversation.toMap()).await()
         Log.d(TAG, "Conversation created: $conversationId")
 
-        // 4. 在两个用户的 contacts 中都添加联系人信息（双向关系）
+        // 4. Add contact info to both users' contacts (bidirectional relationship)
         val currentTime = System.currentTimeMillis()
 
-        // 获取两个用户的详细信息
+        // Get both users' details
         val currentUser = getUser(currentUserId).getOrNull()
 
-        // 为 currentUserId 添加 otherUserId 作为联系人
+        // Add otherUserId as contact for currentUserId
         val contactForCurrentUser = Contact(
             userId = currentUserId,
             contactId = otherUserId,
@@ -831,7 +829,7 @@ class FirebaseDataSource @Inject constructor(
         addContact(contactForCurrentUser).getOrThrow()
         Log.d(TAG, "Contact added for currentUser: $currentUserId -> $otherUserId")
 
-        // 为 otherUserId 添加 currentUserId 作为联系人
+        // Add currentUserId as contact for otherUserId
         val contactForOtherUser = Contact(
             userId = otherUserId,
             contactId = currentUserId,
@@ -849,7 +847,7 @@ class FirebaseDataSource @Inject constructor(
     }
 
     /**
-     * 创建群聊会话
+     * Create group conversation
      */
     suspend fun createGroupConversation(
         name: String,
@@ -872,51 +870,51 @@ class FirebaseDataSource @Inject constructor(
     }
 
     /**
-     * 获取用户的会话列表（包括个人会话和群组会话）
-     * 通过用户的联系人列表获取 conversationId，而不是查询所有会话
+     * Get user's conversation list (including private and group conversations)
+     * Gets conversationId from user's contact list instead of querying all conversations
      *
-     * 支持：
-     * - 个人联系人会话（type = "PRIVATE"）
-     * - 群组会话（type = "GROUP"）
+     * Supports:
+     * - Private contact conversations (type = "PRIVATE")
+     * - Group conversations (type = "GROUP")
      */
     suspend fun getUserConversations(userId: String): Result<List<Conversation>> = runCatching {
-        // 1. 获取用户的所有联系人（包括个人和群组）
+        // 1. Get all contacts for user (including private and group)
         val contacts = getContacts(userId).getOrNull() ?: emptyList()
 
-        // 2. 过滤出已确认的联系人
-        // 只保留：isNew = false && isPending = false 的联系人和群组
+        // 2. Filter confirmed contacts
+        // Only keep: isNew = false && isPending = false contacts and groups
         val confirmedContacts = contacts.filter { contact ->
-            // 群组直接显示
+            // Groups are always shown
             if (contact.type == "GROUP") {
                 true
             } else {
-                // 个人联系人：必须是已确认的好友（isNew = false && isPending = false）
-                // isNew = false, isPending = true: 已发送请求，等待对方接受 → 不显示
-                // isNew = true, isPending = false: 收到请求，等待我接受 → 不显示
-                // isNew = false, isPending = false: 已确认的好友 → 显示
+                // Private contacts: must be confirmed friends (isNew = false && isPending = false)
+                // isNew = false, isPending = true: request sent, waiting for acceptance → don't show
+                // isNew = true, isPending = false: received request, waiting for me to accept → don't show
+                // isNew = false, isPending = false: confirmed friends → show
                 !contact.isNew && !contact.isPending
             }
         }
 
         Log.d(TAG, "getUserConversations: Total contacts: ${contacts.size}, Confirmed: ${confirmedContacts.size}, Pending: ${contacts.size - confirmedContacts.size}")
 
-        // 3. 提取所有 conversationId（过滤掉空的）
-        // 无论是个人联系人还是群组，都有 conversationId 字段
+        // 3. Extract all conversationIds (filter out empty ones)
+        // Both private contacts and groups have conversationId field
         val conversationIds = confirmedContacts.mapNotNull { it.conversationId.takeIf { id -> id.isNotEmpty() } }
 
         Log.d(TAG, "getUserConversations: Found ${conversationIds.size} conversation IDs from confirmed contacts (including groups)")
 
-        // 4. 如果没有会话，直接返回空列表
+        // 4. If no conversations, return empty list
         if (conversationIds.isEmpty()) {
             return@runCatching emptyList()
         }
 
-        // 5. 批量获取会话信息
-        // Firebase 的 whereIn 限制为 10 个元素，需要分批查询
+        // 5. Batch get conversation info
+        // Firebase whereIn is limited to 10 elements, need to query in batches
         val conversations = mutableListOf<Conversation>()
         conversationIds.chunked(10).forEach { chunk ->
             val snapshot = conversationsCollection
-                .whereIn("__name__", chunk) // 使用文档 ID 查询
+                .whereIn("__name__", chunk) // Query by document ID
                 .whereEqualTo("isActive", true)
                 .get()
                 .await()
@@ -928,22 +926,22 @@ class FirebaseDataSource @Inject constructor(
 
         Log.d(TAG, "getUserConversations: Retrieved ${conversations.size} conversations from Firestore")
 
-        // 6. 按最后消息时间排序
+        // 6. Sort by last message time
         conversations.sortedByDescending { it.lastMessageTime }
     }
 
     /**
-     * 监听用户的会话列表（包括个人会话和群组会话）
-     * 通过用户的联系人列表获取 conversationId，而不是查询所有会话
+     * Observe user's conversation list (including private and group conversations)
+     * Gets conversationId from user's contact list instead of querying all conversations
      *
-     * 支持：
-     * - 个人联系人会话（type = "PRIVATE"）
-     * - 群组会话（type = "GROUP"）
+     * Supports:
+     * - Private contact conversations (type = "PRIVATE")
+     * - Group conversations (type = "GROUP")
      *
-     * 注意：此方法会先监听联系人列表变化，然后监听对应的会话
+     * Note: This method first observes contact list changes, then observes corresponding conversations
      */
     fun observeUserConversations(userId: String): Flow<List<Conversation>> = callbackFlow {
-        // 监听用户的联系人列表（包括个人联系人和群组）
+        // Observe user's contact list (including private contacts and groups)
         val contactsListener = usersCollection
             .document(userId)
             .collection("contacts")
@@ -955,7 +953,7 @@ class FirebaseDataSource @Inject constructor(
                     return@addSnapshotListener
                 }
 
-                // **手动构造 Contact 对象，确保 isPending 和 isNew 字段被正确读取**
+                // Manually construct Contact objects to ensure isPending and isNew fields are read correctly
                 val contacts = contactsSnapshot?.documents?.mapNotNull { doc ->
                     try {
                         val data = doc.data
@@ -984,7 +982,7 @@ class FirebaseDataSource @Inject constructor(
                     }
                 } ?: emptyList()
 
-                // 详细日志：显示所有 contacts 的状态
+                // Detailed log: show all contacts' status
                 Log.d(TAG, "observeUserConversations: ====== ALL CONTACTS ======")
                 contacts.forEach { contact ->
                     val status = when {
@@ -997,21 +995,21 @@ class FirebaseDataSource @Inject constructor(
                     Log.d(TAG, "  Contact ${contact.contactId}: isNew=${contact.isNew}, isPending=${contact.isPending}, conversationId=${contact.conversationId} → $status")
                 }
 
-                // 过滤出已确认的联系人
-                // 只保留：isNew = false && isPending = false 的联系人和群组
+                // Filter confirmed contacts
+                // Only keep: isNew = false && isPending = false contacts and groups
                 val confirmedContacts = contacts.filter { contact ->
-                    // 群组直接显示
+                    // Groups are always shown
                     if (contact.type == "GROUP") {
                         true
                     } else {
-                        // 个人联系人：必须是已确认的好友（isNew = false && isPending = false）
+                        // Private contacts: must be confirmed friends (isNew = false && isPending = false)
                         !contact.isNew && !contact.isPending
                     }
                 }
 
                 Log.d(TAG, "observeUserConversations: Total contacts: ${contacts.size}, Confirmed: ${confirmedContacts.size}, Pending: ${contacts.size - confirmedContacts.size}")
 
-                // 提取所有 conversationId（无论是个人还是群组）
+                // Extract all conversationIds (both private and group)
                 val conversationIds = confirmedContacts.mapNotNull {
                     it.conversationId.takeIf { id -> id.isNotEmpty() }
                 }
@@ -1024,9 +1022,9 @@ class FirebaseDataSource @Inject constructor(
                     return@addSnapshotListener
                 }
 
-                // 监听这些会话的变化
-                // 由于 Firebase 不支持直接监听多个文档 ID，我们需要分批监听或使用组合查询
-                // 这里使用一个简单的方法：查询所有匹配的会话
+                // Observe these conversations' changes
+                // Since Firebase doesn't support directly observing multiple document IDs, we need to batch observe or use combined queries
+                // Here we use a simple approach: query all matching conversations
                 conversationsCollection
                     .whereEqualTo("isActive", true)
                     .addSnapshotListener { conversationsSnapshot, conversationsError ->
@@ -1036,7 +1034,7 @@ class FirebaseDataSource @Inject constructor(
                             return@addSnapshotListener
                         }
 
-                        // 过滤出属于用户的会话（包括个人和群组）
+                        // Filter conversations belonging to user (both private and group)
                         val allConversations = conversationsSnapshot?.documents?.mapNotNull { doc ->
                             if (conversationIds.contains(doc.id)) {
                                 doc.toObject(Conversation::class.java)?.copy(id = doc.id)
@@ -1046,21 +1044,21 @@ class FirebaseDataSource @Inject constructor(
                         Log.d(TAG, "observeUserConversations: Received ${allConversations.size} conversations from Firestore")
                         Log.d(TAG, "observeUserConversations: Breakdown - ${allConversations.count { it.type == ConversationType.GROUP }} groups, ${allConversations.count { it.type == ConversationType.PRIVATE }} private")
 
-                        // 在客户端按时间排序
+                        // Sort by time on client side
                         val sortedConversations = allConversations.sortedByDescending { it.lastMessageTime }
                         trySend(sortedConversations)
                     }
             }
 
         awaitClose {
-            // 注意：这里只移除最外层的监听器
-            // 内层监听器会在外层监听器触发时自动更新
+            // Note: only remove the outermost listener here
+            // Inner listeners will be automatically updated when outer listener fires
             contactsListener.remove()
         }
     }
 
     /**
-     * 获取单个会话信息
+     * Get single conversation info
      */
     suspend fun getConversation(conversationId: String): Result<Conversation?> = runCatching {
         val doc = conversationsCollection
@@ -1068,19 +1066,19 @@ class FirebaseDataSource @Inject constructor(
             .get()
             .await()
 
-        // 手动映射并设置 id
+        // Manually map and set id
         doc.toObject(Conversation::class.java)?.copy(id = doc.id)
     }
 
     /**
-     * 生成新的会话 ID
+     * Generate new conversation ID
      */
     fun generateConversationId(): String {
         return conversationsCollection.document().id
     }
 
     /**
-     * 创建会话（不自动创建 contacts）
+     * Create conversation (without auto-creating contacts)
      */
     suspend fun createConversation(conversation: Conversation): Result<Unit> = runCatching {
         conversationsCollection
@@ -1090,7 +1088,7 @@ class FirebaseDataSource @Inject constructor(
     }
 
     /**
-     * 更新会话信息
+     * Update conversation info
      */
     suspend fun updateConversation(conversation: Conversation): Result<Unit> = runCatching {
         conversationsCollection
@@ -1100,7 +1098,7 @@ class FirebaseDataSource @Inject constructor(
     }
 
     /**
-     * 删除会话（标记为不活跃）
+     * Delete conversation (mark as inactive)
      */
     suspend fun deleteConversation(conversationId: String): Result<Unit> = runCatching {
         conversationsCollection
@@ -1109,10 +1107,10 @@ class FirebaseDataSource @Inject constructor(
             .await()
     }
 
-    // ==================== 消息相关 Message Operations ====================
+    // ==================== Message Operations ====================
 
     /**
-     * 发送消息
+     * Send message
      */
     suspend fun sendMessage(message: Message): Result<Message> = runCatching {
         val messageId = conversationsCollection
@@ -1156,7 +1154,7 @@ class FirebaseDataSource @Inject constructor(
     }
 
     /**
-     * 获取会话的消息列表
+     * Get message list for conversation
      */
     suspend fun getMessages(conversationId: String, limit: Int = 50): Result<List<Message>> = runCatching {
         val snapshot = conversationsCollection
@@ -1167,14 +1165,14 @@ class FirebaseDataSource @Inject constructor(
             .get()
             .await()
 
-        // 手动映射，确保 id 字段被正确设置为文档 ID
+        // Manually map to ensure id field is correctly set to document ID
         snapshot.documents.mapNotNull { doc ->
             doc.toObject(Message::class.java)?.copy(id = doc.id)
         }.reversed()
     }
 
     /**
-     * 监听会话的新消息
+     * Observe new messages in conversation
      */
     fun observeMessages(conversationId: String): Flow<List<Message>> = callbackFlow {
         val listener = conversationsCollection
@@ -1186,7 +1184,7 @@ class FirebaseDataSource @Inject constructor(
                     close(error)
                     return@addSnapshotListener
                 }
-                // 手动映射，确保 id 字段被正确设置为文档 ID
+                // Manually map to ensure id field is correctly set to document ID
                 val messages = snapshot?.documents?.mapNotNull { doc ->
                     doc.toObject(Message::class.java)?.copy(id = doc.id)
                 } ?: emptyList()
@@ -1196,7 +1194,7 @@ class FirebaseDataSource @Inject constructor(
     }
 
     /**
-     * 标记消息为已读
+     * Mark message as read
      */
     suspend fun markMessageAsRead(conversationId: String, messageId: String, userId: String): Result<Unit> = runCatching {
         val messageRef = conversationsCollection
@@ -1214,7 +1212,7 @@ class FirebaseDataSource @Inject constructor(
     }
 
     /**
-     * 清空会话未读数
+     * Clear conversation unread count
      */
     suspend fun clearUnreadCount(conversationId: String, userId: String): Result<Unit> = runCatching {
         val conversation = getConversation(conversationId).getOrNull()
@@ -1230,7 +1228,7 @@ class FirebaseDataSource @Inject constructor(
     }
 
     /**
-     * 删除消息
+     * Delete message
      */
     suspend fun deleteMessage(conversationId: String, messageId: String): Result<Unit> = runCatching {
         conversationsCollection
@@ -1242,7 +1240,7 @@ class FirebaseDataSource @Inject constructor(
     }
 
     /**
-     * 记录当前用户清空聊天的时间戳（单向清除）
+     * Record timestamp when current user clears chat (one-way clear)
      */
     suspend fun clearConversationForUser(conversationId: String, userId: String, clearedAt: Long): Result<Unit> = runCatching {
         conversationsCollection
@@ -1251,14 +1249,14 @@ class FirebaseDataSource @Inject constructor(
             .await()
     }
 
-    // ==================== 群组相关 Group Operations ====================
+    // ==================== Group Operations ====================
 
     /**
-     * 创建群组
-     * 1. 生成 groupId 和 conversationId
-     * 2. 创建群组记录（包含 conversationId）
-     * 3. 创建群聊会话（使用 groupId 作为 conversationId）
-     * 4. 为所有成员创建 contacts 记录
+     * Create group
+     * 1. Generate groupId and conversationId
+     * 2. Create group record (including conversationId)
+     * 3. Create group conversation (using groupId as conversationId)
+     * 4. Create contacts record for all members
      */
     suspend fun createGroup(group: Group): Result<Group> = runCatching {
         Log.d(TAG, "📝 createGroup: name=${group.name}, members=${group.memberIds.size}")
@@ -1321,7 +1319,7 @@ class FirebaseDataSource @Inject constructor(
     }
 
     /**
-     * 获取群组信息
+     * Get group info
      */
     suspend fun getGroup(groupId: String): Result<Group?> = runCatching {
         groupsCollection
@@ -1332,7 +1330,7 @@ class FirebaseDataSource @Inject constructor(
     }
 
     /**
-     * 更新群组信息
+     * Update group info
      */
     suspend fun updateGroup(group: Group): Result<Unit> = runCatching {
         groupsCollection
@@ -1342,7 +1340,7 @@ class FirebaseDataSource @Inject constructor(
     }
 
     /**
-     * 添加群成员
+     * Add group members
      */
     suspend fun addGroupMembers(groupId: String, memberIds: List<String>): Result<Unit> = runCatching {
         val group = getGroup(groupId).getOrNull() ?: throw Exception("Group not found")
@@ -1353,7 +1351,7 @@ class FirebaseDataSource @Inject constructor(
             .update("memberIds", updatedMembers)
             .await()
 
-        // 更新对应会话的参与者列表
+        // Update corresponding conversation participants list
         conversationsCollection
             .document(groupId)
             .update("participants", updatedMembers)
@@ -1361,37 +1359,37 @@ class FirebaseDataSource @Inject constructor(
     }
 
     /**
-     * 移除群成员
+     * Remove group member
      */
     suspend fun removeGroupMember(groupId: String, memberId: String): Result<Unit> = runCatching {
         Log.d(TAG, "🚪 removeGroupMember: groupId=$groupId, memberId=$memberId")
 
         val group = getGroup(groupId).getOrNull() ?: throw Exception("Group not found")
 
-        // 检查成员是否存在
+        // Check if member exists
         if (!group.memberIds.contains(memberId)) {
             Log.w(TAG, "⚠️ User $memberId is not a member of group $groupId")
-            return@runCatching  // 不是成员，直接返回成功
+            return@runCatching  // Not a member, return success
         }
 
         val updatedMembers = group.memberIds.filter { it != memberId }
         Log.d(TAG, "📝 Updating group members: ${group.memberIds.size} -> ${updatedMembers.size}")
 
-        // 1. 更新群组成员列表
+        // 1. Update group member list
         groupsCollection
             .document(groupId)
             .update("memberIds", updatedMembers)
             .await()
         Log.d(TAG, "✅ Updated groups/$groupId/memberIds")
 
-        // 2. 更新对应会话的参与者列表
+        // 2. Update corresponding conversation participants list
         conversationsCollection
             .document(groupId)
             .update("participants", updatedMembers)
             .await()
         Log.d(TAG, "✅ Updated conversations/$groupId/participants")
 
-        // 3. 从用户的 contacts 中删除该群组
+        // 3. Delete group from user's contacts
         usersCollection
             .document(memberId)
             .collection("contacts")
@@ -1404,7 +1402,7 @@ class FirebaseDataSource @Inject constructor(
     }
 
     /**
-     * 转让群主
+     * Transfer group ownership
      */
     suspend fun transferGroupOwnership(groupId: String, newOwnerId: String): Result<Unit> = runCatching {
         val group = getGroup(groupId).getOrNull() ?: throw Exception("Group not found")
@@ -1421,21 +1419,21 @@ class FirebaseDataSource @Inject constructor(
     }
 
     /**
-     * 解散群组
-     * 完整删除群组：
-     * 1. 从所有成员的 contacts 中删除该群组
-     * 2. 删除群组本身 (groups/{groupId})
-     * 3. 删除绑定的会话及其消息 (conversations/{groupId})
+     * Dismiss group
+     * Completely delete group:
+     * 1. Delete group from all members' contacts
+     * 2. Delete group itself (groups/{groupId})
+     * 3. Delete bound conversation and its messages (conversations/{groupId})
      */
     suspend fun dismissGroup(groupId: String): Result<Unit> = runCatching {
         Log.d(TAG, "💥 dismissGroup: groupId=$groupId")
 
-        // 1. 获取群组信息，获取所有成员列表
+        // 1. Get group info and member list
         val group = getGroup(groupId).getOrNull() ?: throw Exception("Group not found")
 
         Log.d(TAG, "📝 Group has ${group.memberIds.size} members to remove contacts")
 
-        // 2. 从所有成员的 contacts 中删除该群组
+        // 2. Delete group from all members' contacts
         group.memberIds.forEach { memberId ->
             try {
                 usersCollection
@@ -1447,11 +1445,11 @@ class FirebaseDataSource @Inject constructor(
                 Log.d(TAG, "✅ Deleted contact for user $memberId: users/$memberId/contacts/$groupId")
             } catch (e: Exception) {
                 Log.e(TAG, "⚠️ Failed to delete contact for user $memberId", e)
-                // 继续处理其他成员，不因为一个失败而中断
+                // Continue processing other members, don't interrupt due to one failure
             }
         }
 
-        // 3. 删除会话中的所有消息
+        // 3. Delete all messages in conversation
         try {
             val messagesSnapshot = conversationsCollection
                 .document(groupId)
@@ -1471,7 +1469,7 @@ class FirebaseDataSource @Inject constructor(
             Log.e(TAG, "⚠️ Failed to delete messages for conversation $groupId", e)
         }
 
-        // 4. 删除会话本身
+        // 4. Delete conversation itself
         try {
             conversationsCollection
                 .document(groupId)
@@ -1482,7 +1480,7 @@ class FirebaseDataSource @Inject constructor(
             Log.e(TAG, "⚠️ Failed to delete conversation $groupId", e)
         }
 
-        // 5. 删除群组本身
+        // 5. Delete group itself
         try {
             groupsCollection
                 .document(groupId)

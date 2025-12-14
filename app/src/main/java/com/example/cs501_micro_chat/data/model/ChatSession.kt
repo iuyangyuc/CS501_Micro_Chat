@@ -1,22 +1,21 @@
 /**
  * Conversation.kt (renamed from ChatSession.kt)
  *
- * 会话数据模型 - 表示聊天会话（私聊或群聊）
  * Conversation Data Model - Represents chat conversations (private or group)
  *
- * Firebase 路径: /conversations/{conversationId}
+ * Firebase Path: /conversations/{conversationId}
  *
- * @property id 会话唯一标识符
- * @property type 会话类型（私聊/群聊）
- * @property name 会话名称（私聊为对方用户名，群聊为群名）
- * @property avatarUrl 会话头像 URL
- * @property participants 参与者用户 ID 列表
- * @property lastMessage 最后一条消息
- * @property lastMessageTime 最后消息时间戳
- * @property unreadCount 未读消息数（针对特定用户）
- * @property createdAt 会话创建时间戳
- * @property createdBy 创建者用户 ID
- * @property isActive 是否活跃（用于标记已删除的会话）
+ * @property id Conversation unique identifier
+ * @property type Conversation type (private/group)
+ * @property name Conversation name (other user's name for private, group name for group)
+ * @property avatarUrl Conversation avatar URL
+ * @property participants List of participant user IDs
+ * @property lastMessage Last message content
+ * @property lastMessageTime Last message timestamp
+ * @property unreadCount Unread message count (for specific user)
+ * @property createdAt Conversation creation timestamp
+ * @property createdBy Creator user ID
+ * @property isActive Whether active (used to mark deleted conversations)
  */
 package com.example.cs501_micro_chat.data.model
 
@@ -35,7 +34,7 @@ data class Conversation(
     val blockedParticipants: Map<String, Boolean> = emptyMap(), // userId -> isBlocked
     val clearedAt: Map<String, Long> = emptyMap() // userId -> last cleared timestamp
 ) {
-    // 转换为 Firebase Map 格式
+    // Convert to Firebase Map format
     fun toMap(): Map<String, Any> = mapOf(
         "id" to id,
         "type" to type.name,
@@ -52,14 +51,14 @@ data class Conversation(
         "clearedAt" to clearedAt
     )
 
-    // 获取特定用户的未读消息数
+    // Get unread message count for specific user
     fun getUnreadCount(userId: String): Int = unreadCounts[userId] ?: 0
 }
 
 enum class ConversationType {
-    PRIVATE,   // 私聊（1对1）
-    GROUP      // 群聊（多人）
+    PRIVATE,   // Private chat (1-on-1)
+    GROUP      // Group chat (multiple users)
 }
 
-// 保留 ChatSession 别名以兼容旧代码
+// Keep ChatSession alias for backward compatibility
 typealias ChatSession = Conversation
