@@ -846,7 +846,7 @@ class ChatDetailViewModel @Inject constructor(
 
             val result = summaryRepository.summarize(
                 messages = formatted,
-                instructions = summaryInstructionsFor(_interfaceLanguage.value)
+                instructions = summaryInstructionsFor(_preferredTranslationLanguage.value)
             )
 
             _summaryState.value = result.fold(
@@ -966,7 +966,8 @@ class ChatDetailViewModel @Inject constructor(
 
         viewModelScope.launch {
             val result = transcriptionRepository.transcribe(message.mediaUrl)
-            val shouldTranslate = _autoTranslateEnabled.value && message.senderId != _currentUserId.value
+            // Always provide a translated version using the user's auto-translate language
+            val shouldTranslate = true
             val targetLanguage = _preferredTranslationLanguage.value.displayName
 
             _voiceTranscriptionStates.update { current ->
