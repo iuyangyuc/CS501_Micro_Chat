@@ -27,7 +27,7 @@ data class User(
     val createdAt: Long = System.currentTimeMillis(),
     val lastSeenAt: Long = System.currentTimeMillis()
 ) {
-    // 转换为 Firebase Map 格式
+    // turn to map for firebase
     fun toMap(): Map<String, Any> = mapOf(
         "id" to id,
         "username" to username,
@@ -41,7 +41,7 @@ data class User(
 }
 
 enum class UserStatus {
-    ONLINE,    // 在线
-    OFFLINE,   // 离线
-    AWAY       // 离开
+    ONLINE,    // online
+    OFFLINE,   // offline
+    AWAY       // away
 }

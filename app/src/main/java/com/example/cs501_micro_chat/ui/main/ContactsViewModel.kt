@@ -137,7 +137,7 @@ class ContactsViewModel @Inject constructor(
                     // Load Conversation information for GROUP-type contacts
                     loadConversationsForGroups(confirmedContacts)
 
-                    // 分类并排序
+                    // sorting
                     val (groups, privateContacts) = confirmedContacts.partition { it.isGroup() }
 
                     // Sort by display name in alphabetical order

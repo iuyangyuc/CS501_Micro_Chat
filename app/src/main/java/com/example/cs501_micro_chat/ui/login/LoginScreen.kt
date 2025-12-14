@@ -1,45 +1,21 @@
 /**
  * LoginScreen.kt
  *
- * 登录界面 UI 组件 - 提供完整的登录视觉界面和交互
  * Login Screen UI Component - Provides complete login visual interface and interactions
  *
- * 主要功能 / Main Functions:
- * - 响应式动画登录卡片布局 / Responsive animated login card layout
- * - 邮箱登录表单（邮箱+密码）/ Email login form (email + password)
- * - Google 第三方登录界面 / Google third-party login interface
- * - 语言切换功能（中文/英文）/ Language switching (Chinese/English)
- * - 用户协议和隐私政策确认 / Terms and privacy policy confirmation
- * - 动态背景和过渡动画 / Dynamic background and transition animations
- * - 错误提示和加载状态显示 / Error messages and loading state display
+ * Main Functions:
+ * - Responsive animated login card layout
+ * - Email login form (email + password)
+ * - Google third-party login interface
+ * - Language switching (Chinese/English)
+ * - Terms and privacy policy confirmation
+ * - Dynamic background and transition animations
+ * - Error messages and loading state display
  *
- * 架构设计 / Architecture:
- * - 使用 Jetpack Compose 声明式 UI / Uses Jetpack Compose declarative UI
- * - 响应式布局自适应不同屏幕尺寸 / Responsive layout adapts to different screen sizes
- * - Material Design 3 设计规范 / Material Design 3 design guidelines
- *
- * @author CS501 Team
- * @date 2025-11-02
- */
-/**
- * LoginScreen.kt
- *
- * 登录界面 UI 组件 - 提供完整的登录视觉界面和交互
- * Login Screen UI Component - Provides complete login visual interface and interactions
- *
- * 主要功能 / Main Functions:
- * - 响应式动画登录卡片布局 / Responsive animated login card layout
- * - 邮箱登录表单（邮箱+密码）/ Email login form (email + password)
- * - Google 第三方登录界面 / Google third-party login interface
- * - 语言切换功能（中文/英文）/ Language switching (Chinese/English)
- * - 用户协议和隐私政策确认 / Terms and privacy policy confirmation
- * - 动态背景和过渡动画 / Dynamic background and transition animations
- * - 错误提示和加载状态显示 / Error messages and loading state display
- *
- * 架构设计 / Architecture:
- * - 使用 Jetpack Compose 声明式 UI / Uses Jetpack Compose declarative UI
- * - 响应式布局自适应不同屏幕尺寸 / Responsive layout adapts to different screen sizes
- * - Material Design 3 设计规范 / Material Design 3 design guidelines
+ * Architecture:
+ * - Uses Jetpack Compose declarative UI
+ * - Responsive layout adapts to different screen sizes
+ * - Material Design 3 design guidelines
  *
  * @author CS501 Team
  * @date 2025-11-02
@@ -181,15 +157,15 @@ fun LoginScreen(
         }
     }
 
+    @Suppress("UnusedBoxWithConstraintsScope")
     BoxWithConstraints(
         modifier = modifier
             .fillMaxSize()
             .background(backgroundColor)
     ) {
-        val density = LocalDensity.current
-        val boxConstraints = constraints
-        val width = with(density) { boxConstraints.maxWidth.toDp() }
-        val height = with(density) { boxConstraints.maxHeight.toDp() }
+        // Use BoxWithConstraintsScope properties directly
+        val width = this.maxWidth
+        val height = this.maxHeight
         val layoutDirection = LocalLayoutDirection.current
         val widthRatio = (width.value / 360f).coerceIn(1f, 3f)
         val heightRatio = (height.value / 720f).coerceIn(0.5f, 1.8f)
