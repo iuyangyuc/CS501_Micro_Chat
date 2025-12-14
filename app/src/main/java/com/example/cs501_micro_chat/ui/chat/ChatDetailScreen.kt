@@ -356,7 +356,8 @@ fun ChatDetailScreen(
             // Input bar
         Surface(
             color = surfaceColor,
-            shadowElevation = 8.dp
+            shadowElevation = 8.dp,
+            modifier = Modifier.navigationBarsPadding()
         ) {
                 Column {
                     // Attachment menu
@@ -487,8 +488,8 @@ fun ChatDetailScreen(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(innerPadding)
                 .background(backgroundColor)
+                .padding(innerPadding)
         ) {
             // Error message
             error?.let { errorMessage ->

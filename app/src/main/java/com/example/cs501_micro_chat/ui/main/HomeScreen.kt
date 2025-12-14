@@ -251,6 +251,8 @@ fun HomeScreen(
     // ========== Fixed layout: top bar + content + bottom bar ==========
 
     Scaffold(
+        modifier = Modifier.fillMaxSize(),
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             // ========== Fixed top bar (shared across all screens, including chat_detail) ==========
             Surface(
@@ -453,7 +455,10 @@ fun HomeScreen(
         NavHost(
             navController = navController,
             startDestination = HomeDestination.Chats.route,
-            modifier = Modifier.padding(paddingValues)
+            modifier = Modifier
+                .padding(paddingValues)
+                .consumeWindowInsets(paddingValues)
+                .fillMaxSize()
         ) {
                 composable(HomeDestination.Chats.route) {
                     val homeViewModel: HomeViewModel = hiltViewModel()
@@ -1862,7 +1867,8 @@ fun ChatDetailContent(
         // Input bar
         Surface(
             color = surfaceColorChat,
-            shadowElevation = 8.dp
+            shadowElevation = 8.dp,
+            modifier = Modifier.navigationBarsPadding()
         ) {
             Column {
                 if (isRecording) {
